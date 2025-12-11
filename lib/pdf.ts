@@ -529,7 +529,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
             ${invoice.dueDate ? `<p style="margin: 3px 0;"><strong>Due Date:</strong> ${invoice.dueDate}</p>` : ''}
           </div>
           <div style="text-align: right;">
-            <p style="margin: 3px 0;"><strong>Status:</strong> ${invoice.status || 'draft'}</p>
+            <p style="margin: 3px 0;"><strong>Status:</strong> ${invoice.status === 'payment_received' ? 'Payment Received' : invoice.status === 'invoice_sent' ? 'Invoice Sent' : invoice.status === 'draft' ? 'Draft' : invoice.status || 'Draft'}</p>
           </div>
         </div>
 

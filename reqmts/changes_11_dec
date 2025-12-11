@@ -1,0 +1,7 @@
+1. seal size - 2x, sign - 1.5x 
+2. Create quote button should transition to "Update quote" button after the quote is created (implement in other screens as well)
+3. Header - address, tel - not coming in new lines. if <br> tag is used, text is coming in new line.
+4. zero value quote - allowed for creation
+5. Invoices - status - change paid --> Payment received, Sent --> Invoice Sent
+6. ability to received partial amount against an invoice  - backlog
+7. 

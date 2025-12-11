@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { getAllQuotes } from '@/lib/storage'
-import type { Quote } from '@/lib/types'
+import { getAllInvoices, getAllPurchaseOrders, getAllCustomers, getAllVendors } from '@/lib/storage'
+import type { Invoice } from '@/lib/storage'
+import type { PurchaseOrder, Customer, Vendor } from '@/lib/types'
 
 interface CustomerReceivable {
   customerName: string
@@ -17,14 +18,25 @@ interface VendorPayable {
 }
 
 export default function DashboardPage() {
-  const [quotes, setQuotes] = useState<Quote[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [vendors, setVendors] = useState<Vendor[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const allQuotes = await getAllQuotes()
-        setQuotes(allQuotes)
+        const [allInvoices, allPurchaseOrders, allCustomers, allVendors] = await Promise.all([
+          getAllInvoices(),
+          getAllPurchaseOrders(),
+          getAllCustomers(),
+          getAllVendors(),
+        ])
+        setInvoices(allInvoices)
+        setPurchaseOrders(allPurchaseOrders)
+        setCustomers(allCustomers)
+        setVendors(allVendors)
       } catch (error) {
         console.error('Error loading data:', error)
       } finally {
@@ -35,12 +47,21 @@ export default function DashboardPage() {
     loadData()
   }, [])
 
-  // Calculate customer receivables
+  // Calculate customer receivables from invoices with 'invoice_sent' status
+  // Use pending amount (total - amountReceived) instead of total
+  const sentInvoices = invoices.filter((invoice) => invoice.status === 'invoice_sent')
   const customerReceivables: Map<string, number> = new Map()
-  quotes.forEach((quote) => {
-    const customerName = quote.customer?.company || quote.customer?.name || 'Unknown'
-    const current = customerReceivables.get(customerName) || 0
-    customerReceivables.set(customerName, current + quote.total)
+  
+  sentInvoices.forEach((invoice) => {
+    if (invoice.customerId) {
+      const customer = customers.find((c) => c.id === invoice.customerId)
+      const customerName = customer?.company || customer?.name || 'Unknown'
+      const total = invoice.total || 0
+      const amountReceived = invoice.amountReceived || 0
+      const pending = total - amountReceived
+      const current = customerReceivables.get(customerName) || 0
+      customerReceivables.set(customerName, current + pending)
+    }
   })
 
   const receivablesList: CustomerReceivable[] = Array.from(customerReceivables.entries()).map(
@@ -50,18 +71,36 @@ export default function DashboardPage() {
     })
   )
 
-  const totalReceivables = Array.from(customerReceivables.values()).reduce((a, b) => a + b, 0)
+  const totalReceivables = sentInvoices.reduce((sum, invoice) => {
+    const total = invoice.total || 0
+    const amountReceived = invoice.amountReceived || 0
+    return sum + (total - amountReceived)
+  }, 0)
 
-  // Mock vendor payables data
-  const vendorPayables: VendorPayable[] = [
-    { vendorName: 'Hertz Rental', pending: 1890.0 },
-    { vendorName: 'SafeDrive Co', pending: 0.0 },
-  ]
+  // Calculate vendor payables from purchase orders with 'accepted' status
+  const acceptedPurchaseOrders = purchaseOrders.filter((po) => po.status === 'accepted')
+  const vendorPayablesMap: Map<string, number> = new Map()
+  
+  acceptedPurchaseOrders.forEach((po) => {
+    if (po.vendorId) {
+      const vendor = vendors.find((v) => v.id === po.vendorId)
+      const vendorName = vendor?.name || 'Unknown'
+      const current = vendorPayablesMap.get(vendorName) || 0
+      vendorPayablesMap.set(vendorName, current + (po.amount || 0))
+    }
+  })
 
-  const totalPayables = vendorPayables.reduce((sum, v) => sum + v.pending, 0)
+  const vendorPayables: VendorPayable[] = Array.from(vendorPayablesMap.entries()).map(
+    ([vendorName, pending]) => ({
+      vendorName,
+      pending,
+    })
+  )
+
+  const totalPayables = acceptedPurchaseOrders.reduce((sum, po) => sum + (po.amount || 0), 0)
 
   // Mock salary due
-  const salaryDue = 5000.0
+  const salaryDue = 0.00
 
   if (loading) {
     return (
@@ -74,8 +113,8 @@ export default function DashboardPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Car Rental System</h1>
-        <p className="text-slate-500">Managed locally</p>
+        <h1 className="text-3xl font-bold text-slate-900">ALMSAR ALZAKI TRANSPORT AND MAINTENANCE</h1>
+        <p className="text-slate-500">Dashboard</p>
       </div>
 
       {/* Summary Cards */}
@@ -116,7 +155,7 @@ export default function DashboardPage() {
         {/* Receivable by Customer */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Receivable by Customer</CardTitle>
+            <CardTitle className="text-lg">Receivables by Customer</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -149,7 +188,7 @@ export default function DashboardPage() {
         {/* Payable by Vendor */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Payable by Vendor</CardTitle>
+            <CardTitle className="text-lg">Payables by Vendor</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -160,12 +199,20 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vendorPayables.map((item, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="text-slate-900 font-medium">{item.vendorName}</TableCell>
-                    <TableCell className="text-right">{item.pending.toFixed(2)}</TableCell>
+                {vendorPayables.length > 0 ? (
+                  vendorPayables.map((item, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="text-slate-900 font-medium">{item.vendorName}</TableCell>
+                      <TableCell className="text-right">{item.pending.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center text-slate-500 py-4">
+                      No data
+                    </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </CardContent>

@@ -71,11 +71,11 @@ export function Sidebar() {
       <div className="p-6 border-b border-slate-700">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-lg">
-            CR
+            AM
           </div>
           <div className="flex-1">
-            <div className="font-bold text-sm">Car Rental</div>
-            <div className="text-xs text-slate-400">Single-user · On-prem</div>
+            <div className="font-bold text-sm">ALMSAR ALZAKI T&M</div>
+            {/* <div className="text-xs text-slate-400">Single-user · On-prem</div> */}
           </div>
         </div>
       </div>

@@ -396,7 +396,8 @@ export interface Invoice {
   subtotal: number
   tax: number
   total: number
-  status?: string // draft, sent, paid
+  amountReceived?: number // Amount received from customer (defaults to 0)
+  status?: string // draft, invoice_sent, payment_received
   notes?: string
   createdAt?: string
 }

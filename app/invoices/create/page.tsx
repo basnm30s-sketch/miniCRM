@@ -37,6 +37,7 @@ export default function CreateInvoicePage() {
     subtotal: 0,
     tax: 0,
     total: 0,
+    amountReceived: 0,
     status: 'draft',
     notes: '',
   })
@@ -296,8 +297,8 @@ export default function CreateInvoicePage() {
                     className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
                   >
                     <option value="draft">Draft</option>
-                    <option value="sent">Sent</option>
-                    <option value="paid">Paid</option>
+                    <option value="invoice_sent">Invoice Sent</option>
+                    <option value="payment_received">Payment Received</option>
                   </select>
                 </div>
               </div>
@@ -327,6 +328,30 @@ export default function CreateInvoicePage() {
                     className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
                   />
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="amountReceived" className="text-slate-700">
+                  Amount Received (AED)
+                </Label>
+                <input
+                  id="amountReceived"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={invoice.total || 0}
+                  value={invoice.amountReceived || 0}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value) || 0
+                    if (value <= (invoice.total || 0)) {
+                      setInvoice({ ...invoice, amountReceived: value })
+                    }
+                  }}
+                  className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Pending: AED {((invoice.total || 0) - (invoice.amountReceived || 0)).toFixed(2)}
+                </p>
               </div>
 
               <div>
@@ -514,6 +539,19 @@ export default function CreateInvoicePage() {
               <div className="flex justify-between text-lg font-bold pt-2">
                 <span className="text-slate-700">Total:</span>
                 <span className="text-blue-600">AED {invoice.total?.toFixed(2) || '0.00'}</span>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Amount Received:</span>
+                  <span className="font-semibold text-green-600">AED {(invoice.amountReceived || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Pending:</span>
+                  <span className="font-semibold text-orange-600">
+                    AED {((invoice.total || 0) - (invoice.amountReceived || 0)).toFixed(2)}
+                  </span>
+                </div>
               </div>
 
               <div className="pt-4 space-y-2">

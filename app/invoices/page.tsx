@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast'
 import {
   getAllInvoices,
   deleteInvoice,
+  saveInvoice,
   getAllCustomers,
   getAdminSettings,
 } from '@/lib/storage'
@@ -33,6 +34,8 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null)
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
+  const [savingAmount, setSavingAmount] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -84,12 +87,25 @@ export default function InvoicesPage() {
 
   const getStatusColor = (status?: string) => {
     switch (status) {
-      case 'paid':
+      case 'payment_received':
         return 'bg-green-100 text-green-800'
-      case 'sent':
+      case 'invoice_sent':
         return 'bg-blue-100 text-blue-800'
       default:
         return 'bg-slate-100 text-slate-800'
+    }
+  }
+
+  const getStatusDisplay = (status?: string) => {
+    switch (status) {
+      case 'payment_received':
+        return 'Payment Received'
+      case 'invoice_sent':
+        return 'Invoice Sent'
+      case 'draft':
+        return 'Draft'
+      default:
+        return status || 'Draft'
     }
   }
 
@@ -125,6 +141,38 @@ export default function InvoicesPage() {
       )
     }
     return content
+  }
+
+  const handleAmountReceivedChange = async (invoiceId: string, newAmount: number, invoiceTotal: number) => {
+    if (newAmount < 0 || newAmount > invoiceTotal) {
+      toast({
+        title: 'Validation Error',
+        description: `Amount received cannot exceed invoice total of AED ${invoiceTotal.toFixed(2)}`,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setSavingAmount(true)
+      const invoice = invoices.find((inv) => inv.id === invoiceId)
+      if (!invoice) return
+
+      const updatedInvoice: Invoice = {
+        ...invoice,
+        amountReceived: newAmount,
+      }
+
+      await saveInvoice(updatedInvoice)
+      await loadData()
+      toast({ title: 'Success', description: 'Amount received updated successfully' })
+    } catch (err) {
+      console.error('Error updating amount received:', err)
+      toast({ title: 'Error', description: 'Failed to update amount received', variant: 'destructive' })
+    } finally {
+      setSavingAmount(false)
+      setEditingInvoiceId(null)
+    }
   }
 
   if (loading) {
@@ -168,54 +216,106 @@ export default function InvoicesPage() {
                     <TableHead>Customer</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Total (AED)</TableHead>
+                    <TableHead className="text-right">Amt. Received (AED)</TableHead>
+                    <TableHead className="text-right">Pending (AED)</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="font-mono font-semibold text-slate-900">
-                        {renderCell(invoice.number)}
-                      </TableCell>
-                      <TableCell className="text-slate-900">{getCustomerName(invoice.customerId)}</TableCell>
-                      <TableCell className="text-slate-600">{invoice.date}</TableCell>
-                      <TableCell className="text-right font-semibold text-slate-900">
-                        AED {invoice.total?.toFixed(2) || '0.00'}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
-                          {invoice.status || 'draft'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end">
-                          <Link href={`/invoices/create?id=${invoice.id}`}>
-                            <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800">
-                              <Edit2 className="w-4 h-4" />
+                  {invoices.map((invoice) => {
+                    const amountReceived = invoice.amountReceived || 0
+                    const total = invoice.total || 0
+                    const pending = total - amountReceived
+                    const isEditing = editingInvoiceId === invoice.id
+
+                    return (
+                      <TableRow key={invoice.id}>
+                        <TableCell className="font-mono font-semibold text-slate-900">
+                          {renderCell(invoice.number)}
+                        </TableCell>
+                        <TableCell className="text-slate-900">{getCustomerName(invoice.customerId)}</TableCell>
+                        <TableCell className="text-slate-600">{invoice.date}</TableCell>
+                        <TableCell className="text-right font-semibold text-slate-900">
+                          AED {total.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max={total}
+                              defaultValue={amountReceived}
+                              onBlur={(e) => {
+                                const newAmount = parseFloat(e.target.value) || 0
+                                handleAmountReceivedChange(invoice.id, newAmount, total)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const newAmount = parseFloat((e.target as HTMLInputElement).value) || 0
+                                  handleAmountReceivedChange(invoice.id, newAmount, total)
+                                } else if (e.key === 'Escape') {
+                                  setEditingInvoiceId(null)
+                                }
+                              }}
+                              autoFocus
+                              className="w-24 px-2 py-1 border border-blue-300 rounded text-sm text-slate-900 text-right"
+                              disabled={savingAmount}
+                            />
+                          ) : (
+                            <span
+                              className="text-slate-900 cursor-pointer hover:text-blue-600"
+                              onClick={() => setEditingInvoiceId(invoice.id)}
+                              title="Click to edit"
+                            >
+                              AED {amountReceived.toFixed(2)}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {pending === 0 ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Paid
+                            </span>
+                          ) : (
+                            <span className="font-semibold text-orange-600">AED {pending.toFixed(2)}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
+                            {getStatusDisplay(invoice.status)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-2 justify-end">
+                            <Link href={`/invoices/create?id=${invoice.id}`}>
+                              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800">
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                            </Link>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownloadPDF(invoice)}
+                              title="Download PDF"
+                              className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
+                            >
+                              <Download className="w-4 h-4" />
                             </Button>
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownloadPDF(invoice)}
-                            title="Download PDF"
-                            className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteClick(invoice.id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteClick(invoice.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
