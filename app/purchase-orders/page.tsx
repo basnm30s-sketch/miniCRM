@@ -205,7 +205,7 @@ export default function PurchaseOrdersPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDownloadPDF(po)}
-                            title="Download PDF"
+                            title="Save PDF"
                             className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
                           >
                             <Download className="w-4 h-4" />

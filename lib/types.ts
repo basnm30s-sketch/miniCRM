@@ -95,6 +95,7 @@ export interface Employee {
   name: string;
   employeeId: string;
   role?: string;
+  paymentType?: 'hourly' | 'monthly';
   hourlyRate?: number;
   salary?: number;
   bankDetails?: string;
@@ -133,4 +134,33 @@ export interface POItem {
   unitPrice: number;
   tax?: number;
   total: number;
+}
+
+export interface Payslip {
+  id: string;
+  employeeId: string;
+  employee?: Employee; // populated on fetch
+  month: string; // YYYY-MM format
+  year: number;
+  baseSalary: number;
+  overtimeHours?: number;
+  overtimeRate?: number;
+  overtimePay?: number;
+  deductions: number;
+  netPay: number;
+  status: 'draft' | 'processed' | 'paid';
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SalaryCalculation {
+  employeeId: string;
+  employee: Employee;
+  basePay: number;
+  overtimeHours?: number;
+  overtimeRate?: number;
+  overtimePay?: number;
+  deductions: number;
+  netPay: number;
 }

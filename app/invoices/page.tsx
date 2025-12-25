@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Plus, Edit2, Download, Trash2 } from 'lucide-react'
+import { Plus, Edit2, Download, Trash2, FileSpreadsheet, FileType } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import {
   getAllInvoices,
@@ -15,6 +15,8 @@ import {
   getAdminSettings,
 } from '@/lib/storage'
 import { pdfRenderer } from '@/lib/pdf'
+import { excelRenderer } from '@/lib/excel'
+import { docxRenderer } from '@/lib/docx'
 import { Invoice } from '@/lib/storage'
 import type { AdminSettings } from '@/lib/types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -123,6 +125,40 @@ export default function InvoicesPage() {
     } catch (error) {
       console.error('Error generating PDF:', error)
       toast({ title: 'Error', description: 'Failed to generate PDF', variant: 'destructive' })
+    }
+  }
+
+  const handleDownloadExcel = async (invoice: Invoice) => {
+    try {
+      if (!adminSettings) {
+        toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
+        return
+      }
+      const customer = customers.find((c) => c.id === invoice.customerId)
+      const customerName = customer?.name || 'Unknown Customer'
+      const blob = await excelRenderer.renderInvoiceToExcel(invoice, adminSettings, customerName)
+      excelRenderer.downloadExcel(blob, `invoice-${invoice.number}.xlsx`)
+      toast({ title: 'Success', description: 'Excel file downloaded successfully' })
+    } catch (error) {
+      console.error('Error generating Excel:', error)
+      toast({ title: 'Error', description: 'Failed to generate Excel file', variant: 'destructive' })
+    }
+  }
+
+  const handleDownloadDocx = async (invoice: Invoice) => {
+    try {
+      if (!adminSettings) {
+        toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
+        return
+      }
+      const customer = customers.find((c) => c.id === invoice.customerId)
+      const customerName = customer?.name || 'Unknown Customer'
+      const blob = await docxRenderer.renderInvoiceToDocx(invoice, adminSettings, customerName)
+      docxRenderer.downloadDocx(blob, `invoice-${invoice.number}.docx`)
+      toast({ title: 'Success', description: 'Word document downloaded successfully' })
+    } catch (error) {
+      console.error('Error generating DOCX:', error)
+      toast({ title: 'Error', description: 'Failed to generate Word document', variant: 'destructive' })
     }
   }
 
@@ -298,10 +334,28 @@ export default function InvoicesPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDownloadPDF(invoice)}
-                              title="Download PDF"
+                              title="Save PDF"
                               className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
                             >
                               <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownloadExcel(invoice)}
+                              title="Save Excel"
+                              className="p-2 h-8 w-8 text-blue-600 hover:text-blue-700"
+                            >
+                              <FileSpreadsheet className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownloadDocx(invoice)}
+                              title="Save Word"
+                              className="p-2 h-8 w-8 text-purple-600 hover:text-purple-700"
+                            >
+                              <FileType className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="ghost"

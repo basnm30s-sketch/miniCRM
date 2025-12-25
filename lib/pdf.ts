@@ -6,6 +6,7 @@
 import { Quote, AdminSettings } from '@/lib/types'
 import type { PurchaseOrder } from '@/lib/types'
 import type { Invoice } from '@/lib/storage'
+import { getFileUrl } from '@/lib/api-client'
 
 export interface PDFRenderer {
   /**
@@ -231,10 +232,15 @@ export class ClientSidePDFRenderer implements PDFRenderer {
   }
 
   private buildQuoteHtml(quote: Quote, adminSettings: AdminSettings): string {
-  const logoImg = adminSettings.logoUrl ? `<img src="${adminSettings.logoUrl}" style="height: 60px; margin-right: 20px; object-fit: contain;" />` : ''
+  // Convert relative paths to absolute API URLs for images
+  const logoUrl = getFileUrl(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null)
+  const sealUrl = getFileUrl(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null)
+  const signatureUrl = getFileUrl(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null)
+  
+  const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 60px; margin-right: 20px; object-fit: contain;" />` : ''
   // Seal and signature are rendered in the footer so they move dynamically with document content
-  const sealImg = adminSettings.sealUrl ? `<img src="${adminSettings.sealUrl}" style="height: 80px; object-fit: contain;" />` : ''
-  const signatureImg = adminSettings.signatureUrl ? `<img src="${adminSettings.signatureUrl}" style="height: 60px; object-fit: contain;" />` : ''
+  const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 80px; object-fit: contain;" />` : ''
+  const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 60px; object-fit: contain;" />` : ''
 
     const itemsHtml = quote.items
       .map(
@@ -384,9 +390,14 @@ export class ClientSidePDFRenderer implements PDFRenderer {
   }
 
   private buildPurchaseOrderHtml(po: PurchaseOrder, adminSettings: AdminSettings, vendorName: string): string {
-    const logoImg = adminSettings.logoUrl ? `<img src="${adminSettings.logoUrl}" style="height: 60px; margin-right: 20px; object-fit: contain;" />` : ''
-    const sealImg = adminSettings.sealUrl ? `<img src="${adminSettings.sealUrl}" style="height: 80px; object-fit: contain;" />` : ''
-    const signatureImg = adminSettings.signatureUrl ? `<img src="${adminSettings.signatureUrl}" style="height: 60px; object-fit: contain;" />` : ''
+    // Convert relative paths to absolute API URLs for images
+    const logoUrl = getFileUrl(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null)
+    const sealUrl = getFileUrl(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null)
+    const signatureUrl = getFileUrl(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null)
+    
+    const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 60px; margin-right: 20px; object-fit: contain;" />` : ''
+    const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 80px; object-fit: contain;" />` : ''
+    const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 60px; object-fit: contain;" />` : ''
 
     const itemsHtml = po.items
       .map(
@@ -487,9 +498,14 @@ export class ClientSidePDFRenderer implements PDFRenderer {
   }
 
   private buildInvoiceHtml(invoice: Invoice, adminSettings: AdminSettings, customerName: string): string {
-    const logoImg = adminSettings.logoUrl ? `<img src="${adminSettings.logoUrl}" style="height: 60px; margin-right: 20px; object-fit: contain;" />` : ''
-    const sealImg = adminSettings.sealUrl ? `<img src="${adminSettings.sealUrl}" style="height: 80px; object-fit: contain;" />` : ''
-    const signatureImg = adminSettings.signatureUrl ? `<img src="${adminSettings.signatureUrl}" style="height: 60px; object-fit: contain;" />` : ''
+    // Convert relative paths to absolute API URLs for images
+    const logoUrl = getFileUrl(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null)
+    const sealUrl = getFileUrl(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null)
+    const signatureUrl = getFileUrl(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null)
+    
+    const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 60px; margin-right: 20px; object-fit: contain;" />` : ''
+    const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 80px; object-fit: contain;" />` : ''
+    const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 60px; object-fit: contain;" />` : ''
 
     const itemsHtml = invoice.items
       .map(

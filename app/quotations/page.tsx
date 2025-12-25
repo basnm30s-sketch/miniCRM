@@ -17,10 +17,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Download, Eye, Trash2, Plus } from 'lucide-react'
+import { Download, Eye, Trash2, Plus, FileText, FileSpreadsheet, FileType } from 'lucide-react'
 import { Edit3 } from 'lucide-react'
-import { getAllQuotes, deleteQuote, getAdminSettings } from '@/lib/storage'
+import { getAllQuotes, deleteQuote, getAdminSettings, convertQuoteToInvoice } from '@/lib/storage'
 import { ClientSidePDFRenderer } from '@/lib/pdf'
+import { excelRenderer } from '@/lib/excel'
+import { docxRenderer } from '@/lib/docx'
 import type { Quote } from '@/lib/types'
 
 export default function QuotationsPage() {
@@ -78,12 +80,79 @@ export default function QuotationsPage() {
     }
   }
 
+  const handleDownloadExcel = async (quote: Quote) => {
+    try {
+      const adminSettings = await getAdminSettings()
+      if (!adminSettings) {
+        toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
+        return
+      }
+
+      const blob = await excelRenderer.renderQuoteToExcel(quote, adminSettings)
+      excelRenderer.downloadExcel(blob, `quote-${quote.number}.xlsx`)
+      toast({ title: 'Success', description: 'Excel file downloaded successfully' })
+    } catch (error) {
+      console.error('Error generating Excel:', error)
+      toast({ title: 'Error', description: 'Failed to generate Excel file', variant: 'destructive' })
+    }
+  }
+
+  const handleDownloadDocx = async (quote: Quote) => {
+    try {
+      const adminSettings = await getAdminSettings()
+      if (!adminSettings) {
+        toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
+        return
+      }
+
+      const blob = await docxRenderer.renderQuoteToDocx(quote, adminSettings)
+      docxRenderer.downloadDocx(blob, `quote-${quote.number}.docx`)
+      toast({ title: 'Success', description: 'Word document downloaded successfully' })
+    } catch (error) {
+      console.error('Error generating DOCX:', error)
+      toast({ title: 'Error', description: 'Failed to generate Word document', variant: 'destructive' })
+    }
+  }
+
   const handlePreview = (quote: Quote) => {
     setPreviewShowTerms(false)
     setPreviewQuote(quote)
   }
 
   const closePreview = () => setPreviewQuote(null)
+
+  const handleCreateInvoice = (quote: Quote) => {
+    try {
+      // Validate quote has customer and items
+      if (!quote.customer || !quote.customer.id) {
+        toast({
+          title: 'Error',
+          description: 'Quote must have a customer to create an invoice',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      if (!quote.items || quote.items.length === 0) {
+        toast({
+          title: 'Error',
+          description: 'Quote must have at least one item to create an invoice',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      // Navigate to invoice create page with quoteId
+      router.push(`/invoices/create?quoteId=${quote.id}`)
+    } catch (error) {
+      console.error('Error creating invoice from quote:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to create invoice from quote',
+        variant: 'destructive',
+      })
+    }
+  }
 
   if (loading) {
     return (
@@ -167,10 +236,37 @@ export default function QuotationsPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleDownloadPDF(quote)}
-                              title="Download PDF"
+                              title="Save PDF"
                               className="p-2 h-8 w-8"
                             >
                               <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDownloadExcel(quote)}
+                              title="Save Excel"
+                              className="p-2 h-8 w-8 text-blue-600 hover:text-blue-700"
+                            >
+                              <FileSpreadsheet className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDownloadDocx(quote)}
+                              title="Save Word"
+                              className="p-2 h-8 w-8 text-purple-600 hover:text-purple-700"
+                            >
+                              <FileType className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCreateInvoice(quote)}
+                              title="Create Invoice"
+                              className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
+                            >
+                              <FileText className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="outline"

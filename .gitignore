@@ -10,3 +10,9 @@ coverage/
 .DS_Store
 Thumbs.db
 win-unpacked/
+
+# Data directory (keep structure, ignore files)
+data/*.db
+data/*.db-journal
+data/uploads/**/*
+!data/uploads/.gitkeep

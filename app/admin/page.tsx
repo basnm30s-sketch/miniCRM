@@ -16,6 +16,7 @@ import RichTextEditor from '@/components/ui/rich-text-editor'
 // Alerts replaced by toasts
 import { toast } from '@/hooks/use-toast'
 import { getAdminSettings, saveAdminSettings, initializeAdminSettings } from '@/lib/storage'
+import { uploadFile, getFileUrl } from '@/lib/api-client'
 import { AdminSettings } from '@/lib/types'
 
 export default function AdminSettingsPage() {
@@ -50,7 +51,7 @@ export default function AdminSettingsPage() {
     field: 'logoUrl' | 'sealUrl' | 'signatureUrl'
   ) => {
     const file = e.target.files?.[0]
-  if (!file || !settings) return
+    if (!file || !settings) return
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -65,16 +66,25 @@ export default function AdminSettingsPage() {
     }
 
     try {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string
-        setSettings({
-          ...settings,
-          [field]: base64,
-        })
-        toast({ title: 'Upload', description: `${field === 'logoUrl' ? 'Logo' : field === 'sealUrl' ? 'Seal' : 'Signature'} uploaded successfully` })
-      }
-      reader.readAsDataURL(file)
+      // Determine upload type based on field
+      let uploadType: 'logos' | 'documents' | 'signatures' = 'logos'
+      if (field === 'sealUrl') uploadType = 'logos' // Store seal in logos folder
+      else if (field === 'signatureUrl') uploadType = 'signatures'
+      else if (field === 'logoUrl') uploadType = 'logos'
+
+      // Upload file to server
+      const relativePath = await uploadFile(file, uploadType)
+      
+      // Update settings with file path
+      setSettings({
+        ...settings,
+        [field]: relativePath,
+      })
+      
+      toast({ 
+        title: 'Upload', 
+        description: `${field === 'logoUrl' ? 'Logo' : field === 'sealUrl' ? 'Seal' : 'Signature'} uploaded successfully` 
+      })
     } catch (err) {
       console.error('Failed to upload image:', err)
       toast({ title: 'Error', description: 'Failed to upload image', variant: 'destructive' })
@@ -158,13 +168,13 @@ export default function AdminSettingsPage() {
               id="address"
               value={settings.address}
               onChange={(e) => handleInputChange('address', e.target.value)}
-              placeholder="Street address, city, country"
-              rows={3}
+              placeholder="Street address, City, Country"
+              rows={5}
             />
           </div>
 
           <div>
-            <Label htmlFor="vatNumber">VAT Number</Label>
+            <Label htmlFor="vatNumber">TRN:</Label>
             <Input
               id="vatNumber"
               value={settings.vatNumber}
@@ -236,7 +246,7 @@ export default function AdminSettingsPage() {
             {settings.logoUrl && (
               <div className="mt-2">
                 <img
-                  src={settings.logoUrl}
+                  src={settings.logoUrl.startsWith('data:') ? settings.logoUrl : (getFileUrl(settings.logoUrl) || settings.logoUrl)}
                   alt="Logo preview"
                   style={{ maxHeight: '80px', maxWidth: '200px' }}
                   className="border rounded p-2"
@@ -267,7 +277,7 @@ export default function AdminSettingsPage() {
             {settings.sealUrl && (
               <div className="mt-2">
                 <img
-                  src={settings.sealUrl}
+                  src={settings.sealUrl.startsWith('data:') ? settings.sealUrl : (getFileUrl(settings.sealUrl) || settings.sealUrl)}
                   alt="Seal preview"
                   style={{ maxHeight: '100px', maxWidth: '100px' }}
                   className="border rounded p-2"
@@ -298,7 +308,7 @@ export default function AdminSettingsPage() {
             {settings.signatureUrl && (
               <div className="mt-2">
                 <img
-                  src={settings.signatureUrl}
+                  src={settings.signatureUrl.startsWith('data:') ? settings.signatureUrl : (getFileUrl(settings.signatureUrl) || settings.signatureUrl)}
                   alt="Signature preview"
                   style={{ maxHeight: '60px', maxWidth: '150px' }}
                   className="border rounded p-2"

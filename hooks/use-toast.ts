@@ -6,8 +6,7 @@ import * as React from 'react'
 import type { ToastActionElement, ToastProps } from '@/components/ui/toast'
 
 const TOAST_LIMIT = 1
-// Auto-dismiss toasts after 10 seconds
-export const TOAST_REMOVE_DELAY = 10000
+const TOAST_REMOVE_DELAY = 1000000
 
 type ToasterToast = ToastProps & {
   id: string
@@ -189,4 +188,4 @@ function useToast() {
   }
 }
 
-export { useToast, toast }
+export { useToast, toast, TOAST_REMOVE_DELAY }

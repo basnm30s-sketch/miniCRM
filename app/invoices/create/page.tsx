@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Plus, Trash2, Download } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Download, FileSpreadsheet, FileType } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import {
   getInvoiceById,
@@ -18,10 +18,14 @@ import {
   generateInvoiceNumber,
   generateId,
   getAdminSettings,
+  getQuoteById,
+  convertQuoteToInvoice,
 } from '@/lib/storage'
 import { pdfRenderer } from '@/lib/pdf'
+import { excelRenderer } from '@/lib/excel'
+import { docxRenderer } from '@/lib/docx'
 import { Invoice, InvoiceItem } from '@/lib/storage'
-import type { AdminSettings } from '@/lib/types'
+import type { AdminSettings, Quote } from '@/lib/types'
 
 export default function CreateInvoicePage() {
   const [invoice, setInvoice] = useState<Invoice>({
@@ -50,6 +54,7 @@ export default function CreateInvoicePage() {
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
+  const [sourceQuote, setSourceQuote] = useState<Quote | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -66,18 +71,43 @@ export default function CreateInvoicePage() {
         setPurchaseOrders(posData)
         setAdminSettings(settingsData)
 
-        // Check if editing existing invoice
+        // Check URL parameters
         const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
         const invoiceId = urlParams?.get('id')
+        const quoteId = urlParams?.get('quoteId')
 
         if (invoiceId) {
+          // Editing existing invoice
           const existing = await getInvoiceById(invoiceId)
           if (existing) {
             setInvoice(existing)
             setIsEditMode(true)
           }
+        } else if (quoteId) {
+          // Creating invoice from quote
+          try {
+            const quote = await getQuoteById(quoteId)
+            if (quote) {
+              setSourceQuote(quote)
+              const convertedInvoice = convertQuoteToInvoice(quote)
+              setInvoice(convertedInvoice)
+            } else {
+              toast({
+                title: 'Error',
+                description: 'Quote not found',
+                variant: 'destructive',
+              })
+            }
+          } catch (error: any) {
+            console.error('Error converting quote to invoice:', error)
+            toast({
+              title: 'Error',
+              description: error.message || 'Failed to convert quote to invoice',
+              variant: 'destructive',
+            })
+          }
         } else {
-          // Generate invoice number for new invoice
+          // New invoice
           const newNumber = generateInvoiceNumber()
           setInvoice((prev) => ({
             ...prev,
@@ -98,8 +128,11 @@ export default function CreateInvoicePage() {
 
   const calculateTotals = (items: InvoiceItem[], tax: number) => {
     const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice || 0), 0)
-    const total = subtotal + tax
-    return { subtotal, total }
+    // If items have per-item tax, sum them up; otherwise use the provided tax value
+    const itemTaxTotal = items.reduce((sum, item) => sum + (item.tax || 0), 0)
+    const finalTax = itemTaxTotal > 0 ? itemTaxTotal : tax
+    const total = subtotal + finalTax
+    return { subtotal, total, tax: finalTax }
   }
 
   const handleAddItem = () => {
@@ -133,19 +166,22 @@ export default function CreateInvoicePage() {
 
       const updated = { ...item, [field]: value }
 
-      // Recalculate item total
-      if (field === 'quantity' || field === 'unitPrice') {
-        updated.total = (updated.quantity || 0) * (updated.unitPrice || 0)
+      // Recalculate item total (including tax if present)
+      if (field === 'quantity' || field === 'unitPrice' || field === 'tax') {
+        const lineSubtotal = (updated.quantity || 0) * (updated.unitPrice || 0)
+        const lineTax = updated.tax || 0
+        updated.total = lineSubtotal + lineTax
       }
 
       return updated
     })
 
-    const { subtotal, total } = calculateTotals(newItems, invoice.tax)
+    const { subtotal, total, tax } = calculateTotals(newItems, invoice.tax)
     setInvoice({
       ...invoice,
       items: newItems,
       subtotal,
+      tax,
       total,
     })
   }
@@ -239,6 +275,72 @@ export default function CreateInvoicePage() {
     }
   }
 
+  const handleDownloadExcel = async () => {
+    if (!adminSettings) {
+      toast({ title: 'Error', description: 'Admin settings not loaded', variant: 'destructive' })
+      return
+    }
+
+    if (!invoice.customerId) {
+      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
+      return
+    }
+
+    if (invoice.items.length === 0) {
+      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+      return
+    }
+
+    const customer = customers.find((c) => c.id === invoice.customerId)
+    const customerName = customer?.name || 'Unknown Customer'
+
+    setGenerating(true)
+    try {
+      const excelBlob = await excelRenderer.renderInvoiceToExcel(invoice, adminSettings, customerName)
+      const filename = `invoice-${invoice.number}.xlsx`
+      excelRenderer.downloadExcel(excelBlob, filename)
+      toast({ title: 'Success', description: 'Excel file downloaded successfully' })
+    } catch (err) {
+      console.error('Failed to generate Excel:', err)
+      toast({ title: 'Error', description: 'Failed to generate Excel file', variant: 'destructive' })
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleDownloadDocx = async () => {
+    if (!adminSettings) {
+      toast({ title: 'Error', description: 'Admin settings not loaded', variant: 'destructive' })
+      return
+    }
+
+    if (!invoice.customerId) {
+      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
+      return
+    }
+
+    if (invoice.items.length === 0) {
+      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+      return
+    }
+
+    const customer = customers.find((c) => c.id === invoice.customerId)
+    const customerName = customer?.name || 'Unknown Customer'
+
+    setGenerating(true)
+    try {
+      const docxBlob = await docxRenderer.renderInvoiceToDocx(invoice, adminSettings, customerName)
+      const filename = `invoice-${invoice.number}.docx`
+      docxRenderer.downloadDocx(docxBlob, filename)
+      toast({ title: 'Success', description: 'Word document downloaded successfully' })
+    } catch (err) {
+      console.error('Failed to generate DOCX:', err)
+      toast({ title: 'Error', description: 'Failed to generate Word document', variant: 'destructive' })
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-8">
@@ -262,6 +364,13 @@ export default function CreateInvoicePage() {
         <p className="text-slate-500 mt-1">
           {isEditMode ? `Invoice ${invoice.number}` : 'Fill in the details below'}
         </p>
+        {sourceQuote && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-sm text-blue-800">
+              <span className="font-semibold">Created from Quote:</span> {sourceQuote.number} - {sourceQuote.customer?.name || 'N/A'}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-8">
@@ -557,7 +666,15 @@ export default function CreateInvoicePage() {
               <div className="pt-4 space-y-2">
                 <Button onClick={handleDownloadPDF} disabled={generating} className="w-full bg-green-600 hover:bg-green-700 text-white">
                   <Download className="w-4 h-4 mr-2" />
-                  {generating ? 'Generating PDF...' : 'Download PDF'}
+                  {generating ? 'Generating PDF...' : 'Save PDF'}
+                </Button>
+                <Button onClick={handleDownloadExcel} disabled={generating} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  {generating ? 'Generating Excel...' : 'Save Excel'}
+                </Button>
+                <Button onClick={handleDownloadDocx} disabled={generating} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                  <FileType className="w-4 h-4 mr-2" />
+                  {generating ? 'Generating Word...' : 'Save Word'}
                 </Button>
                 <Button onClick={handleSave} disabled={saving} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                   {saving ? 'Saving...' : isEditMode ? 'Update Invoice' : 'Create Invoice'}
