@@ -94,10 +94,28 @@ function createTables(database: any): void {
       quoteNumberPattern TEXT,
       currency TEXT,
       defaultTerms TEXT,
+      showRevenueTrend INTEGER DEFAULT 1,
+      showQuickActions INTEGER DEFAULT 1,
       createdAt TEXT,
       updatedAt TEXT
     )
   `)
+
+  // Migration: Add new columns if they don't exist
+  try {
+    const tableInfo = database.prepare("PRAGMA table_info(admin_settings)").all() as any[]
+    const columnNames = tableInfo.map((col: any) => col.name)
+    
+    if (!columnNames.includes('showRevenueTrend')) {
+      database.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 1')
+    }
+    if (!columnNames.includes('showQuickActions')) {
+      database.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 1')
+    }
+  } catch (error: any) {
+    // Ignore errors if columns already exist
+    console.log('Migration note:', error.message)
+  }
 
   // Customers
   database.exec(`

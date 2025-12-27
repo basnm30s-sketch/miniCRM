@@ -1,40 +1,42 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { getAdminSettings } from '@/lib/storage'
+import type { AdminSettings } from '@/lib/types'
 import {
-  LayoutDashboard,
+  Home,
   FileText,
-  ShoppingCart,
   Receipt,
   Users,
   Briefcase,
   Car,
   Users2,
-  Banknote,
+  BarChart3,
+  Settings,
+  FileEdit,
+  ChevronDown,
+  ChevronRight,
+  Database,
+  Wallet,
 } from 'lucide-react'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
-const navigationItems = [
-  {
-    label: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-  },
+const docGeneratorItems = [
   {
     label: 'Quotations',
     href: '/quotations',
     icon: FileText,
   },
   {
-    label: 'Purchase Orders',
-    href: '/purchase-orders',
-    icon: ShoppingCart,
-  },
-  {
     label: 'Invoices',
     href: '/invoices',
     icon: Receipt,
   },
+]
+
+const masterNavigationItems = [
   {
     label: 'Customers',
     href: '/customers',
@@ -58,42 +60,233 @@ const navigationItems = [
   {
     label: 'Payslips',
     href: '/payslips',
-    icon: Banknote,
+    icon: Wallet,
+  },
+]
+
+const allOtherNavigationItems = [
+  {
+    label: 'Reports',
+    href: '/reports',
+    icon: BarChart3,
+  },
+  {
+    label: 'Settings',
+    href: '/admin',
+    icon: Settings,
   },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
+  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
+  const [mastersOpen, setMastersOpen] = useState(() => {
+    return masterNavigationItems.some(
+      (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+    )
+  })
+  const [docGeneratorOpen, setDocGeneratorOpen] = useState(() => {
+    return docGeneratorItems.some(
+      (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+    )
+  })
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const settings = await getAdminSettings()
+        if (settings) {
+          // Ensure backward compatibility - default to true if not set
+          const settingsWithDefaults: AdminSettings = {
+            ...settings,
+            showReports: settings.showReports !== undefined 
+              ? (typeof settings.showReports === 'boolean' 
+                  ? settings.showReports 
+                  : Boolean(settings.showReports))
+              : true,
+          }
+          setAdminSettings(settingsWithDefaults)
+        }
+      } catch (error) {
+        console.error('Error loading settings in sidebar:', error)
+      }
+    }
+    loadSettings()
+  }, [pathname]) // Reload when pathname changes (e.g., navigating back from admin)
+
+  // Also reload settings when window gains focus (user returns to tab)
+  useEffect(() => {
+    const handleFocus = async () => {
+      try {
+        const settings = await getAdminSettings()
+        if (settings) {
+          const settingsWithDefaults: AdminSettings = {
+            ...settings,
+            showReports: settings.showReports !== undefined 
+              ? (typeof settings.showReports === 'boolean' 
+                  ? settings.showReports 
+                  : Boolean(settings.showReports))
+              : true,
+          }
+          setAdminSettings(settingsWithDefaults)
+        }
+      } catch (error) {
+        console.error('Error loading settings in sidebar on focus:', error)
+      }
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [])
+
+  // Filter navigation items based on settings
+  const otherNavigationItems = allOtherNavigationItems.filter((item) => {
+    if (item.href === '/reports') {
+      // Show Reports only if showReports is explicitly true
+      // If settings haven't loaded yet (adminSettings is null), show by default
+      if (adminSettings === null) return true
+      return adminSettings.showReports === true
+    }
+    return true // Always show Settings
+  })
+
+  const isActive = (href: string) => {
+    if (href === '/') {
+      return pathname === '/'
+    }
+    return pathname === href || pathname.startsWith(href + '/')
+  }
+
+  const isAnyMasterActive = masterNavigationItems.some((item) => isActive(item.href))
+  const isAnyDocGeneratorActive = docGeneratorItems.some((item) => isActive(item.href))
+  const isHomeActive = pathname === '/'
 
   return (
-    <aside className="w-64 bg-slate-900 text-white min-h-screen fixed left-0 top-0 flex flex-col">
+    <aside className="w-64 bg-[#001f3f] text-white min-h-screen fixed left-0 top-0 flex flex-col border-r border-blue-800 z-50">
       {/* Logo / Brand */}
-      <div className="p-6 border-b border-slate-700">
+      <div className="p-6 border-b border-blue-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-lg">
-            AM
+          <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+            <Car className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1">
-            <div className="font-bold text-sm">ALMSAR ALZAKI T&M</div>
-            {/* <div className="text-xs text-slate-400">Single-user · On-prem</div> */}
+            <div className="font-bold text-sm text-white">ALMSAR ALZAKI T&M</div>
+            <div className="text-xs text-blue-200">Management System</div>
           </div>
         </div>
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 p-4 space-y-2">
-        {navigationItems.map((item) => {
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {/* Home */}
+        <Link
+          href="/"
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
+            isHomeActive
+              ? 'bg-blue-600 text-white'
+              : 'text-blue-100 hover:bg-blue-900/50'
+          }`}
+        >
+          <Home className="w-5 h-5" />
+          <span>Home</span>
+        </Link>
+
+        {/* Doc Generator Section - Collapsible */}
+        <Collapsible open={docGeneratorOpen} onOpenChange={setDocGeneratorOpen}>
+          <CollapsibleTrigger
+            className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
+              isAnyDocGeneratorActive
+                ? 'bg-blue-700 text-white hover:bg-blue-600'
+                : 'text-blue-100 hover:bg-blue-900/50'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <FileEdit className="w-5 h-5" />
+              <span>Doc Generator</span>
+            </div>
+            {docGeneratorOpen ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-1 space-y-1 pl-4">
+            {docGeneratorItems.map((item) => {
+              const Icon = item.icon
+              const active = isActive(item.href)
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${
+                    active
+                      ? 'bg-blue-600 text-white'
+                      : 'text-blue-100 hover:bg-blue-900/50'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+          </CollapsibleContent>
+        </Collapsible>
+
+        {/* Masters Section - Collapsible */}
+        <Collapsible open={mastersOpen} onOpenChange={setMastersOpen}>
+          <CollapsibleTrigger
+            className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
+              isAnyMasterActive
+                ? 'bg-blue-700 text-white hover:bg-blue-600'
+                : 'text-blue-100 hover:bg-blue-900/50'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Database className="w-5 h-5" />
+              <span>Masters</span>
+            </div>
+            {mastersOpen ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-1 space-y-1 pl-4">
+            {masterNavigationItems.map((item) => {
+              const Icon = item.icon
+              const active = isActive(item.href)
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${
+                    active
+                      ? 'bg-blue-600 text-white'
+                      : 'text-blue-100 hover:bg-blue-900/50'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+          </CollapsibleContent>
+        </Collapsible>
+
+        {/* Other Navigation Items */}
+        {otherNavigationItems.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          const active = isActive(item.href)
           
           return (
             <Link
               key={item.href}
               href={item.href}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
-                isActive
+                active
                   ? 'bg-blue-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-800'
+                  : 'text-blue-100 hover:bg-blue-900/50'
               }`}
             >
               <Icon className="w-5 h-5" />
@@ -103,15 +296,17 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-slate-700">
-        <Link
-          href="/admin"
-          className="flex items-center gap-3 px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors text-sm"
-        >
-          <div className="w-5 h-5 bg-slate-600 rounded-full" />
-          <span>Admin</span>
-        </Link>
+      {/* Footer - User Profile */}
+      <div className="p-4 border-t border-blue-800">
+        <div className="flex items-center gap-3 px-4 py-2">
+          <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
+            <Users2 className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1">
+            <div className="text-xs font-medium text-white">Almsar Alzaki</div>
+            <div className="text-xs text-blue-200">almsar.uae@gmail.com</div>
+          </div>
+        </div>
       </div>
     </aside>
   )

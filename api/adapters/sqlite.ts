@@ -586,8 +586,43 @@ export const vehiclesAdapter = {
 export const adminAdapter = {
   get: (): any | null => {
     const db = getDb()
+    
+    // Ensure migration runs - check and add columns if needed
+    try {
+      const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all() as any[]
+      const columnNames = tableInfo.map((col: any) => col.name)
+      
+      if (!columnNames.includes('showRevenueTrend')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showQuickActions')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 1')
+      }
+    } catch (error: any) {
+      console.log('Migration check:', error.message)
+    }
+    
     const row = db.prepare('SELECT * FROM admin_settings LIMIT 1').get() as any
     if (!row) return null
+    
+    // Convert integer (0/1) to boolean, default to true if undefined
+    // Explicitly check: 0 -> false, 1 -> true, null/undefined -> true
+    const showRevenueTrend = (row.showRevenueTrend === 0) 
+      ? false 
+      : (row.showRevenueTrend === 1) 
+        ? true 
+        : true // default to true if null/undefined
+    const showQuickActions = (row.showQuickActions === 0)
+      ? false
+      : (row.showQuickActions === 1)
+        ? true
+        : true // default to true if null/undefined
+    const showReports = (row.showReports === 0)
+      ? false
+      : (row.showReports === 1)
+        ? true
+        : true // default to true if null/undefined
+    
     return {
       id: row.id,
       companyName: row.companyName || '',
@@ -599,6 +634,9 @@ export const adminAdapter = {
       quoteNumberPattern: row.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
       currency: row.currency || 'AED',
       defaultTerms: row.defaultTerms || '',
+      showRevenueTrend,
+      showQuickActions,
+      showReports,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }
@@ -606,17 +644,51 @@ export const adminAdapter = {
 
   save: (data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
-    const existing = adminAdapter.get()
     
+    // Ensure migration runs before save
+    try {
+      const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all() as any[]
+      const columnNames = tableInfo.map((col: any) => col.name)
+      
+      if (!columnNames.includes('showRevenueTrend')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showQuickActions')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showReports')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showReports INTEGER DEFAULT 1')
+      }
+    } catch (error: any) {
+      console.log('Migration check in save:', error.message)
+    }
+    
+    const now = new Date().toISOString()
+    
+    // Get existing record (but don't use its boolean values - use the data being saved)
+    const existing = db.prepare('SELECT id FROM admin_settings LIMIT 1').get() as any
+    
+    // Convert boolean to integer (SQLite doesn't have native boolean)
+    // Explicitly handle: false -> 0, true -> 1, undefined/null -> 1 (default)
+    const showRevenueTrend = (data.showRevenueTrend === false) ? 0 : 1
+    const showQuickActions = (data.showQuickActions === false) ? 0 : 1
+    const showReports = (data.showReports === false) ? 0 : 1
+    
+    console.log('Adapter save - converting:', {
+      showRevenueTrend: { input: data.showRevenueTrend, output: showRevenueTrend },
+      showQuickActions: { input: data.showQuickActions, output: showQuickActions },
+      showReports: { input: data.showReports, output: showReports },
+    })
+
     if (existing) {
       const stmt = db.prepare(`
         UPDATE admin_settings 
         SET companyName = ?, address = ?, vatNumber = ?, logoUrl = ?, sealUrl = ?, 
-            signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, updatedAt = ?
+            signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, 
+            showRevenueTrend = ?, showQuickActions = ?, showReports = ?, updatedAt = ?
         WHERE id = ?
       `)
-      stmt.run(
+      const result = stmt.run(
         data.companyName || '',
         data.address || '',
         data.vatNumber || '',
@@ -626,14 +698,18 @@ export const adminAdapter = {
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
         data.defaultTerms || '',
+        showRevenueTrend,
+        showQuickActions,
+        showReports,
         now,
         existing.id
       )
     } else {
       const stmt = db.prepare(`
         INSERT INTO admin_settings (id, companyName, address, vatNumber, logoUrl, sealUrl, 
-                                    signatureUrl, quoteNumberPattern, currency, defaultTerms, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    signatureUrl, quoteNumberPattern, currency, defaultTerms, 
+                                    showRevenueTrend, showQuickActions, showReports, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         data.id || 'settings_1',
@@ -646,6 +722,9 @@ export const adminAdapter = {
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
         data.defaultTerms || '',
+        showRevenueTrend,
+        showQuickActions,
+        showReports,
         now,
         now
       )

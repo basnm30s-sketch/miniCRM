@@ -102,77 +102,87 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
     const sealBuffer = await this.loadImageAsBuffer(adminSettings.sealUrl)
     const signatureBuffer = await this.loadImageAsBuffer(adminSettings.signatureUrl)
 
-    // Header section with logo and company name side by side
-    const headerTable = new Table({
-      rows: [
-        new TableRow({
+    // Logo - centered at top
+    if (logoBuffer) {
+      children.push(
+        new Paragraph({
           children: [
-            new TableCell({
-              children: logoBuffer
-                ? [
-                    new Paragraph({
-                      children: [
-                        new ImageRun({
-                          data: logoBuffer,
-                          transformation: {
-                            width: 200,
-                            height: 60,
-                          },
-                        }),
-                      ],
-                    }),
-                  ]
-                : [],
-              width: { size: 30, type: WidthType.PERCENTAGE },
-              margins: { top: 0, bottom: 0, left: 0, right: 200 },
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: adminSettings.companyName,
-                      bold: true,
-                      size: 28, // 14pt
-                    }),
-                  ],
-                }),
-                adminSettings.address
-                  ? new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: adminSettings.address,
-                          size: 22, // 11pt
-                        }),
-                      ],
-                    })
-                  : new Paragraph({ text: '' }),
-                adminSettings.vatNumber
-                  ? new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: `VAT: ${adminSettings.vatNumber}`,
-                          size: 22, // 11pt
-                        }),
-                      ],
-                    })
-                  : new Paragraph({ text: '' }),
-              ],
-              width: { size: 70, type: WidthType.PERCENTAGE },
-              margins: { top: 0, bottom: 0, left: 0, right: 0 },
+            new ImageRun({
+              data: logoBuffer,
+              transformation: {
+                width: 200,
+                height: 60,
+              },
             }),
           ],
-        }),
-      ],
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      borders: {
-        bottom: { style: BorderStyle.SINGLE, size: 6, color: '333333' },
-      },
-    })
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        })
+      )
+    }
 
-    children.push(headerTable)
+    // Company name - centered, bold
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: adminSettings.companyName,
+            bold: true,
+            size: 40, // 20pt
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 100 },
+      })
+    )
 
-    // Title - centered
+    // Address and VAT - centered
+    if (adminSettings.address) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: adminSettings.address,
+              size: 22, // 11pt
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 50 },
+        })
+      )
+    }
+
+    if (adminSettings.vatNumber) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `VAT: ${adminSettings.vatNumber}`,
+              size: 22, // 11pt
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        })
+      )
+    }
+
+    // Bottom border line
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: '' })],
+        border: {
+          bottom: {
+            color: '333333',
+            size: 24, // 12pt
+            style: BorderStyle.SINGLE,
+          },
+        },
+        spacing: { after: 200 },
+      })
+    )
+
+    // Title - centered, bold, larger
     children.push(
       new Paragraph({
         children: [
@@ -183,59 +193,52 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           }),
         ],
         alignment: AlignmentType.CENTER,
-        spacing: { before: 400, after: 400 },
+        spacing: { before: 200, after: 200 },
       })
     )
 
-    // Document metadata - two columns
-    const metadataTable = new Table({
-      rows: [
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: 'Quote #:', bold: true }),
-                    new TextRun({ text: ` ${quote.number}` }),
-                  ],
-                }),
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: 'Date:', bold: true }),
-                    new TextRun({ text: ` ${quote.date}` }),
-                  ],
-                }),
-                quote.validUntil
-                  ? new Paragraph({
-                      children: [
-                        new TextRun({ text: 'Valid Up To:', bold: true }),
-                        new TextRun({ text: ` ${quote.validUntil}` }),
-                      ],
-                    })
-                  : new Paragraph({ text: '' }),
-              ],
-              width: { size: 50, type: WidthType.PERCENTAGE },
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: 'Currency:', bold: true }),
-                    new TextRun({ text: ` ${quote.currency || 'AED'}` }),
-                  ],
-                  alignment: AlignmentType.RIGHT,
-                }),
-              ],
-              width: { size: 50, type: WidthType.PERCENTAGE },
-            }),
-          ],
-        }),
-      ],
-      width: { size: 100, type: WidthType.PERCENTAGE },
-    })
+    // Document metadata - simple paragraphs, not table
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Quote #: ', bold: true }),
+          new TextRun({ text: quote.number }),
+        ],
+        spacing: { after: 100 },
+      })
+    )
 
-    children.push(metadataTable)
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Date: ', bold: true }),
+          new TextRun({ text: quote.date }),
+        ],
+        spacing: { after: 100 },
+      })
+    )
+
+    if (quote.validUntil) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Valid Up To: ', bold: true }),
+            new TextRun({ text: quote.validUntil }),
+          ],
+          spacing: { after: 100 },
+        })
+      )
+    }
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Currency: ', bold: true }),
+          new TextRun({ text: quote.currency || 'AED' }),
+        ],
+        spacing: { after: 400 },
+      })
+    )
 
     // Customer info section with background
     children.push(
@@ -245,154 +248,63 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
             text: 'CUSTOMER',
             bold: true,
             size: 26, // 13pt
+            color: '0066CC', // Blue color
           }),
         ],
-        spacing: { before: 400, after: 200 },
+        spacing: { before: 200, after: 100 },
         shading: {
           type: ShadingType.SOLID,
-          color: 'F0F0F0',
-          fill: 'F0F0F0',
+          color: 'F9F9F9',
+          fill: 'F9F9F9',
         },
       })
     )
 
-    const customerRows: TableRow[] = [
-      new TableRow({
+    // Customer details as simple paragraphs
+    children.push(
+      new Paragraph({
         children: [
-          new TableCell({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({ text: 'Name:', bold: true }),
-                  new TextRun({ text: ` ${quote.customer.name}` }),
-                ],
-              }),
-            ],
-            width: { size: 20, type: WidthType.PERCENTAGE },
-          }),
-          new TableCell({
-            children: [
-              new Paragraph({
-                children: [new TextRun({ text: quote.customer.name })],
-              }),
-            ],
-            width: { size: 30, type: WidthType.PERCENTAGE },
-          }),
+          new TextRun({ text: quote.customer.name, bold: true }),
         ],
-      }),
-    ]
+        spacing: { after: 100 },
+      })
+    )
 
     if (quote.customer.company) {
-      customerRows.push(
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: 'Company:', bold: true }),
-                    new TextRun({ text: ` ${quote.customer.company}` }),
-                  ],
-                }),
-              ],
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: quote.customer.company })],
-                }),
-              ],
-            }),
-          ],
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: quote.customer.company })],
+          spacing: { after: 100 },
         })
       )
     }
 
     if (quote.customer.address) {
-      customerRows.push(
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: 'Address:', bold: true }),
-                    new TextRun({ text: ` ${quote.customer.address}` }),
-                  ],
-                }),
-              ],
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: quote.customer.address })],
-                }),
-              ],
-            }),
-          ],
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: quote.customer.address })],
+          spacing: { after: 100 },
         })
       )
     }
 
     if (quote.customer.email) {
-      customerRows.push(
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: 'Email:', bold: true }),
-                    new TextRun({ text: ` ${quote.customer.email}` }),
-                  ],
-                }),
-              ],
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: quote.customer.email })],
-                }),
-              ],
-            }),
-          ],
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `Email: ${quote.customer.email}` })],
+          spacing: { after: 100 },
         })
       )
     }
 
     if (quote.customer.phone) {
-      customerRows.push(
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: 'Phone:', bold: true }),
-                    new TextRun({ text: ` ${quote.customer.phone}` }),
-                  ],
-                }),
-              ],
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: quote.customer.phone })],
-                }),
-              ],
-            }),
-          ],
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `Phone: ${quote.customer.phone}` })],
+          spacing: { after: 200 },
         })
       )
     }
-
-    children.push(
-      new Table({
-        rows: customerRows,
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        margins: { top: 0, bottom: 200, left: 0, right: 0 },
-      })
-    )
 
     // Line items table with professional borders
     const lineItemRows: TableRow[] = [
@@ -410,6 +322,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 30, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -424,6 +337,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 10, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -438,6 +352,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -452,6 +367,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 10, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -466,6 +382,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -480,6 +397,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
       }),
@@ -499,6 +417,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   children: [new TextRun({ text: item.vehicleTypeLabel || '' })],
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -507,6 +426,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -515,6 +435,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -523,6 +444,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -531,6 +453,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -539,109 +462,165 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
           ],
         })
       )
     })
 
+    // Add totals rows to the same table for proper alignment
+    // Empty cells for first 4 columns, totals in last 2 columns
+    lineItemRows.push(
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            width: { size: 30, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            width: { size: 10, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            width: { size: 10, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: 'Subtotal:' })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: quote.subTotal.toFixed(2) })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+        ],
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: 'Total Tax:' })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: quote.totalTax.toFixed(2) })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+        ],
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'TOTAL:',
+                    bold: true,
+                    size: 28, // 14pt
+                  }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: quote.total.toFixed(2),
+                    bold: true,
+                    size: 28, // 14pt
+                  }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+        ],
+      })
+    )
+
     children.push(
       new Table({
         rows: lineItemRows,
         width: { size: 100, type: WidthType.PERCENTAGE },
         borders: {
-          top: { style: BorderStyle.SINGLE, size: 6, color: '333333' },
-          bottom: { style: BorderStyle.SINGLE, size: 6, color: '333333' },
+          top: { style: BorderStyle.SINGLE, size: 12, color: '333333' },
+          bottom: { style: BorderStyle.SINGLE, size: 12, color: '333333' },
           left: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
           right: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
           insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
           insideVertical: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
         },
-        margins: { top: 0, bottom: 400, left: 0, right: 0 },
+        margins: { top: 0, bottom: 200, left: 0, right: 0 },
       })
     )
-
-    // Totals section - right aligned
-    const totalsTable = new Table({
-      rows: [
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: 'Subtotal:', bold: true })],
-                }),
-              ],
-              width: { size: 70, type: WidthType.PERCENTAGE },
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: quote.subTotal.toFixed(2), bold: true })],
-                  alignment: AlignmentType.RIGHT,
-                }),
-              ],
-              width: { size: 30, type: WidthType.PERCENTAGE },
-            }),
-          ],
-        }),
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: 'Total Tax:', bold: true })],
-                }),
-              ],
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: quote.totalTax.toFixed(2), bold: true })],
-                  alignment: AlignmentType.RIGHT,
-                }),
-              ],
-            }),
-          ],
-        }),
-        new TableRow({
-          children: [
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: 'TOTAL:',
-                      bold: true,
-                      size: 28, // 14pt
-                    }),
-                  ],
-                }),
-              ],
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: quote.total.toFixed(2),
-                      bold: true,
-                      size: 28, // 14pt
-                    }),
-                  ],
-                  alignment: AlignmentType.RIGHT,
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
-      width: { size: 50, type: WidthType.PERCENTAGE },
-      alignment: AlignmentType.RIGHT,
-      margins: { top: 0, bottom: 400, left: 0, right: 0 },
-    })
-
-    children.push(totalsTable)
 
     // Notes section
     if (quote.notes) {
@@ -653,13 +632,13 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               bold: true,
             }),
           ],
-          spacing: { before: 400 },
+          spacing: { before: 200 },
         })
       )
       children.push(
         new Paragraph({
           children: [new TextRun({ text: quote.notes })],
-          spacing: { after: 400 },
+          spacing: { after: 200 },
         })
       )
     }
@@ -674,7 +653,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               bold: true,
             }),
           ],
-          spacing: { before: 400 },
+          spacing: { before: 200 },
         })
       )
 
@@ -694,6 +673,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           children.push(
             new Paragraph({
               children: [new TextRun({ text: line.trim() })],
+              spacing: { after: 100 },
             })
           )
         }
@@ -727,11 +707,11 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                       size: 20, // 10pt
                     }),
                   ],
-                  spacing: { before: 200 },
+                  spacing: { before: 100 },
                 }),
               ],
               width: { size: 50, type: WidthType.PERCENTAGE },
-              margins: { top: 400, bottom: 0, left: 0, right: 0 },
+              margins: { top: 200, bottom: 0, left: 0, right: 0 },
             }),
             new TableCell({
               children: [
@@ -757,11 +737,11 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                     }),
                   ],
                   alignment: AlignmentType.RIGHT,
-                  spacing: { before: 200 },
+                  spacing: { before: 100 },
                 }),
               ],
               width: { size: 50, type: WidthType.PERCENTAGE },
-              margins: { top: 400, bottom: 0, left: 0, right: 0 },
+              margins: { top: 200, bottom: 0, left: 0, right: 0 },
             }),
           ],
         }),
@@ -805,77 +785,87 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
     const sealBuffer = await this.loadImageAsBuffer(adminSettings.sealUrl)
     const signatureBuffer = await this.loadImageAsBuffer(adminSettings.signatureUrl)
 
-    // Header section with logo and company name side by side
-    const headerTable = new Table({
-      rows: [
-        new TableRow({
+    // Logo - centered at top
+    if (logoBuffer) {
+      children.push(
+        new Paragraph({
           children: [
-            new TableCell({
-              children: logoBuffer
-                ? [
-                    new Paragraph({
-                      children: [
-                        new ImageRun({
-                          data: logoBuffer,
-                          transformation: {
-                            width: 200,
-                            height: 60,
-                          },
-                        }),
-                      ],
-                    }),
-                  ]
-                : [],
-              width: { size: 30, type: WidthType.PERCENTAGE },
-              margins: { top: 0, bottom: 0, left: 0, right: 200 },
-            }),
-            new TableCell({
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: adminSettings.companyName,
-                      bold: true,
-                      size: 28, // 14pt
-                    }),
-                  ],
-                }),
-                adminSettings.address
-                  ? new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: adminSettings.address,
-                          size: 22, // 11pt
-                        }),
-                      ],
-                    })
-                  : new Paragraph({ text: '' }),
-                adminSettings.vatNumber
-                  ? new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: `VAT: ${adminSettings.vatNumber}`,
-                          size: 22, // 11pt
-                        }),
-                      ],
-                    })
-                  : new Paragraph({ text: '' }),
-              ],
-              width: { size: 70, type: WidthType.PERCENTAGE },
-              margins: { top: 0, bottom: 0, left: 0, right: 0 },
+            new ImageRun({
+              data: logoBuffer,
+              transformation: {
+                width: 200,
+                height: 60,
+              },
             }),
           ],
-        }),
-      ],
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      borders: {
-        bottom: { style: BorderStyle.SINGLE, size: 6, color: '333333' },
-      },
-    })
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        })
+      )
+    }
 
-    children.push(headerTable)
+    // Company name - centered, bold
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: adminSettings.companyName,
+            bold: true,
+            size: 40, // 20pt
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 100 },
+      })
+    )
 
-    // Title - centered
+    // Address and VAT - centered
+    if (adminSettings.address) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: adminSettings.address,
+              size: 22, // 11pt
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 50 },
+        })
+      )
+    }
+
+    if (adminSettings.vatNumber) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `VAT: ${adminSettings.vatNumber}`,
+              size: 22, // 11pt
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        })
+      )
+    }
+
+    // Bottom border line
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: '' })],
+        border: {
+          bottom: {
+            color: '333333',
+            size: 24, // 12pt
+            style: BorderStyle.SINGLE,
+          },
+        },
+        spacing: { after: 200 },
+      })
+    )
+
+    // Title - centered, bold, larger
     children.push(
       new Paragraph({
         children: [
@@ -886,7 +876,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           }),
         ],
         alignment: AlignmentType.CENTER,
-        spacing: { before: 400, after: 400 },
+        spacing: { before: 200, after: 200 },
       })
     )
 
@@ -900,52 +890,45 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
             ? 'Draft'
             : invoice.status || 'Draft'
 
-    const metadataRows: TableRow[] = [
-      new TableRow({
+    children.push(
+      new Paragraph({
         children: [
-          new TableCell({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({ text: 'Invoice #:', bold: true }),
-                  new TextRun({ text: ` ${invoice.number}` }),
-                ],
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({ text: 'Date:', bold: true }),
-                  new TextRun({ text: ` ${invoice.date}` }),
-                ],
-              }),
-              invoice.dueDate
-                ? new Paragraph({
-                    children: [
-                      new TextRun({ text: 'Due Date:', bold: true }),
-                      new TextRun({ text: ` ${invoice.dueDate}` }),
-                    ],
-                  })
-                : new Paragraph({ text: '' }),
-              new Paragraph({
-                children: [
-                  new TextRun({ text: 'Status:', bold: true }),
-                  new TextRun({ text: ` ${statusDisplay}` }),
-                ],
-              }),
-            ],
-            width: { size: 50, type: WidthType.PERCENTAGE },
-          }),
-          new TableCell({
-            children: [],
-            width: { size: 50, type: WidthType.PERCENTAGE },
-          }),
+          new TextRun({ text: 'Invoice #: ', bold: true }),
+          new TextRun({ text: invoice.number }),
         ],
-      }),
-    ]
+        spacing: { after: 100 },
+      })
+    )
 
     children.push(
-      new Table({
-        rows: metadataRows,
-        width: { size: 100, type: WidthType.PERCENTAGE },
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Date: ', bold: true }),
+          new TextRun({ text: invoice.date }),
+        ],
+        spacing: { after: 100 },
+      })
+    )
+
+    if (invoice.dueDate) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Due Date: ', bold: true }),
+            new TextRun({ text: invoice.dueDate }),
+          ],
+          spacing: { after: 100 },
+        })
+      )
+    }
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Status: ', bold: true }),
+          new TextRun({ text: statusDisplay }),
+        ],
+        spacing: { after: 400 },
       })
     )
 
@@ -957,46 +940,24 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
             text: 'CUSTOMER',
             bold: true,
             size: 26, // 13pt
+            color: '0066CC', // Blue color
           }),
         ],
-        spacing: { before: 400, after: 200 },
+        spacing: { before: 200, after: 100 },
         shading: {
           type: ShadingType.SOLID,
-          color: 'F0F0F0',
-          fill: 'F0F0F0',
+          color: 'F9F9F9',
+          fill: 'F9F9F9',
         },
       })
     )
 
     children.push(
-      new Table({
-        rows: [
-          new TableRow({
-            children: [
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: 'Name:', bold: true }),
-                      new TextRun({ text: ` ${customerName}` }),
-                    ],
-                  }),
-                ],
-                width: { size: 20, type: WidthType.PERCENTAGE },
-              }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [new TextRun({ text: customerName })],
-                  }),
-                ],
-                width: { size: 30, type: WidthType.PERCENTAGE },
-              }),
-            ],
-          }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: customerName, bold: true }),
         ],
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        margins: { top: 0, bottom: 200, left: 0, right: 0 },
+        spacing: { after: 200 },
       })
     )
 
@@ -1016,6 +977,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 30, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1030,6 +992,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 10, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1044,6 +1007,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1058,6 +1022,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
       }),
@@ -1075,6 +1040,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   children: [new TextRun({ text: item.description || '' })],
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1083,6 +1049,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1091,6 +1058,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1099,72 +1067,90 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
           ],
         })
       )
     })
 
-    children.push(
-      new Table({
-        rows: lineItemRows,
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: {
-          top: { style: BorderStyle.SINGLE, size: 6, color: '333333' },
-          bottom: { style: BorderStyle.SINGLE, size: 6, color: '333333' },
-          left: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
-          right: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
-          insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
-          insideVertical: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
-        },
-        margins: { top: 0, bottom: 400, left: 0, right: 0 },
-      })
-    )
-
-    // Totals section
-    const totalsRows: TableRow[] = [
+    // Add totals rows to the same table for proper alignment
+    // Empty cells for first 3 columns, totals in last column
+    lineItemRows.push(
       new TableRow({
         children: [
           new TableCell({
-            children: [
-              new Paragraph({
-                children: [new TextRun({ text: 'Subtotal:', bold: true })],
-              }),
-            ],
-            width: { size: 70, type: WidthType.PERCENTAGE },
-          }),
-          new TableCell({
-            children: [
-              new Paragraph({
-                children: [new TextRun({ text: invoice.subtotal.toFixed(2), bold: true })],
-                alignment: AlignmentType.RIGHT,
-              }),
-            ],
+            children: [new Paragraph({ text: '' })],
             width: { size: 30, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
-        ],
-      }),
-      new TableRow({
-        children: [
           new TableCell({
-            children: [
-              new Paragraph({
-                children: [new TextRun({ text: 'Tax:', bold: true })],
-              }),
-            ],
+            children: [new Paragraph({ text: '' })],
+            width: { size: 10, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
               new Paragraph({
-                children: [new TextRun({ text: (invoice.tax || 0).toFixed(2), bold: true })],
+                children: [new TextRun({ text: 'Subtotal:' })],
                 alignment: AlignmentType.RIGHT,
               }),
             ],
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: invoice.subtotal.toFixed(2) })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
       }),
       new TableRow({
         children: [
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: 'Tax:' })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: (invoice.tax || 0).toFixed(2) })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+        ],
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+          }),
           new TableCell({
             children: [
               new Paragraph({
@@ -1175,8 +1161,10 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                     size: 28, // 14pt
                   }),
                 ],
+                alignment: AlignmentType.RIGHT,
               }),
             ],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1191,43 +1179,66 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 alignment: AlignmentType.RIGHT,
               }),
             ],
+            margins: { top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
-      }),
-    ]
+      })
+    )
 
     if (invoice.amountReceived !== undefined && invoice.amountReceived > 0) {
-      totalsRows.push(
+      lineItemRows.push(
         new TableRow({
           children: [
             new TableCell({
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: 'Amount Received:', bold: true })],
-                }),
-              ],
+              children: [new Paragraph({ text: '' })],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            }),
+            new TableCell({
+              children: [new Paragraph({ text: '' })],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
                 new Paragraph({
-                  children: [new TextRun({ text: invoice.amountReceived.toFixed(2), bold: true })],
+                  children: [new TextRun({ text: 'Amount Received:' })],
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
-          ],
-        })
-      )
-
-      totalsRows.push(
-        new TableRow({
-          children: [
             new TableCell({
               children: [
                 new Paragraph({
-                  children: [new TextRun({ text: 'Pending:', bold: true })],
+                  children: [new TextRun({ text: invoice.amountReceived.toFixed(2) })],
+                  alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            }),
+          ],
+        }),
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ text: '' })],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            }),
+            new TableCell({
+              children: [new Paragraph({ text: '' })],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            }),
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: 'Pending:',
+                    }),
+                  ],
+                  alignment: AlignmentType.RIGHT,
+                }),
+              ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1235,12 +1246,12 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   children: [
                     new TextRun({
                       text: ((invoice.total || 0) - invoice.amountReceived).toFixed(2),
-                      bold: true,
                     }),
                   ],
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
             }),
           ],
         })
@@ -1249,10 +1260,17 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
 
     children.push(
       new Table({
-        rows: totalsRows,
-        width: { size: 50, type: WidthType.PERCENTAGE },
-        alignment: AlignmentType.RIGHT,
-        margins: { top: 0, bottom: 400, left: 0, right: 0 },
+        rows: lineItemRows,
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: {
+          top: { style: BorderStyle.SINGLE, size: 12, color: '333333' },
+          bottom: { style: BorderStyle.SINGLE, size: 12, color: '333333' },
+          left: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+          right: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+          insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
+          insideVertical: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
+        },
+        margins: { top: 0, bottom: 200, left: 0, right: 0 },
       })
     )
 
@@ -1266,13 +1284,13 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               bold: true,
             }),
           ],
-          spacing: { before: 400 },
+          spacing: { before: 200 },
         })
       )
       children.push(
         new Paragraph({
           children: [new TextRun({ text: invoice.notes })],
-          spacing: { after: 400 },
+          spacing: { after: 200 },
         })
       )
     }
@@ -1304,11 +1322,11 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                       size: 20, // 10pt
                     }),
                   ],
-                  spacing: { before: 200 },
+                  spacing: { before: 100 },
                 }),
               ],
               width: { size: 50, type: WidthType.PERCENTAGE },
-              margins: { top: 400, bottom: 0, left: 0, right: 0 },
+              margins: { top: 200, bottom: 0, left: 0, right: 0 },
             }),
             new TableCell({
               children: [
@@ -1334,11 +1352,11 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                     }),
                   ],
                   alignment: AlignmentType.RIGHT,
-                  spacing: { before: 200 },
+                  spacing: { before: 100 },
                 }),
               ],
               width: { size: 50, type: WidthType.PERCENTAGE },
-              margins: { top: 400, bottom: 0, left: 0, right: 0 },
+              margins: { top: 200, bottom: 0, left: 0, right: 0 },
             }),
           ],
         }),

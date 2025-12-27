@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import RichTextEditor from '@/components/ui/rich-text-editor'
 // Alerts replaced by toasts
 import { toast } from '@/hooks/use-toast'
@@ -30,7 +31,27 @@ export default function AdminSettingsPage() {
       try {
         const stored = await getAdminSettings()
         if (stored) {
-          setSettings(stored)
+          // Ensure boolean values are properly set (handle 0/1 from database)
+          // Explicitly check for false (0) vs true (1) vs undefined
+          const settingsWithBooleans: AdminSettings = {
+            ...stored,
+            showRevenueTrend: stored.showRevenueTrend === false || stored.showRevenueTrend === 0
+              ? false
+              : (stored.showRevenueTrend === true || stored.showRevenueTrend === 1
+                  ? true
+                  : true), // default to true if undefined
+            showQuickActions: stored.showQuickActions === false || stored.showQuickActions === 0
+              ? false
+              : (stored.showQuickActions === true || stored.showQuickActions === 1
+                  ? true
+                  : true), // default to true if undefined
+          showReports: stored.showReports === false || stored.showReports === 0
+              ? false
+              : (stored.showReports === true || stored.showReports === 1
+                  ? true
+                  : true), // default to true if undefined
+          }
+          setSettings(settingsWithBooleans)
         } else {
           const initialized = await initializeAdminSettings()
           setSettings(initialized)
@@ -91,7 +112,7 @@ export default function AdminSettingsPage() {
     }
   }
 
-  const handleInputChange = (field: keyof AdminSettings, value: string) => {
+  const handleInputChange = (field: keyof AdminSettings, value: string | boolean) => {
     if (settings) {
       setSettings({
         ...settings,
@@ -105,10 +126,52 @@ export default function AdminSettingsPage() {
 
     setSaving(true)
     try {
-      await saveAdminSettings({
+      // Save the exact boolean values from state
+      const settingsToSave: AdminSettings = {
         ...settings,
+        // Use the actual boolean value from state
+        showRevenueTrend: settings.showRevenueTrend === true ? true : false,
+        showQuickActions: settings.showQuickActions === true ? true : false,
+        showReports: settings.showReports === true ? true : false,
         updatedAt: new Date().toISOString(),
+      }
+      
+      console.log('Saving settings - before save:', {
+        stateValue: settings.showRevenueTrend,
+        savingValue: settingsToSave.showRevenueTrend,
       })
+      
+      await saveAdminSettings(settingsToSave)
+      
+      // Small delay to ensure database write completes
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Reload settings to ensure we have the latest from database
+      const reloaded = await getAdminSettings()
+      if (reloaded) {
+        // Convert values properly when reloading
+        const settingsWithBooleans: AdminSettings = {
+          ...reloaded,
+          showRevenueTrend: reloaded.showRevenueTrend === false || reloaded.showRevenueTrend === 0
+            ? false
+            : (reloaded.showRevenueTrend === true || reloaded.showRevenueTrend === 1 ? true : true),
+          showQuickActions: reloaded.showQuickActions === false || reloaded.showQuickActions === 0
+            ? false
+            : (reloaded.showQuickActions === true || reloaded.showQuickActions === 1 ? true : true),
+          showReports: reloaded.showReports === false || reloaded.showReports === 0
+            ? false
+            : (reloaded.showReports === true || reloaded.showReports === 1 ? true : true),
+        }
+        console.log('Reloaded settings:', {
+          showRevenueTrend: settingsWithBooleans.showRevenueTrend,
+          showQuickActions: settingsWithBooleans.showQuickActions,
+          raw: {
+            showRevenueTrend: reloaded.showRevenueTrend,
+            showQuickActions: reloaded.showQuickActions,
+          }
+        })
+        setSettings(settingsWithBooleans)
+      }
       toast({ title: 'Saved', description: 'Settings saved successfully' })
     } catch (err) {
       console.error('Failed to save settings:', err)
@@ -324,6 +387,59 @@ export default function AdminSettingsPage() {
               </div>
             )}
             <p className="text-sm text-gray-500 mt-1">Max size: 2MB. Recommended: PNG with transparency</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dashboard Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Dashboard Settings</CardTitle>
+          <CardDescription>
+            Control which sections are displayed on the home screen
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="showRevenueTrend">Show Revenue Trend Chart</Label>
+              <p className="text-sm text-gray-500">
+                Display the revenue trend chart on the home screen
+              </p>
+            </div>
+            <Switch
+              id="showRevenueTrend"
+              checked={settings.showRevenueTrend === true}
+              onCheckedChange={(checked) => handleInputChange('showRevenueTrend', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="showQuickActions">Show Quick Actions</Label>
+              <p className="text-sm text-gray-500">
+                Display the quick actions section on the home screen
+              </p>
+            </div>
+            <Switch
+              id="showQuickActions"
+              checked={settings.showQuickActions === true}
+              onCheckedChange={(checked) => handleInputChange('showQuickActions', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="showReports">Show Reports Menu</Label>
+              <p className="text-sm text-gray-500">
+                Display the Reports menu item in the sidebar
+              </p>
+            </div>
+            <Switch
+              id="showReports"
+              checked={settings.showReports === true}
+              onCheckedChange={(checked) => handleInputChange('showReports', checked)}
+            />
           </div>
         </CardContent>
       </Card>

@@ -465,41 +465,41 @@ export default function PayslipsPage() {
           {(() => {
             const stats = getMonthSummaryStats()
             return (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 mb-6">
                 <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-                  <CardContent className="p-5">
-                    <div className="text-sm text-green-700 mb-2 font-medium">Total Net Pay</div>
-                    <div className="text-3xl font-bold text-green-900">{stats.totalNetPay.toFixed(2)} AED</div>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-green-700 mb-1.5 font-medium">Total Net Pay</div>
+                    <div className="text-xl font-bold text-green-900">{stats.totalNetPay.toFixed(2)} AED</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                  <CardContent className="p-5">
-                    <div className="text-sm text-blue-700 mb-2 font-medium">Total Overtime Pay</div>
-                    <div className="text-3xl font-bold text-blue-900">{stats.totalOvertimePay.toFixed(2)} AED</div>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-blue-700 mb-1.5 font-medium">Total Overtime Pay</div>
+                    <div className="text-xl font-bold text-blue-900">{stats.totalOvertimePay.toFixed(2)} AED</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
-                  <CardContent className="p-5">
-                    <div className="text-sm text-red-700 mb-2 font-medium">Total Deductions</div>
-                    <div className="text-3xl font-bold text-red-900">{stats.totalDeductions.toFixed(2)} AED</div>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-red-700 mb-1.5 font-medium">Total Deductions</div>
+                    <div className="text-xl font-bold text-red-900">{stats.totalDeductions.toFixed(2)} AED</div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-5">
-                    <div className="text-sm text-slate-500 mb-2 font-medium">Total Employees</div>
-                    <div className="text-3xl font-bold text-slate-900">{stats.totalEmployees}</div>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-slate-500 mb-1.5 font-medium">Total Employees</div>
+                    <div className="text-xl font-bold text-slate-900">{stats.totalEmployees}</div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-5">
-                    <div className="text-sm text-slate-500 mb-2 font-medium">Employees with Overtime</div>
-                    <div className="text-3xl font-bold text-slate-900">{stats.employeesWithOvertime}</div>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-slate-500 mb-1.5 font-medium">Employees with Overtime</div>
+                    <div className="text-xl font-bold text-slate-900">{stats.employeesWithOvertime}</div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-5">
-                    <div className="text-sm text-slate-500 mb-2 font-medium">Employees with Deductions</div>
-                    <div className="text-3xl font-bold text-slate-900">{stats.employeesWithDeductions}</div>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-slate-500 mb-1.5 font-medium">Employees with Deductions</div>
+                    <div className="text-xl font-bold text-slate-900">{stats.employeesWithDeductions}</div>
                   </CardContent>
                 </Card>
               </div>
