@@ -1,0 +1,17 @@
+TC_ID,Entity_Type,Scenario_Description,Precondition,Action,Expected_Result
+TC-01,Customer,Delete customer with no references,Customer exists and is not linked to any quote or invoice,Delete customer,Customer is deleted successfully
+TC-02,Customer,Delete customer referenced in quote,Customer linked to at least one quote,Delete customer,Deletion blocked with error showing quote number(s)
+TC-03,Customer,Delete customer referenced in invoice,Customer linked to at least one invoice,Delete customer,Deletion blocked with error showing invoice number(s)
+TC-04,Customer,Delete customer referenced in both quote and invoice,Customer linked to both quote(s) and invoice(s),Delete customer,Deletion blocked with error showing both quote and invoice number(s)
+TC-05,Vendor,Delete vendor with no references,Vendor exists and is not linked to any purchase order or invoice,Delete vendor,Vendor is deleted successfully
+TC-06,Vendor,Delete vendor referenced in purchase order,Vendor linked to at least one purchase order,Delete vendor,Deletion blocked with appropriate error
+TC-07,Vendor,Delete vendor referenced in invoice,Vendor linked to at least one invoice,Delete vendor,Deletion blocked with appropriate error
+TC-08,Employee,Delete employee with no references,Employee exists and has no payslips,Delete employee,Employee is deleted successfully
+TC-09,Employee,Delete employee referenced in payslip,Employee linked to at least one payslip,Delete employee,Deletion blocked with error
+TC-10,Vehicle,Delete vehicle with no references,Vehicle exists and is not linked to any quote items,Delete vehicle,Vehicle is deleted successfully
+TC-11,Vehicle,Delete vehicle referenced in quote items,Vehicle linked to one or more quote items,Delete vehicle,Deletion blocked with error showing quote number(s)
+TC-12,Quote,Delete quote with no references,Quote exists and is not linked to any invoice,Delete quote,Quote is deleted successfully
+TC-13,Quote,Delete quote referenced in invoice,Quote linked to at least one invoice,Delete quote,Deletion blocked with appropriate error
+TC-14,Purchase Order,Delete purchase order with no references,Purchase order exists and is not linked to any invoice,Delete purchase order,Purchase order is deleted successfully
+TC-15,Purchase Order,Delete purchase order referenced in invoice,Purchase order linked to at least one invoice,Delete purchase order,Deletion blocked with appropriate error
+TC-16,Invoice,Delete invoice,Invoice exists,Delete invoice,Invoice is deleted successfully with no dependency checks

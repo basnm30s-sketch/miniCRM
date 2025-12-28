@@ -449,7 +449,7 @@ export default function CreatePurchaseOrderPage() {
                   className="w-full bg-green-600 hover:bg-green-700 text-white"
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  {generating ? 'Generating PDF...' : 'Download PDF'}
+                  {generating ? 'Generating PDF...' : 'Save PDF'}
                 </Button>
                 <Button
                   onClick={handleSave}

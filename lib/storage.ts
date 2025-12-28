@@ -1,19 +1,10 @@
 /**
- * Local storage utility using localStorage
- * Handles persistence of AdminSettings, Quotes, Customers, and Vehicles
+ * Storage utility - API client wrapper
+ * Provides same interface as before but uses backend API instead of localStorage
  */
 
-import { AdminSettings, Quote, Customer, Vehicle, Vendor, Employee, PurchaseOrder } from '@/lib/types'
-
-// Initialize localForage stores
-const STORE_ADMIN = 'admin_settings'
-const STORE_QUOTES = 'quotes'
-const STORE_CUSTOMERS = 'customers'
-const STORE_VEHICLES = 'vehicles'
-const STORE_VENDORS = 'vendors'
-const STORE_EMPLOYEES = 'employees'
-const STORE_PURCHASE_ORDERS = 'purchase_orders'
-const STORE_INVOICES = 'invoices'
+import { AdminSettings, Quote, Customer, Vehicle, Vendor, Employee, PurchaseOrder, Payslip } from '@/lib/types'
+import * as apiClient from './api-client'
 
 // Helper to generate unique IDs
 export function generateId(): string {
@@ -41,23 +32,11 @@ export function generateQuoteNumber(pattern: string): string {
 
 // --- AdminSettings ---
 export async function getAdminSettings(): Promise<AdminSettings | null> {
-  try {
-    if (typeof window === 'undefined') return null
-    const settings = localStorage.getItem(STORE_ADMIN)
-    return settings ? JSON.parse(settings) : null
-  } catch (err) {
-    console.error('Failed to get admin settings:', err)
-    return null
-  }
+  return apiClient.getAdminSettings()
 }
 
 export async function saveAdminSettings(settings: AdminSettings): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    localStorage.setItem(STORE_ADMIN, JSON.stringify(settings))
-  } catch (err) {
-    console.error('Failed to save admin settings:', err)
-  }
+  await apiClient.saveAdminSettings(settings)
 }
 
 export async function initializeAdminSettings(): Promise<AdminSettings> {
@@ -75,6 +54,9 @@ export async function initializeAdminSettings(): Promise<AdminSettings> {
     quoteNumberPattern: 'AAT-YYYYMMDD-NNNN',
     currency: 'AED',
     defaultTerms: `1. This quotation is valid for 30 days from the date of issue.\n2. Goods remain the property of the company until full payment is received.\n3. Any additional costs such as tolls, fines or damages are not included unless stated.\n4. Payment terms: as agreed in the contract.`,
+    showRevenueTrend: true,
+    showQuickActions: true,
+    showReports: true,
     createdAt: new Date().toISOString(),
   }
 
@@ -84,302 +66,129 @@ export async function initializeAdminSettings(): Promise<AdminSettings> {
 
 // --- Quotes ---
 export async function getAllQuotes(): Promise<Quote[]> {
-  try {
-    if (typeof window === 'undefined') return []
-    const data = localStorage.getItem(STORE_QUOTES)
-    return data ? JSON.parse(data) : []
-  } catch (err) {
-    console.error('Failed to get quotes:', err)
-    return []
-  }
+  return apiClient.getAllQuotes()
 }
 
 export async function getQuoteById(id: string): Promise<Quote | null> {
-  try {
-    if (typeof window === 'undefined') return null
-    const quotes = await getAllQuotes()
-    return quotes.find((q) => q.id === id) || null
-  } catch (err) {
-    console.error('Failed to get quote:', err)
-    return null
-  }
+  return apiClient.getQuoteById(id)
 }
 
 export async function saveQuote(quote: Quote): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const quotes = await getAllQuotes()
-    const index = quotes.findIndex((q) => q.id === quote.id)
-    if (index >= 0) {
-      quotes[index] = quote
-    } else {
-      quotes.push(quote)
-    }
-    localStorage.setItem(STORE_QUOTES, JSON.stringify(quotes))
-  } catch (err) {
-    console.error('Failed to save quote:', err)
-  }
+  await apiClient.saveQuote(quote)
 }
 
 export async function deleteQuote(id: string): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const quotes = await getAllQuotes()
-    const filtered = quotes.filter((q) => q.id !== id)
-    localStorage.setItem(STORE_QUOTES, JSON.stringify(filtered))
-  } catch (err) {
-    console.error('Failed to delete quote:', err)
-  }
+  await apiClient.deleteQuote(id)
 }
 
 // --- Customers ---
 export async function getAllCustomers(): Promise<Customer[]> {
-  try {
-    if (typeof window === 'undefined') return []
-    const data = localStorage.getItem(STORE_CUSTOMERS)
-    return data ? JSON.parse(data) : []
-  } catch (err) {
-    console.error('Failed to get customers:', err)
-    return []
-  }
+  return apiClient.getAllCustomers()
 }
 
 export async function getCustomerById(id: string): Promise<Customer | null> {
-  try {
-    if (typeof window === 'undefined') return null
-    const customers = await getAllCustomers()
-    return customers.find((c) => c.id === id) || null
-  } catch (err) {
-    console.error('Failed to get customer:', err)
-    return null
-  }
+  return apiClient.getCustomerById(id)
 }
 
 export async function saveCustomer(customer: Customer): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const customers = await getAllCustomers()
-    const index = customers.findIndex((c) => c.id === customer.id)
-    if (index >= 0) {
-      customers[index] = customer
-    } else {
-      customers.push(customer)
-    }
-    localStorage.setItem(STORE_CUSTOMERS, JSON.stringify(customers))
-  } catch (err) {
-    console.error('Failed to save customer:', err)
-  }
+  await apiClient.saveCustomer(customer)
 }
 
 export async function deleteCustomer(id: string): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const customers = await getAllCustomers()
-    const filtered = customers.filter((c) => c.id !== id)
-    localStorage.setItem(STORE_CUSTOMERS, JSON.stringify(filtered))
-  } catch (err) {
-    console.error('Failed to delete customer:', err)
-  }
+  await apiClient.deleteCustomer(id)
 }
 
 // --- Vehicles ---
 export async function getAllVehicles(): Promise<Vehicle[]> {
-  try {
-    if (typeof window === 'undefined') return []
-    const data = localStorage.getItem(STORE_VEHICLES)
-    return data ? JSON.parse(data) : []
-  } catch (err) {
-    console.error('Failed to get vehicles:', err)
-    return []
-  }
+  return apiClient.getAllVehicles()
 }
 
 export async function getVehicleById(id: string): Promise<Vehicle | null> {
-  try {
-    if (typeof window === 'undefined') return null
-    const vehicles = await getAllVehicles()
-    return vehicles.find((v) => v.id === id) || null
-  } catch (err) {
-    console.error('Failed to get vehicle:', err)
-    return null
-  }
+  return apiClient.getVehicleById(id)
 }
 
 export async function saveVehicle(vehicle: Vehicle): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const vehicles = await getAllVehicles()
-    const index = vehicles.findIndex((v) => v.id === vehicle.id)
-    if (index >= 0) {
-      vehicles[index] = vehicle
-    } else {
-      vehicles.push(vehicle)
-    }
-    localStorage.setItem(STORE_VEHICLES, JSON.stringify(vehicles))
-  } catch (err) {
-    console.error('Failed to save vehicle:', err)
-  }
+  await apiClient.saveVehicle(vehicle)
 }
 
 export async function deleteVehicle(id: string): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const vehicles = await getAllVehicles()
-    const filtered = vehicles.filter((v) => v.id !== id)
-    localStorage.setItem(STORE_VEHICLES, JSON.stringify(filtered))
-  } catch (err) {
-    console.error('Failed to delete vehicle:', err)
-  }
+  await apiClient.deleteVehicle(id)
 }
 
 // --- Vendors ---
 export async function getAllVendors(): Promise<Vendor[]> {
-  try {
-    if (typeof window === 'undefined') return []
-    const data = localStorage.getItem(STORE_VENDORS)
-    return data ? JSON.parse(data) : []
-  } catch (err) {
-    console.error('Failed to get vendors:', err)
-    return []
-  }
+  return apiClient.getAllVendors()
 }
 
 export async function getVendorById(id: string): Promise<Vendor | null> {
-  try {
-    if (typeof window === 'undefined') return null
-    const vendors = await getAllVendors()
-    return vendors.find((v) => v.id === id) || null
-  } catch (err) {
-    console.error('Failed to get vendor:', err)
-    return null
-  }
+  return apiClient.getVendorById(id)
 }
 
 export async function saveVendor(vendor: Vendor): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const vendors = await getAllVendors()
-    const index = vendors.findIndex((v) => v.id === vendor.id)
-    if (index >= 0) {
-      vendors[index] = vendor
-    } else {
-      vendors.push(vendor)
-    }
-    localStorage.setItem(STORE_VENDORS, JSON.stringify(vendors))
-  } catch (err) {
-    console.error('Failed to save vendor:', err)
-  }
+  await apiClient.saveVendor(vendor)
 }
 
 export async function deleteVendor(id: string): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const vendors = await getAllVendors()
-    const filtered = vendors.filter((v) => v.id !== id)
-    localStorage.setItem(STORE_VENDORS, JSON.stringify(filtered))
-  } catch (err) {
-    console.error('Failed to delete vendor:', err)
-  }
+  await apiClient.deleteVendor(id)
 }
 
 // --- Employees ---
 export async function getAllEmployees(): Promise<Employee[]> {
-  try {
-    if (typeof window === 'undefined') return []
-    const data = localStorage.getItem(STORE_EMPLOYEES)
-    return data ? JSON.parse(data) : []
-  } catch (err) {
-    console.error('Failed to get employees:', err)
-    return []
-  }
+  return apiClient.getAllEmployees()
 }
 
 export async function getEmployeeById(id: string): Promise<Employee | null> {
-  try {
-    if (typeof window === 'undefined') return null
-    const employees = await getAllEmployees()
-    return employees.find((e) => e.id === id) || null
-  } catch (err) {
-    console.error('Failed to get employee:', err)
-    return null
-  }
+  return apiClient.getEmployeeById(id)
 }
 
 export async function saveEmployee(employee: Employee): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const employees = await getAllEmployees()
-    const index = employees.findIndex((e) => e.id === employee.id)
-    if (index >= 0) {
-      employees[index] = employee
-    } else {
-      employees.push(employee)
-    }
-    localStorage.setItem(STORE_EMPLOYEES, JSON.stringify(employees))
-  } catch (err) {
-    console.error('Failed to save employee:', err)
-  }
+  await apiClient.saveEmployee(employee)
 }
 
 export async function deleteEmployee(id: string): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const employees = await getAllEmployees()
-    const filtered = employees.filter((e) => e.id !== id)
-    localStorage.setItem(STORE_EMPLOYEES, JSON.stringify(filtered))
-  } catch (err) {
-    console.error('Failed to delete employee:', err)
-  }
+  await apiClient.deleteEmployee(id)
+}
+
+// --- Payslips ---
+export async function getAllPayslips(): Promise<Payslip[]> {
+  return apiClient.getAllPayslips()
+}
+
+export async function getPayslipById(id: string): Promise<Payslip | null> {
+  return apiClient.getPayslipById(id)
+}
+
+export async function getPayslipsByMonth(month: string): Promise<Payslip[]> {
+  return apiClient.getPayslipsByMonth(month)
+}
+
+export async function savePayslip(payslip: Payslip): Promise<void> {
+  await apiClient.savePayslip(payslip)
+}
+
+export async function deletePayslip(id: string): Promise<void> {
+  await apiClient.deletePayslip(id)
+}
+
+export async function updatePayslipStatus(id: string, status: 'draft' | 'processed' | 'paid'): Promise<void> {
+  await apiClient.updatePayslipStatus(id, status)
 }
 
 // --- Purchase Orders ---
 export async function getAllPurchaseOrders(): Promise<PurchaseOrder[]> {
-  try {
-    if (typeof window === 'undefined') return []
-    const data = localStorage.getItem(STORE_PURCHASE_ORDERS)
-    return data ? JSON.parse(data) : []
-  } catch (err) {
-    console.error('Failed to get purchase orders:', err)
-    return []
-  }
+  return apiClient.getAllPurchaseOrders()
 }
 
 export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | null> {
-  try {
-    if (typeof window === 'undefined') return null
-    const pos = await getAllPurchaseOrders()
-    return pos.find((po) => po.id === id) || null
-  } catch (err) {
-    console.error('Failed to get purchase order:', err)
-    return null
-  }
+  return apiClient.getPurchaseOrderById(id)
 }
 
 export async function savePurchaseOrder(po: PurchaseOrder): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const pos = await getAllPurchaseOrders()
-    const index = pos.findIndex((p) => p.id === po.id)
-    if (index >= 0) {
-      pos[index] = po
-    } else {
-      pos.push(po)
-    }
-    localStorage.setItem(STORE_PURCHASE_ORDERS, JSON.stringify(pos))
-  } catch (err) {
-    console.error('Failed to save purchase order:', err)
-  }
+  await apiClient.savePurchaseOrder(po)
 }
 
 export async function deletePurchaseOrder(id: string): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const pos = await getAllPurchaseOrders()
-    const filtered = pos.filter((po) => po.id !== id)
-    localStorage.setItem(STORE_PURCHASE_ORDERS, JSON.stringify(filtered))
-  } catch (err) {
-    console.error('Failed to delete purchase order:', err)
-  }
+  await apiClient.deletePurchaseOrder(id)
 }
 
 // --- Invoices ---
@@ -412,52 +221,19 @@ export interface InvoiceItem {
 }
 
 export async function getAllInvoices(): Promise<Invoice[]> {
-  try {
-    if (typeof window === 'undefined') return []
-    const data = localStorage.getItem(STORE_INVOICES)
-    return data ? JSON.parse(data) : []
-  } catch (err) {
-    console.error('Failed to get invoices:', err)
-    return []
-  }
+  return apiClient.getAllInvoices()
 }
 
 export async function getInvoiceById(id: string): Promise<Invoice | null> {
-  try {
-    if (typeof window === 'undefined') return null
-    const invoices = await getAllInvoices()
-    return invoices.find((inv) => inv.id === id) || null
-  } catch (err) {
-    console.error('Failed to get invoice:', err)
-    return null
-  }
+  return apiClient.getInvoiceById(id)
 }
 
 export async function saveInvoice(invoice: Invoice): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const invoices = await getAllInvoices()
-    const index = invoices.findIndex((inv) => inv.id === invoice.id)
-    if (index >= 0) {
-      invoices[index] = invoice
-    } else {
-      invoices.push(invoice)
-    }
-    localStorage.setItem(STORE_INVOICES, JSON.stringify(invoices))
-  } catch (err) {
-    console.error('Failed to save invoice:', err)
-  }
+  await apiClient.saveInvoice(invoice)
 }
 
 export async function deleteInvoice(id: string): Promise<void> {
-  try {
-    if (typeof window === 'undefined') return
-    const invoices = await getAllInvoices()
-    const filtered = invoices.filter((inv) => inv.id !== id)
-    localStorage.setItem(STORE_INVOICES, JSON.stringify(filtered))
-  } catch (err) {
-    console.error('Failed to delete invoice:', err)
-  }
+  await apiClient.deleteInvoice(id)
 }
 
 // Helper to generate invoice number
@@ -475,6 +251,57 @@ export function generateInvoiceNumber(pattern: string = 'INV-YYYYMMDD-NNNN'): st
     .replace('DD', day)
     .replace('YYYYMMDD', timestamp)
     .replace('NNNN', randomSuffix)
+}
+
+// Convert Quote to Invoice format
+export function convertQuoteToInvoice(quote: Quote): Invoice {
+  // Validate quote has required data
+  if (!quote.customer || !quote.customer.id || quote.customer.id.trim() === '') {
+    throw new Error('Quote must have a valid customer to convert to invoice. The customer may have been deleted from the database.')
+  }
+  if (!quote.items || quote.items.length === 0) {
+    throw new Error('Quote must have at least one item to convert to invoice')
+  }
+
+  // Convert QuoteLineItems to InvoiceItems
+  const invoiceItems: InvoiceItem[] = quote.items.map((quoteItem) => {
+    const lineSubtotal = quoteItem.quantity * quoteItem.unitPrice
+    const lineTax = (lineSubtotal * quoteItem.taxPercent) / 100
+    const lineTotal = lineSubtotal + lineTax
+
+    return {
+      id: generateId(),
+      description: quoteItem.vehicleTypeLabel || '',
+      quantity: quoteItem.quantity,
+      unitPrice: quoteItem.unitPrice,
+      tax: lineTax,
+      total: lineTotal,
+    }
+  })
+
+  // Calculate totals
+  const subtotal = invoiceItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+  const tax = invoiceItems.reduce((sum, item) => sum + (item.tax || 0), 0)
+  const total = subtotal + tax
+
+  // Create invoice
+  const invoice: Invoice = {
+    id: generateId(),
+    number: generateInvoiceNumber(),
+    date: new Date().toISOString().split('T')[0],
+    dueDate: quote.validUntil || undefined,
+    customerId: quote.customer.id,
+    quoteId: quote.id,
+    items: invoiceItems,
+    subtotal: subtotal,
+    tax: tax,
+    total: total,
+    amountReceived: 0,
+    status: 'draft',
+    notes: quote.notes || '',
+  }
+
+  return invoice
 }
 
 // Initialize sample data on first load

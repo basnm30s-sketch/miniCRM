@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select'
 // Replaced top-of-page alerts with toast notifications
 import { toast } from '@/hooks/use-toast'
-import { Plus, Trash2, Download, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, Download, ArrowLeft, FileSpreadsheet, FileType } from 'lucide-react'
 import {
   getAdminSettings,
   initializeAdminSettings,
@@ -37,6 +37,8 @@ import {
   saveCustomer,
 } from '@/lib/storage'
 import { pdfRenderer } from '@/lib/pdf'
+import { excelRenderer } from '@/lib/excel'
+import { docxRenderer } from '@/lib/docx'
 import { Quote, QuoteLineItem, AdminSettings, Customer, Vehicle } from '@/lib/types'
 
 export default function CreateQuotePage() {
@@ -285,6 +287,68 @@ export default function CreateQuotePage() {
     } catch (err) {
       console.error('Failed to generate PDF:', err)
       toast({ title: 'Error', description: 'Failed to generate PDF', variant: 'destructive' })
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleDownloadExcel = async () => {
+    if (!adminSettings) {
+      toast({ title: 'Error', description: 'Admin settings not loaded', variant: 'destructive' })
+      return
+    }
+
+    // Validation
+    if (!quote.customer.id) {
+      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
+      return
+    }
+
+    if (quote.items.length === 0 || quote.items.some((item) => !item.vehicleTypeId)) {
+      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+      return
+    }
+
+    setGenerating(true)
+    try {
+      const excelBlob = await excelRenderer.renderQuoteToExcel(quote, adminSettings)
+      const filename = `quote-${quote.number}.xlsx`
+      excelRenderer.downloadExcel(excelBlob, filename)
+      toast({ title: 'Success', description: 'Excel file downloaded successfully' })
+    } catch (err) {
+      console.error('Failed to generate Excel:', err)
+      toast({ title: 'Error', description: 'Failed to generate Excel file', variant: 'destructive' })
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleDownloadDocx = async () => {
+    if (!adminSettings) {
+      toast({ title: 'Error', description: 'Admin settings not loaded', variant: 'destructive' })
+      return
+    }
+
+    // Validation
+    if (!quote.customer.id) {
+      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
+      return
+    }
+
+    if (quote.items.length === 0 || quote.items.some((item) => !item.vehicleTypeId)) {
+      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+      return
+    }
+
+    setGenerating(true)
+    try {
+      const docxBlob = await docxRenderer.renderQuoteToDocx(quote, adminSettings)
+      const filename = `quote-${quote.number}.docx`
+      docxRenderer.downloadDocx(docxBlob, filename)
+      toast({ title: 'Success', description: 'Word document downloaded successfully' })
+    } catch (err) {
+      console.error('Failed to generate DOCX:', err)
+      toast({ title: 'Error', description: 'Failed to generate Word document', variant: 'destructive' })
     } finally {
       setGenerating(false)
     }
@@ -631,7 +695,23 @@ export default function CreateQuotePage() {
                   className="w-full bg-green-600 hover:bg-green-700 text-white"
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  {generating ? 'Generating PDF...' : 'Download PDF'}
+                  {generating ? 'Generating PDF...' : 'Save PDF'}
+                </Button>
+                <Button
+                  onClick={handleDownloadExcel}
+                  disabled={generating}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  {generating ? 'Generating Excel...' : 'Save Excel'}
+                </Button>
+                <Button
+                  onClick={handleDownloadDocx}
+                  disabled={generating}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  <FileType className="w-4 h-4 mr-2" />
+                  {generating ? 'Generating Word...' : 'Save Word'}
                 </Button>
                 <Button
                   onClick={handleSaveQuote}

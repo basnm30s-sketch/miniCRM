@@ -12,10 +12,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import RichTextEditor from '@/components/ui/rich-text-editor'
 // Alerts replaced by toasts
 import { toast } from '@/hooks/use-toast'
 import { getAdminSettings, saveAdminSettings, initializeAdminSettings } from '@/lib/storage'
+import { uploadFile, getFileUrl } from '@/lib/api-client'
 import { AdminSettings } from '@/lib/types'
 
 export default function AdminSettingsPage() {
@@ -29,7 +31,27 @@ export default function AdminSettingsPage() {
       try {
         const stored = await getAdminSettings()
         if (stored) {
-          setSettings(stored)
+          // Ensure boolean values are properly set (handle 0/1 from database)
+          // Explicitly check for false (0) vs true (1) vs undefined
+          const settingsWithBooleans: AdminSettings = {
+            ...stored,
+            showRevenueTrend: stored.showRevenueTrend === false || stored.showRevenueTrend === 0
+              ? false
+              : (stored.showRevenueTrend === true || stored.showRevenueTrend === 1
+                  ? true
+                  : true), // default to true if undefined
+            showQuickActions: stored.showQuickActions === false || stored.showQuickActions === 0
+              ? false
+              : (stored.showQuickActions === true || stored.showQuickActions === 1
+                  ? true
+                  : true), // default to true if undefined
+          showReports: stored.showReports === false || stored.showReports === 0
+              ? false
+              : (stored.showReports === true || stored.showReports === 1
+                  ? true
+                  : true), // default to true if undefined
+          }
+          setSettings(settingsWithBooleans)
         } else {
           const initialized = await initializeAdminSettings()
           setSettings(initialized)
@@ -50,7 +72,7 @@ export default function AdminSettingsPage() {
     field: 'logoUrl' | 'sealUrl' | 'signatureUrl'
   ) => {
     const file = e.target.files?.[0]
-  if (!file || !settings) return
+    if (!file || !settings) return
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -65,23 +87,32 @@ export default function AdminSettingsPage() {
     }
 
     try {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string
-        setSettings({
-          ...settings,
-          [field]: base64,
-        })
-        toast({ title: 'Upload', description: `${field === 'logoUrl' ? 'Logo' : field === 'sealUrl' ? 'Seal' : 'Signature'} uploaded successfully` })
-      }
-      reader.readAsDataURL(file)
+      // Determine upload type based on field
+      let uploadType: 'logos' | 'documents' | 'signatures' = 'logos'
+      if (field === 'sealUrl') uploadType = 'logos' // Store seal in logos folder
+      else if (field === 'signatureUrl') uploadType = 'signatures'
+      else if (field === 'logoUrl') uploadType = 'logos'
+
+      // Upload file to server
+      const relativePath = await uploadFile(file, uploadType)
+      
+      // Update settings with file path
+      setSettings({
+        ...settings,
+        [field]: relativePath,
+      })
+      
+      toast({ 
+        title: 'Upload', 
+        description: `${field === 'logoUrl' ? 'Logo' : field === 'sealUrl' ? 'Seal' : 'Signature'} uploaded successfully` 
+      })
     } catch (err) {
       console.error('Failed to upload image:', err)
       toast({ title: 'Error', description: 'Failed to upload image', variant: 'destructive' })
     }
   }
 
-  const handleInputChange = (field: keyof AdminSettings, value: string) => {
+  const handleInputChange = (field: keyof AdminSettings, value: string | boolean) => {
     if (settings) {
       setSettings({
         ...settings,
@@ -95,10 +126,52 @@ export default function AdminSettingsPage() {
 
     setSaving(true)
     try {
-      await saveAdminSettings({
+      // Save the exact boolean values from state
+      const settingsToSave: AdminSettings = {
         ...settings,
+        // Use the actual boolean value from state
+        showRevenueTrend: settings.showRevenueTrend === true ? true : false,
+        showQuickActions: settings.showQuickActions === true ? true : false,
+        showReports: settings.showReports === true ? true : false,
         updatedAt: new Date().toISOString(),
+      }
+      
+      console.log('Saving settings - before save:', {
+        stateValue: settings.showRevenueTrend,
+        savingValue: settingsToSave.showRevenueTrend,
       })
+      
+      await saveAdminSettings(settingsToSave)
+      
+      // Small delay to ensure database write completes
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Reload settings to ensure we have the latest from database
+      const reloaded = await getAdminSettings()
+      if (reloaded) {
+        // Convert values properly when reloading
+        const settingsWithBooleans: AdminSettings = {
+          ...reloaded,
+          showRevenueTrend: reloaded.showRevenueTrend === false || reloaded.showRevenueTrend === 0
+            ? false
+            : (reloaded.showRevenueTrend === true || reloaded.showRevenueTrend === 1 ? true : true),
+          showQuickActions: reloaded.showQuickActions === false || reloaded.showQuickActions === 0
+            ? false
+            : (reloaded.showQuickActions === true || reloaded.showQuickActions === 1 ? true : true),
+          showReports: reloaded.showReports === false || reloaded.showReports === 0
+            ? false
+            : (reloaded.showReports === true || reloaded.showReports === 1 ? true : true),
+        }
+        console.log('Reloaded settings:', {
+          showRevenueTrend: settingsWithBooleans.showRevenueTrend,
+          showQuickActions: settingsWithBooleans.showQuickActions,
+          raw: {
+            showRevenueTrend: reloaded.showRevenueTrend,
+            showQuickActions: reloaded.showQuickActions,
+          }
+        })
+        setSettings(settingsWithBooleans)
+      }
       toast({ title: 'Saved', description: 'Settings saved successfully' })
     } catch (err) {
       console.error('Failed to save settings:', err)
@@ -158,13 +231,13 @@ export default function AdminSettingsPage() {
               id="address"
               value={settings.address}
               onChange={(e) => handleInputChange('address', e.target.value)}
-              placeholder="Street address, city, country"
-              rows={3}
+              placeholder="Street address, City, Country"
+              rows={5}
             />
           </div>
 
           <div>
-            <Label htmlFor="vatNumber">VAT Number</Label>
+            <Label htmlFor="vatNumber">TRN:</Label>
             <Input
               id="vatNumber"
               value={settings.vatNumber}
@@ -236,7 +309,7 @@ export default function AdminSettingsPage() {
             {settings.logoUrl && (
               <div className="mt-2">
                 <img
-                  src={settings.logoUrl}
+                  src={settings.logoUrl.startsWith('data:') ? settings.logoUrl : (getFileUrl(settings.logoUrl) || settings.logoUrl)}
                   alt="Logo preview"
                   style={{ maxHeight: '80px', maxWidth: '200px' }}
                   className="border rounded p-2"
@@ -267,7 +340,7 @@ export default function AdminSettingsPage() {
             {settings.sealUrl && (
               <div className="mt-2">
                 <img
-                  src={settings.sealUrl}
+                  src={settings.sealUrl.startsWith('data:') ? settings.sealUrl : (getFileUrl(settings.sealUrl) || settings.sealUrl)}
                   alt="Seal preview"
                   style={{ maxHeight: '100px', maxWidth: '100px' }}
                   className="border rounded p-2"
@@ -298,7 +371,7 @@ export default function AdminSettingsPage() {
             {settings.signatureUrl && (
               <div className="mt-2">
                 <img
-                  src={settings.signatureUrl}
+                  src={settings.signatureUrl.startsWith('data:') ? settings.signatureUrl : (getFileUrl(settings.signatureUrl) || settings.signatureUrl)}
                   alt="Signature preview"
                   style={{ maxHeight: '60px', maxWidth: '150px' }}
                   className="border rounded p-2"
@@ -314,6 +387,59 @@ export default function AdminSettingsPage() {
               </div>
             )}
             <p className="text-sm text-gray-500 mt-1">Max size: 2MB. Recommended: PNG with transparency</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dashboard Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Dashboard Settings</CardTitle>
+          <CardDescription>
+            Control which sections are displayed on the home screen
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="showRevenueTrend">Show Revenue Trend Chart</Label>
+              <p className="text-sm text-gray-500">
+                Display the revenue trend chart on the home screen
+              </p>
+            </div>
+            <Switch
+              id="showRevenueTrend"
+              checked={settings.showRevenueTrend === true}
+              onCheckedChange={(checked) => handleInputChange('showRevenueTrend', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="showQuickActions">Show Quick Actions</Label>
+              <p className="text-sm text-gray-500">
+                Display the quick actions section on the home screen
+              </p>
+            </div>
+            <Switch
+              id="showQuickActions"
+              checked={settings.showQuickActions === true}
+              onCheckedChange={(checked) => handleInputChange('showQuickActions', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="showReports">Show Reports Menu</Label>
+              <p className="text-sm text-gray-500">
+                Display the Reports menu item in the sidebar
+              </p>
+            </div>
+            <Switch
+              id="showReports"
+              checked={settings.showReports === true}
+              onCheckedChange={(checked) => handleInputChange('showReports', checked)}
+            />
           </div>
         </CardContent>
       </Card>

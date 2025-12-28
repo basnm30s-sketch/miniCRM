@@ -13,6 +13,9 @@ export interface AdminSettings {
   quoteNumberPattern: string; // e.g., "AAT-YYYYMMDD-NNNN"
   currency: string; // e.g., "AED"
   defaultTerms?: string; // default Terms and Conditions text
+  showRevenueTrend?: boolean; // Show/hide revenue trend chart on home page
+  showQuickActions?: boolean; // Show/hide quick actions on home page
+  showReports?: boolean; // Show/hide Reports menu in sidebar
   createdAt?: string; // ISO8601
   updatedAt?: string; // ISO8601
 }
@@ -95,6 +98,7 @@ export interface Employee {
   name: string;
   employeeId: string;
   role?: string;
+  paymentType?: 'hourly' | 'monthly';
   hourlyRate?: number;
   salary?: number;
   bankDetails?: string;
@@ -133,4 +137,33 @@ export interface POItem {
   unitPrice: number;
   tax?: number;
   total: number;
+}
+
+export interface Payslip {
+  id: string;
+  employeeId: string;
+  employee?: Employee; // populated on fetch
+  month: string; // YYYY-MM format
+  year: number;
+  baseSalary: number;
+  overtimeHours?: number;
+  overtimeRate?: number;
+  overtimePay?: number;
+  deductions: number;
+  netPay: number;
+  status: 'draft' | 'processed' | 'paid';
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SalaryCalculation {
+  employeeId: string;
+  employee: Employee;
+  basePay: number;
+  overtimeHours?: number;
+  overtimeRate?: number;
+  overtimePay?: number;
+  deductions: number;
+  netPay: number;
 }
