@@ -368,7 +368,7 @@ export default function SalaryCalculationPage() {
         return (
           <div className="space-y-4">
             <div>
-              <Label htmlFor="month">Select Month for Salary Calculation</Label>
+              <Label htmlFor="month" className="text-xl font-semibold">Select Month for Salary Calculation</Label>
               <Input
                 id="month"
                 type="month"
@@ -378,7 +378,7 @@ export default function SalaryCalculationPage() {
               />
             </div>
             <div>
-              <Label htmlFor="standardHours">Standard Hours per Month (for hourly employees)</Label>
+              <Label htmlFor="standardHours" className="text-xl font-semibold">Standard Hours per Month (for hourly employees)</Label>
               <Input
                 id="standardHours"
                 type="number"
@@ -397,7 +397,7 @@ export default function SalaryCalculationPage() {
         return (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <Label>Select Employees</Label>
+              <Label className="text-xl font-semibold">Select Employees</Label>
               <Button
                 variant="outline"
                 size="sm"
@@ -460,7 +460,7 @@ export default function SalaryCalculationPage() {
         return (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <Label>Select Employees Who Worked Overtime & Enter Details</Label>
+              <Label className="text-xl font-semibold">Select Employees Who Worked Overtime & Enter Details</Label>
               {availableEmployees.length > 0 && (
                 <Button
                   variant="outline"
@@ -559,7 +559,7 @@ export default function SalaryCalculationPage() {
       case 4:
         return (
           <div className="space-y-4">
-            <Label>Enter Deductions</Label>
+            <Label className="text-xl font-semibold">Enter Deductions</Label>
             <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
@@ -634,7 +634,7 @@ export default function SalaryCalculationPage() {
         }
         return (
           <div className="space-y-4">
-            <Label>Review & Calculate Salaries</Label>
+            <Label className="text-xl font-semibold">Review & Calculate Salaries</Label>
             <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>

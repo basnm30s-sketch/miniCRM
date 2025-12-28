@@ -28,7 +28,10 @@ router.post('/', upload.single('file'), (req: Request, res: Response) => {
     const relativePath = saveFile(req.file.buffer, req.file.originalname, type as 'logos' | 'documents' | 'signatures')
     res.json({ path: relativePath })
   } catch (error: any) {
-    res.status(500).json({ error: error.message })
+    console.error('Upload error:', error)
+    // Ensure we always return valid JSON with an error message
+    const errorMessage = error?.message || error?.toString() || 'Unknown error occurred'
+    res.status(500).json({ error: errorMessage })
   }
 })
 

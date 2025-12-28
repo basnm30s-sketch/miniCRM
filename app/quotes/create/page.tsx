@@ -40,6 +40,7 @@ import { pdfRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
 import { Quote, QuoteLineItem, AdminSettings, Customer, Vehicle } from '@/lib/types'
+import { validateQuote, validateQuoteForExport, ValidationError } from '@/lib/validation'
 
 export default function CreateQuotePage() {
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
@@ -54,6 +55,8 @@ export default function CreateQuotePage() {
   const [newCustomerEmail, setNewCustomerEmail] = useState('')
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
   const [newCustomerAddress, setNewCustomerAddress] = useState('')
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+  const [isValidForExport, setIsValidForExport] = useState(false)
   // top-of-page alerts replaced by toast notifications
 
   const [quote, setQuote] = useState<Quote>({
@@ -216,12 +219,26 @@ export default function CreateQuotePage() {
 
     const totals = calculateTotals(newItems)
 
-    setQuote({
+    const updatedQuote = {
       ...quote,
       items: newItems,
       ...totals,
-    })
+    }
+    setQuote(updatedQuote)
+    // Trigger validation
+    validateQuoteState(updatedQuote)
   }
+
+  // Real-time validation
+  const validateQuoteState = (quoteToValidate: Quote) => {
+    const result = validateQuoteForExport(quoteToValidate)
+    setValidationErrors(result.errors)
+    setIsValidForExport(result.isValid)
+  }
+
+  useEffect(() => {
+    validateQuoteState(quote)
+  }, [quote])
 
   const handleCustomerChange = (customerId: string) => {
     const selectedCustomer = customers.find((c) => c.id === customerId)
@@ -234,14 +251,22 @@ export default function CreateQuotePage() {
   }
 
   const handleSaveQuote = async () => {
-    // Validation
-    if (!quote.customer.id) {
-      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
-      return
-    }
+    // Comprehensive validation
+    const validation = await validateQuote(quote, {
+      checkUniqueness: true,
+      excludeQuoteId: isEditMode ? quote.id : undefined,
+      checkCustomerExists: true,
+      checkVehiclesExist: true,
+    })
 
-    if (quote.items.length === 0 || quote.items.some((item) => !item.vehicleTypeId)) {
-      toast({ title: 'Validation', description: 'Please add at least one line item with a vehicle type', variant: 'destructive' })
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors)
+      const firstError = validation.errors[0]
+      toast({
+        title: 'Validation Error',
+        description: firstError?.message || 'Please fix the validation errors',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -253,6 +278,7 @@ export default function CreateQuotePage() {
         updatedAt: new Date().toISOString(),
       })
       toast({ title: 'Saved', description: `Quote ${quote.number} saved successfully` })
+      setValidationErrors([])
     } catch (err) {
       console.error('Failed to save quote:', err)
       toast({ title: 'Error', description: 'Failed to save quote', variant: 'destructive' })
@@ -267,14 +293,16 @@ export default function CreateQuotePage() {
       return
     }
 
-    // Validation
-    if (!quote.customer.id) {
-      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
-      return
-    }
-
-    if (quote.items.length === 0 || quote.items.some((item) => !item.vehicleTypeId)) {
-      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+    // Validation using shared validation function
+    const validation = validateQuoteForExport(quote)
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors)
+      const firstError = validation.errors[0]
+      toast({
+        title: 'Validation Error',
+        description: firstError?.message || 'Please fix the validation errors before exporting',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -298,14 +326,16 @@ export default function CreateQuotePage() {
       return
     }
 
-    // Validation
-    if (!quote.customer.id) {
-      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
-      return
-    }
-
-    if (quote.items.length === 0 || quote.items.some((item) => !item.vehicleTypeId)) {
-      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+    // Validation using shared validation function
+    const validation = validateQuoteForExport(quote)
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors)
+      const firstError = validation.errors[0]
+      toast({
+        title: 'Validation Error',
+        description: firstError?.message || 'Please fix the validation errors before exporting',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -329,14 +359,16 @@ export default function CreateQuotePage() {
       return
     }
 
-    // Validation
-    if (!quote.customer.id) {
-      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
-      return
-    }
-
-    if (quote.items.length === 0 || quote.items.some((item) => !item.vehicleTypeId)) {
-      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+    // Validation using shared validation function
+    const validation = validateQuoteForExport(quote)
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors)
+      const firstError = validation.errors[0]
+      toast({
+        title: 'Validation Error',
+        description: firstError?.message || 'Please fix the validation errors before exporting',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -404,9 +436,22 @@ export default function CreateQuotePage() {
                     id="quoteDate"
                     type="date"
                     value={quote.date}
-                    onChange={(e) => setQuote({ ...quote, date: e.target.value })}
-                    className="mt-2 text-slate-900"
+                    onChange={(e) => {
+                      const updated = { ...quote, date: e.target.value }
+                      setQuote(updated)
+                      validateQuoteState(updated)
+                    }}
+                    className={`mt-2 text-slate-900 ${
+                      validationErrors.some((e) => e.field === 'date') ? 'border-red-500' : ''
+                    }`}
                   />
+                  {validationErrors
+                    .filter((e) => e.field === 'date')
+                    .map((error, idx) => (
+                      <p key={idx} className="text-xs text-red-600 mt-1">
+                        {error.message}
+                      </p>
+                    ))}
                 </div>
               </div>
 
@@ -417,9 +462,22 @@ export default function CreateQuotePage() {
                     id="validUntil"
                     type="date"
                     value={quote.validUntil || ''}
-                    onChange={(e) => setQuote({ ...quote, validUntil: e.target.value || undefined })}
-                    className="mt-2 text-slate-900"
+                    onChange={(e) => {
+                      const updated = { ...quote, validUntil: e.target.value || undefined }
+                      setQuote(updated)
+                      validateQuoteState(updated)
+                    }}
+                    className={`mt-2 text-slate-900 ${
+                      validationErrors.some((e) => e.field === 'validUntil') ? 'border-red-500' : ''
+                    }`}
                   />
+                  {validationErrors
+                    .filter((e) => e.field === 'validUntil')
+                    .map((error, idx) => (
+                      <p key={idx} className="text-xs text-red-600 mt-1">
+                        {error.message}
+                      </p>
+                    ))}
                 </div>
                 <div>
                   <Label htmlFor="currency" className="text-slate-700">Currency</Label>
@@ -442,8 +500,19 @@ export default function CreateQuotePage() {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="customer" className="text-slate-700">Select Customer</Label>
-                <Select value={quote.customer.id} onValueChange={handleCustomerChange}>
-                  <SelectTrigger className="mt-2">
+                <Select
+                  value={quote.customer.id}
+                  onValueChange={(value) => {
+                    handleCustomerChange(value)
+                    // Trigger validation after customer change
+                    setTimeout(() => validateQuoteState(), 100)
+                  }}
+                >
+                  <SelectTrigger
+                    className={`mt-2 ${
+                      validationErrors.some((e) => e.field === 'customer') ? 'border-red-500' : ''
+                    }`}
+                  >
                     <SelectValue placeholder="Select a customer..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -459,6 +528,13 @@ export default function CreateQuotePage() {
                     </div>
                   </SelectContent>
                 </Select>
+                {validationErrors
+                  .filter((e) => e.field === 'customer')
+                  .map((error, idx) => (
+                    <p key={idx} className="text-xs text-red-600 mt-1">
+                      {error.message}
+                    </p>
+                  ))}
               </div>
 
               {quote.customer.id && (
@@ -688,27 +764,43 @@ export default function CreateQuotePage() {
                 <span className="text-blue-600">AED {quote.total.toFixed(2)}</span>
               </div>
 
+              {validationErrors.length > 0 && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md mb-4">
+                  <p className="text-sm font-semibold text-red-800 mb-1">Validation Errors:</p>
+                  <ul className="text-xs text-red-700 list-disc list-inside space-y-1">
+                    {validationErrors.slice(0, 3).map((error, idx) => (
+                      <li key={idx}>{error.message}</li>
+                    ))}
+                    {validationErrors.length > 3 && (
+                      <li className="text-red-600">...and {validationErrors.length - 3} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
               <div className="pt-4 space-y-2">
                 <Button
                   onClick={handleDownloadPDF}
-                  disabled={generating}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  disabled={generating || !isValidForExport}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
                 >
                   <Download className="w-4 h-4 mr-2" />
                   {generating ? 'Generating PDF...' : 'Save PDF'}
                 </Button>
                 <Button
                   onClick={handleDownloadExcel}
-                  disabled={generating}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={generating || !isValidForExport}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
                 >
                   <FileSpreadsheet className="w-4 h-4 mr-2" />
                   {generating ? 'Generating Excel...' : 'Save Excel'}
                 </Button>
                 <Button
                   onClick={handleDownloadDocx}
-                  disabled={generating}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  disabled={generating || !isValidForExport}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
                 >
                   <FileType className="w-4 h-4 mr-2" />
                   {generating ? 'Generating Word...' : 'Save Word'}

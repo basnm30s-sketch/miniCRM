@@ -366,12 +366,8 @@ export async function saveQuote(quote: any): Promise<void> {
     // Check if quote exists by trying to get it
     let existingQuote = null
     if (quote.id) {
-      try {
-        existingQuote = await getQuoteById(quote.id)
-      } catch (error) {
-        // Quote doesn't exist, will create new one
-        existingQuote = null
-      }
+      existingQuote = await getQuoteById(quote.id)
+      // getQuoteById returns null if not found, doesn't throw
     }
 
     if (existingQuote) {
@@ -545,16 +541,94 @@ export async function uploadFile(file: File, type: 'logos' | 'documents' | 'sign
       body: formData,
     })
 
+    // Read response as text first to avoid multiple reads
+    let responseText = ''
+    try {
+      responseText = await response.text()
+    } catch (e) {
+      // If we can't read the response, just use status
+      if (!response.ok) {
+        throw new Error(response.statusText || `Upload failed with status ${response.status}`)
+      }
+      throw new Error('Failed to read response from server')
+    }
+    
+    // Check response status
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Upload failed' }))
-      throw new Error(error.error || 'Upload failed')
+      // Handle error response - don't try to parse as JSON if it's not valid JSON
+      let errorMessage = response.statusText || `Upload failed with status ${response.status}`
+      
+      if (responseText && responseText.trim().length > 0) {
+        const trimmed = responseText.trim()
+        // Only try to parse if it looks like valid JSON (starts with { or [)
+        // Avoid parsing if it starts with - or other invalid JSON characters
+        if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && 
+            !trimmed.startsWith('-') && trimmed.length > 1) {
+          try {
+            const errorData = JSON.parse(responseText)
+            errorMessage = errorData.error || errorData.message || errorMessage
+          } catch (parseError) {
+            // JSON parsing failed - use the text as error message
+            errorMessage = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed
+          }
+        } else {
+          // Not JSON format, use as plain text error (but limit length)
+          errorMessage = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed
+        }
+      }
+      
+      throw new Error(errorMessage)
     }
 
-    const result = await response.json()
+    // For successful responses, parse as JSON
+    if (!responseText || responseText.trim().length === 0) {
+      throw new Error('Empty response from server')
+    }
+    
+    const trimmed = responseText.trim()
+    
+    // Log the actual response for debugging
+    console.log('Upload response text:', trimmed.substring(0, 200))
+    
+    // Validate it looks like JSON
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+      console.error('Response is not JSON format:', trimmed)
+      throw new Error(`Invalid response format. Expected JSON, got: ${trimmed.substring(0, 50)}`)
+    }
+    
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch (parseError: any) {
+      console.error('JSON parse error. Response was:', trimmed.substring(0, 200))
+      console.error('Parse error details:', parseError)
+      // Don't try to access error.message if it might throw
+      const errorMsg = parseError && typeof parseError === 'object' && 'message' in parseError 
+        ? parseError.message 
+        : 'Invalid JSON format'
+      throw new Error(`Failed to parse JSON response: ${errorMsg}. Response: ${trimmed.substring(0, 100)}`)
+    }
+    
+    if (!result || typeof result !== 'object' || !result.path) {
+      throw new Error('Invalid response from server: missing path')
+    }
     return result.path
-  } catch (error) {
-    console.error('Failed to upload file:', error)
-    throw error
+  } catch (error: any) {
+    // Log the full error for debugging
+    console.error('Upload error details:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack?.substring(0, 200)
+    })
+    
+    // If it's already a proper Error with message, re-throw it
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+      throw error
+    }
+    
+    // Otherwise create a new error
+    const errorMessage = error?.message || String(error) || 'Failed to upload file'
+    throw new Error(errorMessage)
   }
 }
 

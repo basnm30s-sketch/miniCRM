@@ -26,6 +26,7 @@ import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
 import { Invoice, InvoiceItem } from '@/lib/storage'
 import type { AdminSettings, Quote } from '@/lib/types'
+import { validateInvoice, validateInvoiceForExport, ValidationError } from '@/lib/validation'
 
 export default function CreateInvoicePage() {
   const [invoice, setInvoice] = useState<Invoice>({
@@ -55,6 +56,8 @@ export default function CreateInvoicePage() {
   const [generating, setGenerating] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [sourceQuote, setSourceQuote] = useState<Quote | null>(null)
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+  const [isValidForExport, setIsValidForExport] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -177,47 +180,59 @@ export default function CreateInvoicePage() {
     })
 
     const { subtotal, total, tax } = calculateTotals(newItems, invoice.tax)
-    setInvoice({
+    const updatedInvoice = {
       ...invoice,
       items: newItems,
       subtotal,
       tax,
       total,
-    })
+    }
+    setInvoice(updatedInvoice)
+    // Trigger validation
+    validateInvoiceState(updatedInvoice)
   }
+
+  // Real-time validation
+  const validateInvoiceState = (invoiceToValidate: Invoice) => {
+    const result = validateInvoiceForExport(invoiceToValidate)
+    setValidationErrors(result.errors)
+    setIsValidForExport(result.isValid)
+  }
+
+  useEffect(() => {
+    validateInvoiceState(invoice)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoice])
 
   const handleTaxChange = (newTax: number) => {
     const total = invoice.subtotal + newTax
-    setInvoice({
+    const updatedInvoice = {
       ...invoice,
       tax: newTax,
       total,
-    })
+    }
+    setInvoice(updatedInvoice)
+    validateInvoiceState(updatedInvoice)
   }
 
   const handleSave = async () => {
-    // Validation
-    if (!invoice.number) {
-      toast({ title: 'Error', description: 'Invoice number is required', variant: 'destructive' })
-      return
-    }
+    // Comprehensive validation
+    const validation = await validateInvoice(invoice, {
+      checkUniqueness: true,
+      excludeInvoiceId: isEditMode ? invoice.id : undefined,
+      checkCustomerExists: true,
+      checkQuoteExists: true,
+      checkPOExists: true,
+    })
 
-    if (invoice.items.length === 0) {
-      toast({ title: 'Error', description: 'Add at least one line item', variant: 'destructive' })
-      return
-    }
-
-    if (invoice.items.some((item) => !item.description || item.unitPrice === 0)) {
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors)
+      const firstError = validation.errors[0]
       toast({
-        title: 'Error',
-        description: 'All items must have a description and unit price',
+        title: 'Validation Error',
+        description: firstError?.message || 'Please fix the validation errors',
         variant: 'destructive',
       })
-      return
-    }
-
-    if (!invoice.customerId) {
-      toast({ title: 'Error', description: 'Customer is required', variant: 'destructive' })
       return
     }
 
@@ -232,6 +247,7 @@ export default function CreateInvoicePage() {
         title: 'Success',
         description: isEditMode ? 'Invoice updated successfully' : 'Invoice created successfully',
       })
+      setValidationErrors([])
       // Redirect to invoices list
       window.location.href = '/invoices'
     } catch (err) {
@@ -248,13 +264,16 @@ export default function CreateInvoicePage() {
       return
     }
 
-    if (!invoice.customerId) {
-      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
-      return
-    }
-
-    if (invoice.items.length === 0) {
-      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+    // Validation using shared validation function
+    const validation = validateInvoiceForExport(invoice)
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors)
+      const firstError = validation.errors[0]
+      toast({
+        title: 'Validation Error',
+        description: firstError?.message || 'Please fix the validation errors before exporting',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -281,13 +300,16 @@ export default function CreateInvoicePage() {
       return
     }
 
-    if (!invoice.customerId) {
-      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
-      return
-    }
-
-    if (invoice.items.length === 0) {
-      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+    // Validation using shared validation function
+    const validation = validateInvoiceForExport(invoice)
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors)
+      const firstError = validation.errors[0]
+      toast({
+        title: 'Validation Error',
+        description: firstError?.message || 'Please fix the validation errors before exporting',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -314,13 +336,16 @@ export default function CreateInvoicePage() {
       return
     }
 
-    if (!invoice.customerId) {
-      toast({ title: 'Validation', description: 'Please select a customer', variant: 'destructive' })
-      return
-    }
-
-    if (invoice.items.length === 0) {
-      toast({ title: 'Validation', description: 'Please add at least one line item', variant: 'destructive' })
+    // Validation using shared validation function
+    const validation = validateInvoiceForExport(invoice)
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors)
+      const firstError = validation.errors[0]
+      toast({
+        title: 'Validation Error',
+        description: firstError?.message || 'Please fix the validation errors before exporting',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -421,9 +446,22 @@ export default function CreateInvoicePage() {
                     id="date"
                     type="date"
                     value={invoice.date}
-                    onChange={(e) => setInvoice({ ...invoice, date: e.target.value })}
-                    className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
+                    onChange={(e) => {
+                      const updated = { ...invoice, date: e.target.value }
+                      setInvoice(updated)
+                      validateInvoiceState(updated)
+                    }}
+                    className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 ${
+                      validationErrors.some((e) => e.field === 'date') ? 'border-red-500' : ''
+                    }`}
                   />
+                  {validationErrors
+                    .filter((e) => e.field === 'date')
+                    .map((error, idx) => (
+                      <p key={idx} className="text-xs text-red-600 mt-1">
+                        {error.message}
+                      </p>
+                    ))}
                 </div>
                 <div>
                   <Label htmlFor="dueDate" className="text-slate-700">
@@ -433,9 +471,22 @@ export default function CreateInvoicePage() {
                     id="dueDate"
                     type="date"
                     value={invoice.dueDate || ''}
-                    onChange={(e) => setInvoice({ ...invoice, dueDate: e.target.value })}
-                    className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
+                    onChange={(e) => {
+                      const updated = { ...invoice, dueDate: e.target.value }
+                      setInvoice(updated)
+                      validateInvoiceState(updated)
+                    }}
+                    className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 ${
+                      validationErrors.some((e) => e.field === 'dueDate') ? 'border-red-500' : ''
+                    }`}
                   />
+                  {validationErrors
+                    .filter((e) => e.field === 'dueDate')
+                    .map((error, idx) => (
+                      <p key={idx} className="text-xs text-red-600 mt-1">
+                        {error.message}
+                      </p>
+                    ))}
                 </div>
               </div>
 
@@ -470,8 +521,14 @@ export default function CreateInvoicePage() {
                 <select
                   id="customer"
                   value={invoice.customerId || ''}
-                  onChange={(e) => setInvoice({ ...invoice, customerId: e.target.value })}
-                  className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
+                  onChange={(e) => {
+                    const updated = { ...invoice, customerId: e.target.value }
+                    setInvoice(updated)
+                    setTimeout(() => validateInvoiceState(updated), 100)
+                  }}
+                  className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 ${
+                    validationErrors.some((e) => e.field === 'customerId') ? 'border-red-500' : ''
+                  }`}
                 >
                   <option value="">Select Customer</option>
                   {customers.map((c) => (
@@ -480,6 +537,13 @@ export default function CreateInvoicePage() {
                     </option>
                   ))}
                 </select>
+                {validationErrors
+                  .filter((e) => e.field === 'customerId')
+                  .map((error, idx) => (
+                    <p key={idx} className="text-xs text-red-600 mt-1">
+                      {error.message}
+                    </p>
+                  ))}
               </div>
 
               <div>
@@ -663,16 +727,44 @@ export default function CreateInvoicePage() {
                 </div>
               </div>
 
+              {validationErrors.length > 0 && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md mb-4">
+                  <p className="text-sm font-semibold text-red-800 mb-1">Validation Errors:</p>
+                  <ul className="text-xs text-red-700 list-disc list-inside space-y-1">
+                    {validationErrors.slice(0, 3).map((error, idx) => (
+                      <li key={idx}>{error.message}</li>
+                    ))}
+                    {validationErrors.length > 3 && (
+                      <li className="text-red-600">...and {validationErrors.length - 3} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
               <div className="pt-4 space-y-2">
-                <Button onClick={handleDownloadPDF} disabled={generating} className="w-full bg-green-600 hover:bg-green-700 text-white">
+                <Button
+                  onClick={handleDownloadPDF}
+                  disabled={generating || !isValidForExport}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
+                >
                   <Download className="w-4 h-4 mr-2" />
                   {generating ? 'Generating PDF...' : 'Save PDF'}
                 </Button>
-                <Button onClick={handleDownloadExcel} disabled={generating} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                <Button
+                  onClick={handleDownloadExcel}
+                  disabled={generating || !isValidForExport}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
+                >
                   <FileSpreadsheet className="w-4 h-4 mr-2" />
                   {generating ? 'Generating Excel...' : 'Save Excel'}
                 </Button>
-                <Button onClick={handleDownloadDocx} disabled={generating} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                <Button
+                  onClick={handleDownloadDocx}
+                  disabled={generating || !isValidForExport}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
+                >
                   <FileType className="w-4 h-4 mr-2" />
                   {generating ? 'Generating Word...' : 'Save Word'}
                 </Button>

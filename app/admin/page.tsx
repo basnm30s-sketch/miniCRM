@@ -97,15 +97,29 @@ export default function AdminSettingsPage() {
       const relativePath = await uploadFile(file, uploadType)
       
       // Update settings with file path
-      setSettings({
+      const updatedSettings = {
         ...settings,
         [field]: relativePath,
-      })
+        updatedAt: new Date().toISOString(),
+      }
+      setSettings(updatedSettings)
       
-      toast({ 
-        title: 'Upload', 
-        description: `${field === 'logoUrl' ? 'Logo' : field === 'sealUrl' ? 'Seal' : 'Signature'} uploaded successfully` 
-      })
+      // Auto-save settings immediately after image upload to persist the path
+      try {
+        await saveAdminSettings(updatedSettings)
+        toast({ 
+          title: 'Upload', 
+          description: `${field === 'logoUrl' ? 'Logo' : field === 'sealUrl' ? 'Seal' : 'Signature'} uploaded and saved successfully` 
+        })
+      } catch (saveErr) {
+        console.error('Failed to save settings after upload:', saveErr)
+        // Still show success for upload, but warn about save
+        toast({ 
+          title: 'Upload', 
+          description: `${field === 'logoUrl' ? 'Logo' : field === 'sealUrl' ? 'Seal' : 'Signature'} uploaded but failed to save. Please click 'Save Settings' to persist.`,
+          variant: 'default'
+        })
+      }
     } catch (err) {
       console.error('Failed to upload image:', err)
       toast({ title: 'Error', description: 'Failed to upload image', variant: 'destructive' })

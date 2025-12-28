@@ -53,6 +53,25 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     const html2canvas = (await import('html2canvas')).default
     const jsPDF = (await import('jspdf')).jsPDF
 
+    // Preload images to ensure they're loaded before rendering
+    const logoUrl = getFileUrl(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null)
+    const sealUrl = getFileUrl(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null)
+    const signatureUrl = getFileUrl(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null)
+    
+    const imagePromises: Promise<void>[] = []
+    if (logoUrl) {
+      imagePromises.push(this.preloadImage(logoUrl))
+    }
+    if (sealUrl) {
+      imagePromises.push(this.preloadImage(sealUrl))
+    }
+    if (signatureUrl) {
+      imagePromises.push(this.preloadImage(signatureUrl))
+    }
+    
+    // Wait for all images to load
+    await Promise.all(imagePromises)
+
     // Create a temporary container to render the quote HTML
     const container = document.createElement('div')
     container.style.position = 'absolute'
@@ -72,6 +91,9 @@ export class ClientSidePDFRenderer implements PDFRenderer {
 
     document.body.appendChild(container)
 
+    // Wait a bit for images in HTML to load
+    await new Promise(resolve => setTimeout(resolve, 500))
+
     try {
       // Render container to canvas
       const canvas = await html2canvas(container, {
@@ -81,6 +103,15 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         backgroundColor: '#ffffff',
         allowTaint: true,
         foreignObjectRendering: false,
+        onclone: (clonedDoc) => {
+          // Ensure images are loaded in cloned document
+          const images = clonedDoc.querySelectorAll('img')
+          images.forEach((img) => {
+            if (!img.complete) {
+              img.style.display = 'none'
+            }
+          })
+        },
         ignoreElements: (el: Element) => {
           // Ignore SVG, script, style, link tags that might have unsupported colors
           return el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK' || el.tagName === 'SVG'
@@ -116,6 +147,16 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     }
   }
 
+  private preloadImage(url: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => resolve()
+      img.onerror = () => resolve() // Resolve even on error to not block rendering
+      img.src = url
+    })
+  }
+
   downloadPdf(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -130,6 +171,17 @@ export class ClientSidePDFRenderer implements PDFRenderer {
   async renderPurchaseOrderToPdf(po: PurchaseOrder, adminSettings: AdminSettings, vendorName: string): Promise<Blob> {
     const html2canvas = (await import('html2canvas')).default
     const jsPDF = (await import('jspdf')).jsPDF
+
+    // Preload images
+    const logoUrl = getFileUrl(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null)
+    const sealUrl = getFileUrl(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null)
+    const signatureUrl = getFileUrl(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null)
+    
+    const imagePromises: Promise<void>[] = []
+    if (logoUrl) imagePromises.push(this.preloadImage(logoUrl))
+    if (sealUrl) imagePromises.push(this.preloadImage(sealUrl))
+    if (signatureUrl) imagePromises.push(this.preloadImage(signatureUrl))
+    await Promise.all(imagePromises)
 
     const container = document.createElement('div')
     container.style.position = 'absolute'
@@ -146,6 +198,8 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     const poHtml = this.buildPurchaseOrderHtml(po, adminSettings, vendorName)
     container.innerHTML = poHtml
     document.body.appendChild(container)
+
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     try {
       const canvas = await html2canvas(container, {
@@ -183,6 +237,17 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     const html2canvas = (await import('html2canvas')).default
     const jsPDF = (await import('jspdf')).jsPDF
 
+    // Preload images
+    const logoUrl = getFileUrl(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null)
+    const sealUrl = getFileUrl(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null)
+    const signatureUrl = getFileUrl(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null)
+    
+    const imagePromises: Promise<void>[] = []
+    if (logoUrl) imagePromises.push(this.preloadImage(logoUrl))
+    if (sealUrl) imagePromises.push(this.preloadImage(sealUrl))
+    if (signatureUrl) imagePromises.push(this.preloadImage(signatureUrl))
+    await Promise.all(imagePromises)
+
     const container = document.createElement('div')
     container.style.position = 'absolute'
     container.style.left = '-9999px'
@@ -198,6 +263,8 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     const invoiceHtml = this.buildInvoiceHtml(invoice, adminSettings, customerName)
     container.innerHTML = invoiceHtml
     document.body.appendChild(container)
+
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     try {
       const canvas = await html2canvas(container, {

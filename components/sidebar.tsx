@@ -164,8 +164,8 @@ export function Sidebar() {
             <Car className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1">
-            <div className="font-bold text-sm text-white">ALMSAR ALZAKI T&M</div>
-            <div className="text-xs text-blue-200">Management System</div>
+            <div className="font-bold text-sm text-white">iManage</div>
+            <div className="text-xs text-blue-200">Data Management System</div>
           </div>
         </div>
       </div>

@@ -813,8 +813,27 @@ export const quotesAdapter = {
     const db = getDb()
     const now = new Date().toISOString()
     
+    // Validate required fields
+    if (!data.number || data.number.trim() === '') {
+      throw new Error('Quote number is required')
+    }
+    
+    // Check uniqueness of quote number
+    const existingQuote = db.prepare('SELECT id FROM quotes WHERE number = ?').get(data.number) as any
+    if (existingQuote) {
+      throw new Error(`Quote number "${data.number}" already exists`)
+    }
+    
     // Extract customerId from customer object if present
     const customerId = data.customerId || (data.customer?.id || '')
+    
+    // Validate customer exists
+    if (customerId) {
+      const customer = db.prepare('SELECT id FROM customers WHERE id = ?').get(customerId) as any
+      if (!customer) {
+        throw new Error(`Customer with ID "${customerId}" does not exist`)
+      }
+    }
     
     // Insert quote
     const quoteStmt = db.prepare(`
@@ -868,8 +887,27 @@ export const quotesAdapter = {
     const db = getDb()
     const now = new Date().toISOString()
     
+    // Validate required fields
+    if (!data.number || data.number.trim() === '') {
+      throw new Error('Quote number is required')
+    }
+    
+    // Check uniqueness of quote number (excluding current quote)
+    const existingQuote = db.prepare('SELECT id FROM quotes WHERE number = ? AND id != ?').get(data.number, id) as any
+    if (existingQuote) {
+      throw new Error(`Quote number "${data.number}" already exists`)
+    }
+    
     // Extract customerId from customer object if present
     const customerId = data.customerId || (data.customer?.id || '')
+    
+    // Validate customer exists
+    if (customerId) {
+      const customer = db.prepare('SELECT id FROM customers WHERE id = ?').get(customerId) as any
+      if (!customer) {
+        throw new Error(`Customer with ID "${customerId}" does not exist`)
+      }
+    }
     
     // Update quote
     const quoteStmt = db.prepare(`
@@ -1195,6 +1233,16 @@ export const invoicesAdapter = {
     const now = new Date().toISOString()
     
     // Validate required fields
+    if (!data.number || data.number.trim() === '') {
+      throw new Error('Invoice number is required')
+    }
+    
+    // Check uniqueness of invoice number
+    const existingInvoice = db.prepare('SELECT id FROM invoices WHERE number = ?').get(data.number) as any
+    if (existingInvoice) {
+      throw new Error(`Invoice number "${data.number}" already exists`)
+    }
+    
     if (!data.customerId || data.customerId.trim() === '') {
       throw new Error('Customer is required for invoice')
     }
@@ -1315,6 +1363,16 @@ export const invoicesAdapter = {
     }
     
     // Validate required fields
+    if (!data.number || data.number.trim() === '') {
+      throw new Error('Invoice number is required')
+    }
+    
+    // Check uniqueness of invoice number (excluding current invoice)
+    const existingInvoice = db.prepare('SELECT id FROM invoices WHERE number = ? AND id != ?').get(data.number, id) as any
+    if (existingInvoice) {
+      throw new Error(`Invoice number "${data.number}" already exists`)
+    }
+    
     if (!data.customerId || data.customerId.trim() === '') {
       throw new Error('Customer is required for invoice')
     }

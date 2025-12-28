@@ -50,6 +50,13 @@ interface HomeMetrics {
   invoicesThisMonth: number
 }
 
+interface Activity {
+  type: 'quote' | 'invoice' | 'payslip' | 'employee' | 'customer'
+  description: string
+  timestamp: string
+  createdAt: string
+}
+
 interface CustomerStats {
   customerId: string
   customerName: string
@@ -82,6 +89,7 @@ export default function Home() {
     invoicesThisMonth: 0,
   })
   const [customerStats, setCustomerStats] = useState<CustomerStats[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
 
   const loadSettings = async () => {
     try {
@@ -274,6 +282,74 @@ export default function Home() {
           quotesThisMonth,
           invoicesThisMonth,
         })
+
+        // Build activities list
+        const activitiesList: Activity[] = []
+        
+        // Add quote activities
+        quotes.forEach((quote: Quote) => {
+          const customerName = quote.customer?.company || quote.customer?.name || 'Unknown'
+          activitiesList.push({
+            type: 'quote',
+            description: `${quote.number} created for ${customerName}, value = AED ${(quote.total || 0).toLocaleString()}`,
+            timestamp: quote.createdAt || quote.date || '',
+            createdAt: quote.createdAt || quote.date || '',
+          })
+        })
+        
+        // Add invoice activities
+        invoices.forEach((invoice: Invoice) => {
+          const customer = customers.find((c: Customer) => c.id === invoice.customerId)
+          const customerName = customer?.company || customer?.name || 'Unknown'
+          activitiesList.push({
+            type: 'invoice',
+            description: `${invoice.number} created for ${customerName}, value = AED ${(invoice.total || 0).toLocaleString()}`,
+            timestamp: invoice.createdAt || invoice.date || '',
+            createdAt: invoice.createdAt || invoice.date || '',
+          })
+        })
+        
+        // Add payslip activities
+        payslips.forEach((payslip: Payslip) => {
+          const employee = employees.find((e) => e.id === payslip.employeeId)
+          const employeeName = employee?.name || 'Unknown'
+          const monthDisplay = payslip.month ? formatMonthForActivity(payslip.month) : 'Unknown Month'
+          activitiesList.push({
+            type: 'payslip',
+            description: `Payslip generated for ${employeeName} (${monthDisplay}), net pay = AED ${(payslip.netPay || 0).toLocaleString()}`,
+            timestamp: payslip.createdAt || '',
+            createdAt: payslip.createdAt || '',
+          })
+        })
+        
+        // Add employee activities
+        employees.forEach((employee) => {
+          activitiesList.push({
+            type: 'employee',
+            description: `Employee ${employee.name} added`,
+            timestamp: employee.createdAt || '',
+            createdAt: employee.createdAt || '',
+          })
+        })
+        
+        // Add customer activities
+        customers.forEach((customer: Customer) => {
+          const customerName = customer.company || customer.name || 'Unknown'
+          activitiesList.push({
+            type: 'customer',
+            description: `Customer ${customerName} added`,
+            timestamp: customer.createdAt || '',
+            createdAt: customer.createdAt || '',
+          })
+        })
+        
+        // Sort by timestamp (most recent first) and take latest 5
+        const sortedActivities = activitiesList
+          .filter(a => a.createdAt) // Only include activities with timestamps
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 5)
+        
+        setActivities(sortedActivities)
       } catch (error) {
         console.error('Error loading metrics:', error)
       } finally {
@@ -283,6 +359,17 @@ export default function Home() {
 
     loadMetrics()
   }, [])
+
+  const formatMonthForActivity = (month: string): string => {
+    if (!month) return 'Unknown'
+    try {
+      const [year, monthNum] = month.split('-')
+      const date = new Date(parseInt(year), parseInt(monthNum) - 1)
+      return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    } catch {
+      return month
+    }
+  }
 
   // Reload settings when page becomes visible (user navigates back)
   useEffect(() => {
@@ -579,7 +666,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Customer Activity Summary */}
+          {/* Activity Summary */}
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -587,68 +674,70 @@ export default function Home() {
                 Activity Summary
               </h3>
             </div>
-            <div className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-900">Quotes This Month</span>
-                  <span className="text-lg font-bold text-blue-600">
-                    {loading ? '...' : metrics.quotesThisMonth}
-                  </span>
-                </div>
-                <div className="w-full bg-blue-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all"
-                    style={{ width: `${loading ? 0 : Math.min((metrics.quotesThisMonth / Math.max(metrics.totalQuotes, 1)) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-green-900">Invoices This Month</span>
-                  <span className="text-lg font-bold text-green-600">
-                    {loading ? '...' : metrics.invoicesThisMonth}
-                  </span>
-                </div>
-                <div className="w-full bg-green-200 rounded-full h-2">
-                  <div 
-                    className="bg-green-600 h-2 rounded-full transition-all"
-                    style={{ width: `${loading ? 0 : Math.min((metrics.invoicesThisMonth / Math.max(metrics.totalInvoices, 1)) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-purple-900">Collection Rate</span>
-                  <span className="text-lg font-bold text-purple-600">
-                    {loading ? '...' : metrics.totalRevenue > 0 
-                      ? `${((metrics.totalRevenue - metrics.outstandingAmount) / metrics.totalRevenue * 100).toFixed(1)}%`
-                      : '0%'}
-                  </span>
-                </div>
-                <div className="w-full bg-purple-200 rounded-full h-2">
-                  <div 
-                    className="bg-purple-600 h-2 rounded-full transition-all"
-                    style={{ width: `${loading ? 0 : metrics.totalRevenue > 0 ? ((metrics.totalRevenue - metrics.outstandingAmount) / metrics.totalRevenue * 100) : 0}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-orange-900">Outstanding Amount</span>
-                  <span className="text-lg font-bold text-orange-600">
-                    {loading ? '...' : `AED ${metrics.outstandingAmount.toLocaleString()}`}
-                  </span>
-                </div>
-                {metrics.outstandingAmount > 0 && (
-                  <p className="text-xs text-orange-700 mt-2 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    Requires attention
-                  </p>
-                )}
-              </div>
+            <div className="space-y-3">
+              {loading ? (
+                <p className="text-sm text-slate-500">Loading activities...</p>
+              ) : activities.length > 0 ? (
+                activities.map((activity, index) => {
+                  const getActivityIcon = () => {
+                    switch (activity.type) {
+                      case 'quote':
+                        return <FileText className="w-4 h-4 text-blue-600" />
+                      case 'invoice':
+                        return <Receipt className="w-4 h-4 text-green-600" />
+                      case 'payslip':
+                        return <Wallet className="w-4 h-4 text-purple-600" />
+                      case 'employee':
+                        return <Users2 className="w-4 h-4 text-indigo-600" />
+                      case 'customer':
+                        return <Users className="w-4 h-4 text-orange-600" />
+                      default:
+                        return <CheckCircle className="w-4 h-4 text-slate-600" />
+                    }
+                  }
+                  
+                  const getActivityBg = () => {
+                    switch (activity.type) {
+                      case 'quote':
+                        return 'bg-blue-50 border-blue-200'
+                      case 'invoice':
+                        return 'bg-green-50 border-green-200'
+                      case 'payslip':
+                        return 'bg-purple-50 border-purple-200'
+                      case 'employee':
+                        return 'bg-indigo-50 border-indigo-200'
+                      case 'customer':
+                        return 'bg-orange-50 border-orange-200'
+                      default:
+                        return 'bg-slate-50 border-slate-200'
+                    }
+                  }
+                  
+                  return (
+                    <div key={index} className={`p-3 rounded-lg border ${getActivityBg()}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5">{getActivityIcon()}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-slate-900 font-medium">{activity.description}</p>
+                          {activity.createdAt && (
+                            <p className="text-xs text-slate-500 mt-1">
+                              {new Date(activity.createdAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <p className="text-sm text-slate-500 text-center py-4">No recent activities</p>
+              )}
             </div>
           </div>
         </div>
