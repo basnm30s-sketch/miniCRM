@@ -15,15 +15,21 @@ import {
   Users2,
   CreditCard,
   BarChart3,
+  DollarSign,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  Building2,
 } from 'lucide-react'
 import {
   getAllQuotes,
   getAllInvoices,
   getAllEmployees,
   getAllPayslips,
+  getAllCustomers,
   getAdminSettings,
 } from '@/lib/storage'
-import type { Quote, Payslip, AdminSettings } from '@/lib/types'
+import type { Quote, Payslip, AdminSettings, Customer } from '@/lib/types'
 import type { Invoice } from '@/lib/storage'
 
 interface HomeMetrics {
@@ -31,6 +37,27 @@ interface HomeMetrics {
   outstandingAmount: number
   activeEmployees: number
   payslipsThisMonth: number
+  totalQuotes: number
+  totalInvoices: number
+  totalRevenue: number
+  totalExpenses: number
+  netProfit: number
+  totalCustomers: number
+  paidInvoices: number
+  pendingInvoices: number
+  totalQuoteValue: number
+  quotesThisMonth: number
+  invoicesThisMonth: number
+}
+
+interface CustomerStats {
+  customerId: string
+  customerName: string
+  quoteCount: number
+  invoiceCount: number
+  quoteValue: number
+  invoiceValue: number
+  outstanding: number
 }
 
 export default function Home() {
@@ -42,7 +69,19 @@ export default function Home() {
     outstandingAmount: 0,
     activeEmployees: 0,
     payslipsThisMonth: 0,
+    totalQuotes: 0,
+    totalInvoices: 0,
+    totalRevenue: 0,
+    totalExpenses: 0,
+    netProfit: 0,
+    totalCustomers: 0,
+    paidInvoices: 0,
+    pendingInvoices: 0,
+    totalQuoteValue: 0,
+    quotesThisMonth: 0,
+    invoicesThisMonth: 0,
   })
+  const [customerStats, setCustomerStats] = useState<CustomerStats[]>([])
 
   const loadSettings = async () => {
     try {
@@ -73,11 +112,12 @@ export default function Home() {
   useEffect(() => {
     const loadMetrics = async () => {
       try {
-        const [quotes, invoices, employees, payslips, settings] = await Promise.all([
+        const [quotes, invoices, employees, payslips, customers, settings] = await Promise.all([
           getAllQuotes(),
           getAllInvoices(),
           getAllEmployees(),
           getAllPayslips(),
+          getAllCustomers(),
           getAdminSettings(),
         ])
 
@@ -120,11 +160,108 @@ export default function Home() {
           })
           .reduce((sum: number, payslip: Payslip) => sum + (payslip.netPay || 0), 0)
 
+        // Calculate total quotes and invoices
+        const totalQuotes = quotes.length
+        const totalInvoices = invoices.length
+
+        // Calculate total revenue from all invoices
+        const totalRevenue = invoices.reduce((sum: number, invoice: Invoice) => {
+          return sum + (invoice.total || 0)
+        }, 0)
+
+        // Calculate total expenses (placeholder - will be from vehicle expenses module later)
+        const totalExpenses = 18920 // Placeholder
+        const netProfit = totalRevenue - totalExpenses
+
+        // Calculate total quote value
+        const totalQuoteValue = quotes.reduce((sum: number, quote: Quote) => {
+          return sum + (quote.total || 0)
+        }, 0)
+
+        // Calculate invoice status counts
+        const paidInvoices = invoices.filter((invoice: Invoice) => 
+          invoice.status === 'paid' || (invoice.amountReceived && invoice.amountReceived >= (invoice.total || 0))
+        ).length
+        const pendingInvoices = invoices.filter((invoice: Invoice) => 
+          invoice.status === 'invoice_sent' && (invoice.amountReceived || 0) < (invoice.total || 0)
+        ).length
+
+        // Calculate customer-wise statistics
+        const customerStatsMap = new Map<string, CustomerStats>()
+        
+        // Process quotes
+        quotes.forEach((quote: Quote) => {
+          const customerId = quote.customer?.id || ''
+          const customerName = quote.customer?.company || quote.customer?.name || 'Unknown'
+          
+          if (!customerStatsMap.has(customerId)) {
+            customerStatsMap.set(customerId, {
+              customerId,
+              customerName,
+              quoteCount: 0,
+              invoiceCount: 0,
+              quoteValue: 0,
+              invoiceValue: 0,
+              outstanding: 0,
+            })
+          }
+          
+          const stats = customerStatsMap.get(customerId)!
+          stats.quoteCount++
+          stats.quoteValue += quote.total || 0
+        })
+
+        // Process invoices
+        invoices.forEach((invoice: Invoice) => {
+          const customerId = invoice.customerId || ''
+          const customer = customers.find((c: Customer) => c.id === customerId)
+          const customerName = customer?.company || customer?.name || 'Unknown'
+          
+          if (!customerStatsMap.has(customerId)) {
+            customerStatsMap.set(customerId, {
+              customerId,
+              customerName,
+              quoteCount: 0,
+              invoiceCount: 0,
+              quoteValue: 0,
+              invoiceValue: 0,
+              outstanding: 0,
+            })
+          }
+          
+          const stats = customerStatsMap.get(customerId)!
+          stats.invoiceCount++
+          stats.invoiceValue += invoice.total || 0
+          
+          // Calculate outstanding
+          if (invoice.status === 'invoice_sent') {
+            const pending = (invoice.total || 0) - (invoice.amountReceived || 0)
+            stats.outstanding += pending > 0 ? pending : 0
+          }
+        })
+
+        const customerStatsList = Array.from(customerStatsMap.values())
+          .sort((a, b) => (b.invoiceValue + b.quoteValue) - (a.invoiceValue + a.quoteValue))
+          .slice(0, 5) // Top 5 customers
+
+        setCustomerStats(customerStatsList)
+
         setMetrics({
           quotationsAndInvoicesThisMonth,
           outstandingAmount,
           activeEmployees,
-          payslipsThisMonth,
+          payslipsThisMonth: payslipsThisMonth,
+          totalQuotes,
+          totalInvoices,
+          totalRevenue,
+          totalExpenses,
+          netProfit,
+          totalCustomers: customers.length,
+          paidInvoices,
+          pendingInvoices,
+          totalQuoteValue,
+          quotesThisMonth,
+          invoicesThisMonth,
         })
       } catch (error) {
         console.error('Error loading metrics:', error)
@@ -184,9 +321,9 @@ export default function Home() {
           zIndex: 0,
         }}
       />
-      {/* Overlay for better readability */}
+      {/* Overlay for better readability - reduced opacity and blur */}
       <div 
-        className="absolute inset-0 bg-slate-50/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-50/40"
         style={{ zIndex: 1 }}
       />
 
@@ -206,7 +343,7 @@ export default function Home() {
         )}
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Quotations & Invoices Card */}
           <OverviewCard
             icon={FileText}
@@ -216,6 +353,14 @@ export default function Home() {
               {
                 label: 'Total This Month',
                 value: loading ? '...' : metrics.quotationsAndInvoicesThisMonth,
+              },
+              {
+                label: 'Total Quotes',
+                value: loading ? '...' : metrics.totalQuotes,
+              },
+              {
+                label: 'Total Invoices',
+                value: loading ? '...' : metrics.totalInvoices,
               },
               {
                 label: 'Outstanding',
@@ -242,6 +387,12 @@ export default function Home() {
                 label: 'This Month',
                 value: loading ? '...' : `AED ${metrics.payslipsThisMonth.toLocaleString()}`,
               },
+              {
+                label: 'Avg per Employee',
+                value: loading ? '...' : metrics.activeEmployees > 0 
+                  ? `AED ${Math.round(metrics.payslipsThisMonth / metrics.activeEmployees).toLocaleString()}`
+                  : 'AED 0',
+              },
             ]}
             href="/payslips"
             borderColor="green"
@@ -257,11 +408,21 @@ export default function Home() {
             metrics={[
               {
                 label: 'Total Revenue',
-                value: 'AED 45,230', // Placeholder
+                value: loading ? '...' : `AED ${metrics.totalRevenue.toLocaleString()}`,
               },
               {
                 label: 'Total Expenses',
-                value: 'AED 18,920', // Placeholder
+                value: loading ? '...' : `AED ${metrics.totalExpenses.toLocaleString()}`,
+              },
+              {
+                label: 'Net Profit',
+                value: loading ? '...' : `AED ${metrics.netProfit.toLocaleString()}`,
+              },
+              {
+                label: 'Profit Margin',
+                value: loading ? '...' : metrics.totalRevenue > 0 
+                  ? `${((metrics.netProfit / metrics.totalRevenue) * 100).toFixed(1)}%`
+                  : '0%',
               },
             ]}
             borderColor="red"
@@ -279,6 +440,188 @@ export default function Home() {
             profitMargin={parseFloat(profitMargin)}
           />
         )}
+
+        {/* Additional KPI Tiles */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Total Customers */}
+          <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600 mb-1">Total Customers</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  {loading ? '...' : metrics.totalCustomers}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Users className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Total Quote Value */}
+          <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600 mb-1">Total Quote Value</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  {loading ? '...' : `AED ${metrics.totalQuoteValue.toLocaleString()}`}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <FileText className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Paid Invoices */}
+          <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600 mb-1">Paid Invoices</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {loading ? '...' : metrics.paidInvoices}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Pending Invoices */}
+          <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600 mb-1">Pending Invoices</p>
+                <p className="text-2xl font-bold text-orange-600">
+                  {loading ? '...' : metrics.pendingInvoices}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                <Clock className="w-6 h-6 text-orange-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Customer Statistics Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Customers by Value */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-blue-600" />
+                Top Customers by Value
+              </h3>
+            </div>
+            <div className="space-y-3">
+              {loading ? (
+                <p className="text-slate-500 text-sm">Loading...</p>
+              ) : customerStats.length > 0 ? (
+                customerStats.map((customer, index) => (
+                  <div key={customer.customerId} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-900 truncate">{customer.customerName}</p>
+                        <p className="text-xs text-slate-500">
+                          {customer.invoiceCount} invoices • {customer.quoteCount} quotes
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-slate-900">
+                        AED {(customer.invoiceValue + customer.quoteValue).toLocaleString()}
+                      </p>
+                      {customer.outstanding > 0 && (
+                        <p className="text-xs text-orange-600">
+                          Outstanding: AED {customer.outstanding.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-slate-500 text-sm text-center py-4">No customer data available</p>
+              )}
+            </div>
+          </div>
+
+          {/* Customer Activity Summary */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-green-600" />
+                Activity Summary
+              </h3>
+            </div>
+            <div className="space-y-4">
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-900">Quotes This Month</span>
+                  <span className="text-lg font-bold text-blue-600">
+                    {loading ? '...' : metrics.quotesThisMonth}
+                  </span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all"
+                    style={{ width: `${loading ? 0 : Math.min((metrics.quotesThisMonth / Math.max(metrics.totalQuotes, 1)) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-green-900">Invoices This Month</span>
+                  <span className="text-lg font-bold text-green-600">
+                    {loading ? '...' : metrics.invoicesThisMonth}
+                  </span>
+                </div>
+                <div className="w-full bg-green-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-600 h-2 rounded-full transition-all"
+                    style={{ width: `${loading ? 0 : Math.min((metrics.invoicesThisMonth / Math.max(metrics.totalInvoices, 1)) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-purple-900">Collection Rate</span>
+                  <span className="text-lg font-bold text-purple-600">
+                    {loading ? '...' : metrics.totalRevenue > 0 
+                      ? `${((metrics.totalRevenue - metrics.outstandingAmount) / metrics.totalRevenue * 100).toFixed(1)}%`
+                      : '0%'}
+                  </span>
+                </div>
+                <div className="w-full bg-purple-200 rounded-full h-2">
+                  <div 
+                    className="bg-purple-600 h-2 rounded-full transition-all"
+                    style={{ width: `${loading ? 0 : metrics.totalRevenue > 0 ? ((metrics.totalRevenue - metrics.outstandingAmount) / metrics.totalRevenue * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-orange-900">Outstanding Amount</span>
+                  <span className="text-lg font-bold text-orange-600">
+                    {loading ? '...' : `AED ${metrics.outstandingAmount.toLocaleString()}`}
+                  </span>
+                </div>
+                {metrics.outstandingAmount > 0 && (
+                  <p className="text-xs text-orange-700 mt-2 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Requires attention
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
         </div>
       </div>
     </div>

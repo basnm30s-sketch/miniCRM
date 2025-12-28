@@ -1,8 +1,119 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const { spawn } = require('child_process');
 const isDev = require('electron-is-dev');
 
 let db = null;
+let apiServer = null;
+
+// Start API server in production mode
+function startApiServer() {
+  if (apiServer) {
+    console.log('API server already running');
+    return;
+  }
+
+  const fs = require('fs');
+  
+  // Check if we're in packaged mode
+  if (app.isPackaged) {
+    // In packaged mode, files are in ASAR archive
+    // We need to use the correct path - ASAR files are read-only, so we can't execute from there
+    // Use process.resourcesPath which points to the resources folder (outside ASAR)
+    const resourcesPath = process.resourcesPath || app.getAppPath();
+    
+    // Try to find the API server - it should be in the app.asar or resources
+    let apiPath = path.join(resourcesPath, 'app.asar', 'api', 'server.ts');
+    if (!fs.existsSync(apiPath)) {
+      // Try without .asar (if unpacked)
+      apiPath = path.join(resourcesPath, 'api', 'server.ts');
+    }
+    if (!fs.existsSync(apiPath)) {
+      // Try app.getAppPath() which handles ASAR automatically
+      apiPath = path.join(app.getAppPath(), 'api', 'server.ts');
+    }
+    
+    // Find tsx - it should be in node_modules
+    let tsxPath = path.join(resourcesPath, 'app.asar', 'node_modules', '.bin', 'tsx');
+    if (!fs.existsSync(tsxPath)) {
+      tsxPath = path.join(resourcesPath, 'app.asar', 'node_modules', 'tsx', 'dist', 'cli.mjs');
+    }
+    if (!fs.existsSync(tsxPath)) {
+      tsxPath = path.join(app.getAppPath(), 'node_modules', '.bin', 'tsx');
+    }
+    if (!fs.existsSync(tsxPath) && process.platform === 'win32') {
+      tsxPath = path.join(app.getAppPath(), 'node_modules', '.bin', 'tsx.cmd');
+    }
+    
+    // Use Electron's node to run tsx
+    const electronPath = process.execPath;
+    let command, args;
+    
+    if (fs.existsSync(tsxPath)) {
+      // Use tsx directly
+      command = electronPath;
+      args = [tsxPath, apiPath];
+      console.log('Using tsx to run API server');
+    } else {
+      // Try using node with tsx module
+      command = electronPath;
+      args = ['-r', 'tsx/cjs/api', apiPath];
+      console.log('Trying to use node with tsx loader');
+    }
+    
+    console.log('Starting API server...');
+    console.log('Resources path:', resourcesPath);
+    console.log('App path:', app.getAppPath());
+    console.log('API path:', apiPath);
+    console.log('Command:', command);
+    console.log('Args:', args);
+    
+    try {
+      apiServer = spawn(command, args, {
+        cwd: app.getAppPath(),
+        env: {
+          ...process.env,
+          PORT: '3001',
+          NODE_ENV: 'production',
+          ELECTRON_RUN_AS_NODE: '1', // Important: allows spawning Node.js processes
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+      });
+
+      apiServer.stdout.on('data', (data) => {
+        const output = data.toString();
+        console.log(`API Server: ${output}`);
+      });
+
+      apiServer.stderr.on('data', (data) => {
+        const output = data.toString();
+        console.error(`API Server Error: ${output}`);
+      });
+
+      apiServer.on('close', (code) => {
+        console.log(`API server exited with code ${code}`);
+        apiServer = null;
+      });
+
+      apiServer.on('error', (error) => {
+        console.error('Failed to start API server:', error);
+        apiServer = null;
+      });
+
+      // Wait a bit for server to start
+      setTimeout(() => {
+        console.log('API server should be running on http://localhost:3001');
+      }, 3000);
+    } catch (error) {
+      console.error('Error spawning API server:', error);
+      apiServer = null;
+    }
+  } else {
+    // In development, the API server is started separately via npm run api:dev
+    console.log('Development mode - API server should be running separately');
+  }
+}
 
 // Initialize database when app is ready (optional - only if better-sqlite3 is available)
 app.whenReady().then(() => {
@@ -20,6 +131,11 @@ app.whenReady().then(() => {
     // Database initialization failed - app will use localStorage instead
     console.log('Database not available, using localStorage:', error.message);
     db = null;
+  }
+  
+  // Start API server in production mode
+  if (app.isPackaged) {
+    startApiServer();
   }
   
   createWindow();
@@ -110,6 +226,13 @@ app.on('activate', () => {
 
 // Cleanup on app quit
 app.on('before-quit', () => {
+  // Stop API server
+  if (apiServer) {
+    console.log('Stopping API server...');
+    apiServer.kill();
+    apiServer = null;
+  }
+  
   if (db) {
     try {
       // Uncomment when SQLite is set up:

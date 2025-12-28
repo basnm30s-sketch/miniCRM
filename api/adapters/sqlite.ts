@@ -145,7 +145,7 @@ export const customersAdapter = {
 export const vendorsAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM vendors ORDER BY createdAt DESC').all()
+    const rows = db.prepare('SELECT * FROM vendors ORDER BY createdAt DESC').all() as any[]
     return rows.map(row => ({
       id: row.id,
       name: row.name,
@@ -500,7 +500,7 @@ export const payslipsAdapter = {
 export const vehiclesAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM vehicles ORDER BY createdAt DESC').all()
+    const rows = db.prepare('SELECT * FROM vehicles ORDER BY createdAt DESC').all() as any[]
     return rows.map(row => ({
       id: row.id,
       type: row.type,

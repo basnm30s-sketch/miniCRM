@@ -57,11 +57,6 @@ const masterNavigationItems = [
     href: '/employees',
     icon: Users2,
   },
-  {
-    label: 'Payslips',
-    href: '/payslips',
-    icon: Wallet,
-  },
 ]
 
 const allOtherNavigationItems = [
@@ -273,6 +268,19 @@ export function Sidebar() {
             })}
           </CollapsibleContent>
         </Collapsible>
+
+        {/* Payslips - Standalone */}
+        <Link
+          href="/payslips"
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
+            isActive('/payslips')
+              ? 'bg-blue-600 text-white'
+              : 'text-blue-100 hover:bg-blue-900/50'
+          }`}
+        >
+          <Wallet className="w-5 h-5" />
+          <span>Payslips</span>
+        </Link>
 
         {/* Other Navigation Items */}
         {otherNavigationItems.map((item) => {
