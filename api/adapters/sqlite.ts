@@ -27,7 +27,7 @@ export function formatReferenceError(entityName: string, references: Array<{type
 export const customersAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM customers ORDER BY createdAt DESC').all()
+    const rows = db.prepare('SELECT * FROM customers ORDER BY createdAt DESC').all() as any[]
     return rows.map(row => ({
       id: row.id,
       name: row.name,

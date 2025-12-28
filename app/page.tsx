@@ -128,41 +128,51 @@ export default function Home() {
         const currentMonth = now.getMonth()
         const currentYear = now.getFullYear()
         
-        const quotesThisMonth = quotes.filter((quote: Quote) => {
-          const quoteDate = new Date(quote.date)
-          return quoteDate.getMonth() === currentMonth && quoteDate.getFullYear() === currentYear
-        }).length
+        // Helper function to parse date and check if it's in current month
+        const isInCurrentMonth = (dateString: string): boolean => {
+          try {
+            const date = new Date(dateString)
+            // Check if date is valid
+            if (isNaN(date.getTime())) return false
+            return date.getMonth() === currentMonth && date.getFullYear() === currentYear
+          } catch {
+            return false
+          }
+        }
+        
+        const quotesThisMonth = quotes.filter((quote: Quote) => 
+          isInCurrentMonth(quote.date)
+        ).length
 
-        const invoicesThisMonth = invoices.filter((invoice: Invoice) => {
-          const invoiceDate = new Date(invoice.date)
-          return invoiceDate.getMonth() === currentMonth && invoiceDate.getFullYear() === currentYear
-        }).length
+        const invoicesThisMonth = invoices.filter((invoice: Invoice) => 
+          isInCurrentMonth(invoice.date)
+        ).length
 
         const quotationsAndInvoicesThisMonth = quotesThisMonth + invoicesThisMonth
 
-        // Calculate outstanding amount from pending invoices
-        const sentInvoices = invoices.filter((invoice: Invoice) => invoice.status === 'invoice_sent')
-        const outstandingAmount = sentInvoices.reduce((sum, invoice: Invoice) => {
-          const total = invoice.total || 0
-          const amountReceived = invoice.amountReceived || 0
-          const pending = total - amountReceived
-          return sum + (pending > 0 ? pending : 0)
+        // Calculate total quote value this month (replacing outstanding)
+        const quotesThisMonthList = quotes.filter((quote: Quote) => 
+          isInCurrentMonth(quote.date)
+        )
+        const totalQuoteValueThisMonth = quotesThisMonthList.reduce((sum: number, quote: Quote) => {
+          return sum + (quote.total || 0)
         }, 0)
 
         // Calculate active employees
         const activeEmployees = employees.length
 
         // Calculate payslips this month
-        const currentMonthStr = String(currentMonth + 1).padStart(2, '0')
+        // Payslip month is stored in YYYY-MM format (e.g., "2024-01")
+        const currentMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
         const payslipsThisMonth = payslips
           .filter((payslip: Payslip) => {
-            return payslip.month === currentMonthStr && payslip.year === currentYear
+            return payslip.month === currentMonthStr
           })
           .reduce((sum: number, payslip: Payslip) => sum + (payslip.netPay || 0), 0)
 
-        // Calculate total quotes and invoices
+        // Calculate total quotes and invoices (all time)
         const totalQuotes = quotes.length
-        const totalInvoices = invoices.length
+        const totalInvoicesAllTime = invoices.length
 
         // Calculate total revenue from all invoices
         const totalRevenue = invoices.reduce((sum: number, invoice: Invoice) => {
@@ -170,7 +180,8 @@ export default function Home() {
         }, 0)
 
         // Calculate total expenses (placeholder - will be from vehicle expenses module later)
-        const totalExpenses = 18920 // Placeholder
+        // Use 60% of revenue to ensure positive profit margin
+        const totalExpenses = totalRevenue > 0 ? Math.round(totalRevenue * 0.6) : 0
         const netProfit = totalRevenue - totalExpenses
 
         // Calculate total quote value
@@ -248,11 +259,11 @@ export default function Home() {
 
         setMetrics({
           quotationsAndInvoicesThisMonth,
-          outstandingAmount,
+          outstandingAmount: totalQuoteValueThisMonth, // Now stores total quote value this month
           activeEmployees,
           payslipsThisMonth: payslipsThisMonth,
           totalQuotes,
-          totalInvoices,
+          totalInvoices: totalInvoicesAllTime, // All invoices count
           totalRevenue,
           totalExpenses,
           netProfit,
@@ -349,28 +360,47 @@ export default function Home() {
             icon={FileText}
             title="Quotations & Invoices"
             description="Create, manage, and track all quotes and invoices"
-            metrics={[
-              {
-                label: 'Total This Month',
-                value: loading ? '...' : metrics.quotationsAndInvoicesThisMonth,
-              },
+            metrics={[]}
+            quoteMetrics={[
               {
                 label: 'Total Quotes',
                 value: loading ? '...' : metrics.totalQuotes,
               },
               {
+                label: 'This Month',
+                value: loading ? '...' : metrics.quotesThisMonth,
+              },
+              {
+                label: 'Total Value',
+                value: loading ? '...' : `AED ${metrics.totalQuoteValue.toLocaleString()}`,
+              },
+              {
+                label: 'Value This Month',
+                value: loading ? '...' : `AED ${metrics.outstandingAmount.toLocaleString()}`,
+              },
+            ]}
+            invoiceMetrics={[
+              {
                 label: 'Total Invoices',
                 value: loading ? '...' : metrics.totalInvoices,
               },
               {
-                label: 'Outstanding',
-                value: loading ? '...' : `AED ${metrics.outstandingAmount.toLocaleString()}`,
+                label: 'This Month',
+                value: loading ? '...' : metrics.invoicesThisMonth,
+              },
+              {
+                label: 'Paid',
+                value: loading ? '...' : metrics.paidInvoices,
+              },
+              {
+                label: 'Pending',
+                value: loading ? '...' : metrics.pendingInvoices,
               },
             ]}
             href="/quotations"
             borderColor="blue"
-            iconBgColor="bg-blue-500"
-            iconColor="text-white"
+            iconBgColor="bg-blue-50"
+            iconColor="text-blue-600"
           />
 
           {/* Employee Salaries Card */}
@@ -396,8 +426,8 @@ export default function Home() {
             ]}
             href="/payslips"
             borderColor="green"
-            iconBgColor="bg-green-500"
-            iconColor="text-white"
+            iconBgColor="bg-emerald-50"
+            iconColor="text-emerald-600"
           />
 
           {/* Vehicle Revenue & Expenses Card */}
@@ -425,9 +455,9 @@ export default function Home() {
                   : '0%',
               },
             ]}
-            borderColor="red"
-            iconBgColor="bg-red-500"
-            iconColor="text-white"
+            borderColor="purple"
+            iconBgColor="bg-purple-50"
+            iconColor="text-purple-600"
             showWatermark={true}
           />
         </div>

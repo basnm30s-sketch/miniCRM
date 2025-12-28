@@ -10,22 +10,39 @@ interface OverviewCardProps {
   description: string
   metrics: Array<{ label: string; value: string | number; color?: string }>
   href?: string
-  borderColor: 'blue' | 'green' | 'red'
+  borderColor: 'blue' | 'green' | 'purple'
   iconBgColor: string
   iconColor: string
   showWatermark?: boolean
+  quoteMetrics?: Array<{ label: string; value: string | number; color?: string }>
+  invoiceMetrics?: Array<{ label: string; value: string | number; color?: string }>
 }
 
-const borderColors = {
-  blue: 'border-blue-500',
-  green: 'border-green-500',
-  red: 'border-red-500',
+const borderGradients = {
+  blue: 'from-blue-100/40 via-sky-100/40 to-indigo-100/40',
+  green: 'from-emerald-100/40 via-teal-100/40 to-cyan-100/40',
+  purple: 'from-violet-100/40 via-purple-100/40 to-fuchsia-100/40',
 }
 
-const textColors = {
-  blue: 'text-blue-600',
-  green: 'text-green-600',
-  red: 'text-red-600',
+const accentColors = {
+  blue: {
+    text: 'text-blue-700',
+    light: 'text-blue-600',
+    bg: 'bg-blue-50',
+    border: 'border-blue-100',
+  },
+  green: {
+    text: 'text-emerald-700',
+    light: 'text-emerald-600',
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-100',
+  },
+  purple: {
+    text: 'text-purple-700',
+    light: 'text-purple-600',
+    bg: 'bg-purple-50',
+    border: 'border-purple-100',
+  },
 }
 
 export function OverviewCard({
@@ -38,52 +55,99 @@ export function OverviewCard({
   iconBgColor,
   iconColor,
   showWatermark = false,
+  quoteMetrics,
+  invoiceMetrics,
 }: OverviewCardProps) {
+  const accent = accentColors[borderColor]
+  
   const content = (
-    <div className={cn('relative bg-white rounded-lg border-2 p-6 h-full transition-shadow hover:shadow-md', borderColors[borderColor])}>
-      {/* Under Construction Watermark */}
-      {showWatermark && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden">
-          <div 
-            className="text-4xl font-bold text-slate-300 opacity-30 select-none whitespace-nowrap"
-            style={{
-              transform: 'rotate(-30deg)',
-              transformOrigin: 'center center',
-            }}
-          >
-            UNDER CONSTRUCTION
+    <div className={cn('relative rounded-xl p-[1.5px] bg-gradient-to-br h-full transition-all duration-200 hover:shadow-lg hover:scale-[1.02]', borderGradients[borderColor])}>
+      <div className="relative bg-white rounded-xl p-6 h-full flex flex-col">
+        {/* Under Construction Watermark */}
+        {showWatermark && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden rounded-xl">
+            <div 
+              className="text-4xl font-bold text-slate-200 opacity-20 select-none whitespace-nowrap"
+              style={{
+                transform: 'rotate(-30deg)',
+                transformOrigin: 'center center',
+              }}>
+              UNDER CONSTRUCTION
+            </div>
           </div>
-        </div>
-      )}
-      
-      {/* Arrow icon in top right */}
-      {href && (
-        <div className="absolute top-4 right-4 z-20">
-          <ArrowRight className={cn('w-5 h-5', textColors[borderColor])} />
-        </div>
-      )}
-
-      {/* Icon */}
-      <div className={cn('w-12 h-12 rounded-lg flex items-center justify-center mb-4 relative z-10', iconBgColor)}>
-        <Icon className={cn('w-6 h-6', iconColor)} />
-      </div>
-
-      {/* Title */}
-      <h3 className="text-lg font-bold text-slate-900 mb-2 relative z-10">{title}</h3>
-
-      {/* Description */}
-      <p className="text-sm text-slate-600 mb-4 relative z-10">{description}</p>
-
-      {/* Metrics */}
-      <div className="space-y-2 relative z-10">
-        {metrics.map((metric, index) => (
-          <div key={index} className="flex items-baseline gap-2">
-            <span className={cn('text-sm font-medium', textColors[borderColor])}>{metric.label}:</span>
-            <span className={cn('text-sm font-semibold', textColors[borderColor])}>
-              {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
-            </span>
+        )}
+        
+        {/* Header Section */}
+        <div className="relative z-10 mb-5">
+          <div className="flex items-start justify-between mb-5">
+            {/* Icon */}
+            <div className={cn('w-14 h-14 rounded-xl flex items-center justify-center', iconBgColor, 'ring-1 ring-slate-100')}>
+              <Icon className={cn('w-7 h-7', iconColor)} />
+            </div>
+            
+            {/* Arrow icon in top right */}
+            {href && (
+              <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200', accent.bg, 'hover:scale-110')}>
+                <ArrowRight className={cn('w-4 h-4', accent.text)} />
+              </div>
+            )}
           </div>
-        ))}
+
+          {/* Title */}
+          <h3 className="text-xl font-semibold text-slate-900 mb-1.5 leading-tight">{title}</h3>
+
+          {/* Description */}
+          <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
+        </div>
+
+        {/* Metrics Section */}
+        <div className="relative z-10 flex-1 flex flex-col">
+          {quoteMetrics && invoiceMetrics ? (
+            <div className="grid grid-cols-2 gap-6">
+              {/* Quote Metrics Column */}
+              <div className="space-y-3.5">
+                <div className={cn('text-xs font-semibold uppercase tracking-wider mb-3 pb-2 border-b', accent.text, accent.border)}>
+                  Quotes
+                </div>
+                {quoteMetrics.map((metric, index) => (
+                  <div key={index} className="flex flex-col gap-0.5">
+                    <span className="text-xs text-slate-500 font-medium">{metric.label}</span>
+                    <span className={cn('text-base font-semibold text-slate-900')}>
+                      {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {/* Invoice Metrics Column */}
+              <div className="space-y-3.5">
+                <div className={cn('text-xs font-semibold uppercase tracking-wider mb-3 pb-2 border-b', accent.text, accent.border)}>
+                  Invoices
+                </div>
+                {invoiceMetrics.map((metric, index) => (
+                  <div key={index} className="flex flex-col gap-0.5">
+                    <span className="text-xs text-slate-500 font-medium">{metric.label}</span>
+                    <span className={cn('text-base font-semibold text-slate-900')}>
+                      {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {metrics.map((metric, index) => (
+                <div key={index} className={cn('flex items-center justify-between py-2.5', 
+                  index < metrics.length - 1 && 'border-b border-slate-100'
+                )}>
+                  <span className="text-sm text-slate-600 font-medium">{metric.label}</span>
+                  <span className={cn('text-base font-semibold text-slate-900')}>
+                    {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
