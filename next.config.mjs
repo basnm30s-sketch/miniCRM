@@ -10,6 +10,19 @@ const nextConfig = {
     unoptimized: true,
   },
   trailingSlash: true,
+  // Proxy API requests to Express server during development
+  async rewrites() {
+    // Only add rewrites if not doing a static export (Electron build)
+    if (process.env.NEXT_EXPORT === 'true') {
+      return []
+    }
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:3001/api/:path*',
+      },
+    ]
+  },
 }
 
 export default nextConfig

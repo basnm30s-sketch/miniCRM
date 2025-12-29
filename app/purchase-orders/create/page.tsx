@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Download, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, FileText, Plus, Trash2 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import {
   getPurchaseOrderById,
@@ -41,6 +41,16 @@ export default function CreatePurchaseOrderPage() {
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
+  const [hasBeenSaved, setHasBeenSaved] = useState(false)
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+  const [isValidForExport, setIsValidForExport] = useState(false)
+
+  const snapshotPO = (p: PurchaseOrder) => {
+    // Exclude timestamp fields so they don't cause dirty state flips
+    const { createdAt: _createdAt, ...rest } = p as any
+    return JSON.stringify(rest)
+  }
 
   useEffect(() => {
     const loadData = async () => {
@@ -61,6 +71,9 @@ export default function CreatePurchaseOrderPage() {
           if (existing) {
             setPo(existing)
             setIsEditMode(true)
+            setHasBeenSaved(true)
+            setSavedSnapshot(snapshotPO(existing))
+            setIsDirty(false)
           }
         } else {
           // Generate PO number for new PO
@@ -88,6 +101,39 @@ export default function CreatePurchaseOrderPage() {
     const total = subtotal + tax
     return { subtotal, tax, total }
   }
+
+  const validatePOForExport = (p: PurchaseOrder) => {
+    if (!p.number) return false
+    if (!p.vendorId) return false
+    if (!p.items || p.items.length === 0) return false
+    if (p.items.some((item) => !item.description || item.unitPrice <= 0)) return false
+    const totals = calculateTotals(p.items)
+    if (!totals.total || totals.total <= 0) return false
+    return true
+  }
+
+  useEffect(() => {
+    setIsValidForExport(validatePOForExport(po))
+    if (!savedSnapshot) {
+      setIsDirty(false)
+      return
+    }
+    setIsDirty(snapshotPO(po) !== savedSnapshot)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [po, savedSnapshot])
+
+  const exportDisabledReason = useMemo(() => {
+    if (generating) return 'Generating...'
+    if (isEditMode && isDirty) return 'Update to enable export'
+    if (!isValidForExport) return 'Complete required fields to enable export'
+    return null
+  }, [generating, isEditMode, isDirty, isValidForExport])
+
+  const exportTitle = useMemo(() => {
+    if (exportDisabledReason) return exportDisabledReason
+    if (!isEditMode && !hasBeenSaved) return 'Will create this record, then download.'
+    return ''
+  }, [exportDisabledReason, isEditMode, hasBeenSaved])
 
   const handleAddLineItem = () => {
     const newItem: POItem = {
@@ -121,42 +167,68 @@ export default function CreatePurchaseOrderPage() {
     setPo({ ...po, items: updated, ...totals, amount: totals.total })
   }
 
-  const handleSave = async () => {
+  const handleSave = async (opts?: { redirectAfterSave?: boolean }): Promise<boolean> => {
     // Validation
     if (!po.number) {
       toast({ title: 'Error', description: 'PO number is required', variant: 'destructive' })
-      return
+      return false
     }
 
     if (!po.vendorId) {
       toast({ title: 'Error', description: 'Vendor is required', variant: 'destructive' })
-      return
+      return false
     }
 
     if (po.items.length === 0 || po.items.some((item) => !item.description || item.unitPrice <= 0)) {
       toast({ title: 'Error', description: 'Please add at least one line item with description and price', variant: 'destructive' })
-      return
+      return false
     }
 
     try {
       setSaving(true)
+      const totals = calculateTotals(po.items)
       const poToSave: PurchaseOrder = {
         ...po,
         createdAt: po.createdAt || new Date().toISOString(),
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        amount: totals.total,
       }
       await savePurchaseOrder(poToSave)
+      setPo(poToSave)
+      setSavedSnapshot(snapshotPO(poToSave))
+      setIsDirty(false)
+      setHasBeenSaved(true)
       toast({
         title: 'Success',
         description: isEditMode ? 'Purchase order updated successfully' : 'Purchase order created successfully',
       })
-      // Redirect to PO list
-      window.location.href = '/purchase-orders'
+      if (!isEditMode) setIsEditMode(true)
+      if (opts?.redirectAfterSave !== false) {
+        // Redirect to PO list
+        window.location.href = '/purchase-orders'
+      }
+      return true
     } catch (err) {
       console.error('Error saving PO:', err)
       toast({ title: 'Error', description: 'Failed to save purchase order', variant: 'destructive' })
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  const ensureSavedForExport = async (): Promise<boolean> => {
+    if (isEditMode && isDirty) {
+      toast({ title: 'Update required', description: 'Please update/save before exporting', variant: 'destructive' })
+      return false
+    }
+
+    if (!isEditMode && !hasBeenSaved) {
+      return await handleSave({ redirectAfterSave: false })
+    }
+
+    return true
   }
 
   const handleDownloadPDF = async () => {
@@ -165,22 +237,27 @@ export default function CreatePurchaseOrderPage() {
       return
     }
 
+    const okToExport = await ensureSavedForExport()
+    if (!okToExport) return
+
     if (!po.vendorId) {
       toast({ title: 'Validation', description: 'Please select a vendor', variant: 'destructive' })
       return
     }
 
-    if (!po.amount || po.amount <= 0) {
-      toast({ title: 'Validation', description: 'Please enter an amount', variant: 'destructive' })
+    const totals = calculateTotals(po.items)
+    if (!totals.total || totals.total <= 0) {
+      toast({ title: 'Validation', description: 'Please add at least one line item with price', variant: 'destructive' })
       return
     }
 
     const vendor = vendors.find((v) => v.id === po.vendorId)
     const vendorName = vendor?.name || 'Unknown Vendor'
+    const poForExport: PurchaseOrder = { ...po, subtotal: totals.subtotal, tax: totals.tax, amount: totals.total }
 
     setGenerating(true)
     try {
-      const pdfBlob = await pdfRenderer.renderPurchaseOrderToPdf(po, adminSettings, vendorName)
+      const pdfBlob = await pdfRenderer.renderPurchaseOrderToPdf(poForExport, adminSettings, vendorName)
       const filename = `po-${po.number}.pdf`
       pdfRenderer.downloadPdf(pdfBlob, filename)
       toast({ title: 'Success', description: 'PDF downloaded successfully' })
@@ -445,14 +522,15 @@ export default function CreatePurchaseOrderPage() {
               <div className="pt-4 space-y-2">
                 <Button
                   onClick={handleDownloadPDF}
-                  disabled={generating}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  disabled={!!exportDisabledReason}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white"
+                  title={exportTitle}
                 >
-                  <Download className="w-4 h-4 mr-2" />
+                  <FileText className="w-4 h-4 mr-2" />
                   {generating ? 'Generating PDF...' : 'Save PDF'}
                 </Button>
                 <Button
-                  onClick={handleSave}
+                  onClick={() => handleSave({ redirectAfterSave: true })}
                   disabled={saving}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 >

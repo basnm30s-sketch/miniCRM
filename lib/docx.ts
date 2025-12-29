@@ -19,8 +19,18 @@ import {
   ImageRun,
   BorderStyle,
   ShadingType,
+  TableBorders,
 } from 'docx'
-import { getFileUrl } from './api-client'
+import { getFileUrl, loadBrandingUrls } from './api-client'
+
+// Image type supported by docx library
+type ImageType = 'jpg' | 'png' | 'gif' | 'bmp'
+
+// Image data with type information
+interface ImageData {
+  buffer: Buffer
+  type: ImageType
+}
 
 export interface DOCXRenderer {
   /**
@@ -54,9 +64,61 @@ export interface DOCXRenderer {
  */
 export class ClientSideDOCXRenderer implements DOCXRenderer {
   /**
-   * Helper to load image from URL and convert to buffer
+   * Detect image type from buffer by checking magic bytes
    */
-  private async loadImageAsBuffer(imageUrl: string | null): Promise<Buffer | null> {
+  private detectImageType(buffer: Buffer): ImageType {
+    // Check magic bytes
+    if (buffer.length >= 3) {
+      // JPEG: starts with FF D8 FF
+      if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+        return 'jpg'
+      }
+      // PNG: starts with 89 50 4E 47
+      if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+        return 'png'
+      }
+      // GIF: starts with 47 49 46
+      if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) {
+        return 'gif'
+      }
+      // BMP: starts with 42 4D
+      if (buffer[0] === 0x42 && buffer[1] === 0x4D) {
+        return 'bmp'
+      }
+    }
+    // Default to PNG if unable to detect
+    return 'png'
+  }
+
+  /**
+   * Extract image type from URL or MIME type
+   */
+  private getImageTypeFromUrl(url: string): ImageType | null {
+    const lowerUrl = url.toLowerCase()
+    if (lowerUrl.includes('.jpg') || lowerUrl.includes('.jpeg')) return 'jpg'
+    if (lowerUrl.includes('.png')) return 'png'
+    if (lowerUrl.includes('.gif')) return 'gif'
+    if (lowerUrl.includes('.bmp')) return 'bmp'
+    return null
+  }
+
+  /**
+   * Extract image type from MIME type in data URL
+   */
+  private getImageTypeFromMime(mimeType: string): ImageType {
+    const lower = mimeType.toLowerCase()
+    if (lower === 'jpeg' || lower === 'jpg') return 'jpg'
+    if (lower === 'png') return 'png'
+    if (lower === 'gif') return 'gif'
+    if (lower === 'bmp') return 'bmp'
+    // Default to png for unknown types
+    return 'png'
+  }
+
+  /**
+   * Helper to load image from URL and convert to buffer with type detection
+   */
+  private async loadImageAsBuffer(imageUrl: string | null): Promise<ImageData | null> {
     if (!imageUrl) return null
 
     try {
@@ -67,10 +129,13 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
       }
 
       let arrayBuffer: ArrayBuffer
+      let detectedType: ImageType | null = null
 
       if (imageUrl.startsWith('data:')) {
         const base64Match = imageUrl.match(/^data:image\/(\w+);base64,(.+)$/)
         if (base64Match) {
+          // Extract MIME type from data URL
+          detectedType = this.getImageTypeFromMime(base64Match[1])
           const base64Data = base64Match[2]
           const binaryString = atob(base64Data)
           const bytes = new Uint8Array(binaryString.length)
@@ -82,12 +147,34 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           return null
         }
       } else {
+        // Try to detect type from URL extension first
+        detectedType = this.getImageTypeFromUrl(url)
+        
         const response = await fetch(url)
         if (!response.ok) return null
+        
+        // If no type from URL, try Content-Type header
+        if (!detectedType) {
+          const contentType = response.headers.get('Content-Type')
+          if (contentType) {
+            const mimeMatch = contentType.match(/image\/(\w+)/)
+            if (mimeMatch) {
+              detectedType = this.getImageTypeFromMime(mimeMatch[1])
+            }
+          }
+        }
+        
         arrayBuffer = await response.arrayBuffer()
       }
 
-      return Buffer.from(arrayBuffer)
+      const buffer = Buffer.from(arrayBuffer)
+      
+      // Final fallback: detect from magic bytes if still no type
+      if (!detectedType) {
+        detectedType = this.detectImageType(buffer)
+      }
+
+      return { buffer, type: detectedType }
     } catch (error) {
       console.error('Failed to load image:', error)
       return null
@@ -97,21 +184,25 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
   async renderQuoteToDocx(quote: Quote, adminSettings: AdminSettings): Promise<Blob> {
     const children: (Paragraph | Table)[] = []
 
-    // Load images
-    const logoBuffer = await this.loadImageAsBuffer(adminSettings.logoUrl)
-    const sealBuffer = await this.loadImageAsBuffer(adminSettings.sealUrl)
-    const signatureBuffer = await this.loadImageAsBuffer(adminSettings.signatureUrl)
+    // Load branding URLs from fixed file locations
+    const brandingUrls = await loadBrandingUrls()
+    
+    // Load images with type detection
+    const logoData = await this.loadImageAsBuffer(brandingUrls.logoUrl)
+    const sealData = await this.loadImageAsBuffer(brandingUrls.sealUrl)
+    const signatureData = await this.loadImageAsBuffer(brandingUrls.signatureUrl)
 
     // Logo - centered at top
-    if (logoBuffer) {
+    if (logoData) {
       children.push(
         new Paragraph({
           children: [
             new ImageRun({
-              data: logoBuffer,
+              type: logoData.type,
+              data: logoData.buffer,
               transformation: {
-                width: 200,
-                height: 60,
+                width: 250,
+                height: 80,
               },
             }),
           ],
@@ -322,7 +413,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 30, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -337,7 +428,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 10, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -352,7 +443,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -367,7 +458,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 10, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -382,7 +473,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -397,7 +488,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
       }),
@@ -417,7 +508,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   children: [new TextRun({ text: item.vehicleTypeLabel || '' })],
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -426,7 +517,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -435,7 +526,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -444,7 +535,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -453,7 +544,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -462,7 +553,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
           ],
         })
@@ -476,63 +567,19 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
         children: [
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            width: { size: 30, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            width: { size: 10, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            width: { size: 10, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-          new TableCell({
-            children: [
-              new Paragraph({
-                children: [new TextRun({ text: 'Subtotal:' })],
-                alignment: AlignmentType.RIGHT,
-              }),
-            ],
-            width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-          new TableCell({
-            children: [
-              new Paragraph({
-                children: [new TextRun({ text: quote.subTotal.toFixed(2) })],
-                alignment: AlignmentType.RIGHT,
-              }),
-            ],
-            width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-        ],
-      }),
-      new TableRow({
-        children: [
-          new TableCell({
-            children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-          new TableCell({
-            children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-          new TableCell({
-            children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-          new TableCell({
-            children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -541,7 +588,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 alignment: AlignmentType.RIGHT,
               }),
             ],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -550,7 +597,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 alignment: AlignmentType.RIGHT,
               }),
             ],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
       }),
@@ -558,19 +605,19 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
         children: [
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -585,7 +632,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 alignment: AlignmentType.RIGHT,
               }),
             ],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -600,7 +647,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 alignment: AlignmentType.RIGHT,
               }),
             ],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
       })
@@ -618,7 +665,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
           insideVertical: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
         },
-        margins: { top: 0, bottom: 200, left: 0, right: 0 },
+        margins: { marginUnitType: WidthType.DXA, top: 0, bottom: 200, left: 0, right: 0 },
       })
     )
 
@@ -687,14 +734,15 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           children: [
             new TableCell({
               children: [
-                signatureBuffer
+                signatureData
                   ? new Paragraph({
                       children: [
                         new ImageRun({
-                          data: signatureBuffer,
+                          type: signatureData.type,
+                          data: signatureData.buffer,
                           transformation: {
-                            width: 150,
-                            height: 60,
+                            width: 180,
+                            height: 80,
                           },
                         }),
                       ],
@@ -711,18 +759,19 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 }),
               ],
               width: { size: 50, type: WidthType.PERCENTAGE },
-              margins: { top: 200, bottom: 0, left: 0, right: 0 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 0, left: 0, right: 0 },
             }),
             new TableCell({
               children: [
-                sealBuffer
+                sealData
                   ? new Paragraph({
                       children: [
                         new ImageRun({
-                          data: sealBuffer,
+                          type: sealData.type,
+                          data: sealData.buffer,
                           transformation: {
-                            width: 120,
-                            height: 80,
+                            width: 150,
+                            height: 100,
                           },
                         }),
                       ],
@@ -741,12 +790,13 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 }),
               ],
               width: { size: 50, type: WidthType.PERCENTAGE },
-              margins: { top: 200, bottom: 0, left: 0, right: 0 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 0, left: 0, right: 0 },
             }),
           ],
         }),
       ],
       width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: TableBorders.NONE,
     })
 
     children.push(footerTable)
@@ -780,21 +830,25 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
   async renderInvoiceToDocx(invoice: Invoice, adminSettings: AdminSettings, customerName: string): Promise<Blob> {
     const children: (Paragraph | Table)[] = []
 
-    // Load images
-    const logoBuffer = await this.loadImageAsBuffer(adminSettings.logoUrl)
-    const sealBuffer = await this.loadImageAsBuffer(adminSettings.sealUrl)
-    const signatureBuffer = await this.loadImageAsBuffer(adminSettings.signatureUrl)
+    // Load branding URLs from fixed file locations
+    const brandingUrls = await loadBrandingUrls()
+    
+    // Load images with type detection
+    const logoData = await this.loadImageAsBuffer(brandingUrls.logoUrl)
+    const sealData = await this.loadImageAsBuffer(brandingUrls.sealUrl)
+    const signatureData = await this.loadImageAsBuffer(brandingUrls.signatureUrl)
 
     // Logo - centered at top
-    if (logoBuffer) {
+    if (logoData) {
       children.push(
         new Paragraph({
           children: [
             new ImageRun({
-              data: logoBuffer,
+              type: logoData.type,
+              data: logoData.buffer,
               transformation: {
-                width: 200,
-                height: 60,
+                width: 250,
+                height: 80,
               },
             }),
           ],
@@ -977,7 +1031,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 30, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -992,7 +1046,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 10, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1007,7 +1061,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1022,7 +1076,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
               fill: 'E0E0E0',
             },
             width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
       }),
@@ -1040,7 +1094,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   children: [new TextRun({ text: item.description || '' })],
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1049,7 +1103,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1058,7 +1112,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1067,7 +1121,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
           ],
         })
@@ -1081,45 +1135,11 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
         children: [
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            width: { size: 30, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            width: { size: 10, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-          new TableCell({
-            children: [
-              new Paragraph({
-                children: [new TextRun({ text: 'Subtotal:' })],
-                alignment: AlignmentType.RIGHT,
-              }),
-            ],
-            width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-          new TableCell({
-            children: [
-              new Paragraph({
-                children: [new TextRun({ text: invoice.subtotal.toFixed(2) })],
-                alignment: AlignmentType.RIGHT,
-              }),
-            ],
-            width: { size: 12, type: WidthType.PERCENTAGE },
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-        ],
-      }),
-      new TableRow({
-        children: [
-          new TableCell({
-            children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          }),
-          new TableCell({
-            children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1128,7 +1148,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 alignment: AlignmentType.RIGHT,
               }),
             ],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1137,7 +1157,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 alignment: AlignmentType.RIGHT,
               }),
             ],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
       }),
@@ -1145,11 +1165,11 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
         children: [
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [new Paragraph({ text: '' })],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1164,7 +1184,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 alignment: AlignmentType.RIGHT,
               }),
             ],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
           new TableCell({
             children: [
@@ -1179,7 +1199,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 alignment: AlignmentType.RIGHT,
               }),
             ],
-            margins: { top: 200, bottom: 200, left: 200, right: 200 },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
           }),
         ],
       })
@@ -1191,11 +1211,11 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           children: [
             new TableCell({
               children: [new Paragraph({ text: '' })],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [new Paragraph({ text: '' })],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1204,7 +1224,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1213,7 +1233,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
           ],
         }),
@@ -1221,11 +1241,11 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           children: [
             new TableCell({
               children: [new Paragraph({ text: '' })],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [new Paragraph({ text: '' })],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1238,7 +1258,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
             new TableCell({
               children: [
@@ -1251,7 +1271,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   alignment: AlignmentType.RIGHT,
                 }),
               ],
-              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
             }),
           ],
         })
@@ -1270,7 +1290,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
           insideVertical: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
         },
-        margins: { top: 0, bottom: 200, left: 0, right: 0 },
+        margins: { marginUnitType: WidthType.DXA, top: 0, bottom: 200, left: 0, right: 0 },
       })
     )
 
@@ -1302,14 +1322,15 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
           children: [
             new TableCell({
               children: [
-                signatureBuffer
+                signatureData
                   ? new Paragraph({
                       children: [
                         new ImageRun({
-                          data: signatureBuffer,
+                          type: signatureData.type,
+                          data: signatureData.buffer,
                           transformation: {
-                            width: 150,
-                            height: 60,
+                            width: 180,
+                            height: 80,
                           },
                         }),
                       ],
@@ -1326,18 +1347,19 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 }),
               ],
               width: { size: 50, type: WidthType.PERCENTAGE },
-              margins: { top: 200, bottom: 0, left: 0, right: 0 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 0, left: 0, right: 0 },
             }),
             new TableCell({
               children: [
-                sealBuffer
+                sealData
                   ? new Paragraph({
                       children: [
                         new ImageRun({
-                          data: sealBuffer,
+                          type: sealData.type,
+                          data: sealData.buffer,
                           transformation: {
-                            width: 120,
-                            height: 80,
+                            width: 150,
+                            height: 100,
                           },
                         }),
                       ],
@@ -1356,12 +1378,13 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                 }),
               ],
               width: { size: 50, type: WidthType.PERCENTAGE },
-              margins: { top: 200, bottom: 0, left: 0, right: 0 },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 0, left: 0, right: 0 },
             }),
           ],
         }),
       ],
       width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: TableBorders.NONE,
     })
 
     children.push(footerTable)

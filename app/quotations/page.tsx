@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Download, Eye, Trash2, Plus, FileText, FileSpreadsheet, FileType } from 'lucide-react'
+import { Eye, Trash2, Plus, FileText, Sheet, FileType } from 'lucide-react'
 import { Edit3 } from 'lucide-react'
 import { getAllQuotes, deleteQuote, getAdminSettings, convertQuoteToInvoice } from '@/lib/storage'
 import { ClientSidePDFRenderer } from '@/lib/pdf'
@@ -237,18 +237,18 @@ export default function QuotationsPage() {
                               size="sm"
                               onClick={() => handleDownloadPDF(quote)}
                               title="Save PDF"
-                              className="p-2 h-8 w-8"
+                              className="p-2 h-8 w-8 text-red-600 hover:text-red-700"
                             >
-                              <Download className="w-4 h-4" />
+                              <FileText className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleDownloadExcel(quote)}
                               title="Save Excel"
-                              className="p-2 h-8 w-8 text-blue-600 hover:text-blue-700"
+                              className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
                             >
-                              <FileSpreadsheet className="w-4 h-4" />
+                              <Sheet className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="outline"

@@ -95,7 +95,7 @@ export default function Home() {
     try {
       const settings = await getAdminSettings()
       if (settings) {
-        // Ensure backward compatibility - default to true if not set
+        // Default to false if not set
         // Handle both boolean and number (0/1) values from database
         const settingsWithDefaults: AdminSettings = {
           ...settings,
@@ -103,12 +103,17 @@ export default function Home() {
             ? (typeof settings.showRevenueTrend === 'boolean' 
                 ? settings.showRevenueTrend 
                 : Boolean(settings.showRevenueTrend))
-            : true,
+            : false,
           showQuickActions: settings.showQuickActions !== undefined
             ? (typeof settings.showQuickActions === 'boolean'
                 ? settings.showQuickActions
                 : Boolean(settings.showQuickActions))
-            : true,
+            : false,
+          showReports: settings.showReports !== undefined
+            ? (typeof settings.showReports === 'boolean'
+                ? settings.showReports
+                : Boolean(settings.showReports))
+            : false,
         }
         setAdminSettings(settingsWithDefaults)
       }
@@ -484,7 +489,8 @@ export default function Home() {
                 value: loading ? '...' : metrics.pendingInvoices,
               },
             ]}
-            href="/quotations"
+            quoteHref="/quotations"
+            invoiceHref="/invoices"
             borderColor="blue"
             iconBgColor="bg-blue-50"
             iconColor="text-blue-600"

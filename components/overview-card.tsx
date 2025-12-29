@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { LucideIcon, ArrowRight } from 'lucide-react'
+import { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface OverviewCardProps {
@@ -16,6 +16,8 @@ interface OverviewCardProps {
   showWatermark?: boolean
   quoteMetrics?: Array<{ label: string; value: string | number; color?: string }>
   invoiceMetrics?: Array<{ label: string; value: string | number; color?: string }>
+  quoteHref?: string
+  invoiceHref?: string
 }
 
 const borderGradients = {
@@ -57,6 +59,8 @@ export function OverviewCard({
   showWatermark = false,
   quoteMetrics,
   invoiceMetrics,
+  quoteHref,
+  invoiceHref,
 }: OverviewCardProps) {
   const accent = accentColors[borderColor]
   
@@ -84,13 +88,6 @@ export function OverviewCard({
             <div className={cn('w-14 h-14 rounded-xl flex items-center justify-center', iconBgColor, 'ring-1 ring-slate-100')}>
               <Icon className={cn('w-7 h-7', iconColor)} />
             </div>
-            
-            {/* Arrow icon in top right */}
-            {href && (
-              <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200', accent.bg, 'hover:scale-110')}>
-                <ArrowRight className={cn('w-4 h-4', accent.text)} />
-              </div>
-            )}
           </div>
 
           {/* Title */}
@@ -105,33 +102,65 @@ export function OverviewCard({
           {quoteMetrics && invoiceMetrics ? (
             <div className="grid grid-cols-2 gap-6">
               {/* Quote Metrics Column */}
-              <div className="space-y-3.5">
-                <div className={cn('text-xs font-semibold uppercase tracking-wider mb-3 pb-2 border-b', accent.text, accent.border)}>
-                  Quotes
-                </div>
-                {quoteMetrics.map((metric, index) => (
-                  <div key={index} className="flex flex-col gap-0.5">
-                    <span className="text-xs text-slate-500 font-medium">{metric.label}</span>
-                    <span className={cn('text-base font-semibold text-slate-900')}>
-                      {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
-                    </span>
+              {quoteHref ? (
+                <Link href={quoteHref} className="space-y-3.5 rounded-lg p-2 -m-2 transition-all duration-200 hover:bg-blue-50/50 cursor-pointer">
+                  <div className={cn('text-xs font-semibold uppercase tracking-wider mb-3 pb-2 border-b', accent.text, accent.border)}>
+                    Quotes
                   </div>
-                ))}
-              </div>
+                  {quoteMetrics.map((metric, index) => (
+                    <div key={index} className="flex flex-col gap-0.5">
+                      <span className="text-xs text-slate-500 font-medium">{metric.label}</span>
+                      <span className={cn('text-base font-semibold text-slate-900')}>
+                        {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+                      </span>
+                    </div>
+                  ))}
+                </Link>
+              ) : (
+                <div className="space-y-3.5">
+                  <div className={cn('text-xs font-semibold uppercase tracking-wider mb-3 pb-2 border-b', accent.text, accent.border)}>
+                    Quotes
+                  </div>
+                  {quoteMetrics.map((metric, index) => (
+                    <div key={index} className="flex flex-col gap-0.5">
+                      <span className="text-xs text-slate-500 font-medium">{metric.label}</span>
+                      <span className={cn('text-base font-semibold text-slate-900')}>
+                        {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* Invoice Metrics Column */}
-              <div className="space-y-3.5">
-                <div className={cn('text-xs font-semibold uppercase tracking-wider mb-3 pb-2 border-b', accent.text, accent.border)}>
-                  Invoices
-                </div>
-                {invoiceMetrics.map((metric, index) => (
-                  <div key={index} className="flex flex-col gap-0.5">
-                    <span className="text-xs text-slate-500 font-medium">{metric.label}</span>
-                    <span className={cn('text-base font-semibold text-slate-900')}>
-                      {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
-                    </span>
+              {invoiceHref ? (
+                <Link href={invoiceHref} className="space-y-3.5 rounded-lg p-2 -m-2 transition-all duration-200 hover:bg-blue-50/50 cursor-pointer">
+                  <div className={cn('text-xs font-semibold uppercase tracking-wider mb-3 pb-2 border-b', accent.text, accent.border)}>
+                    Invoices
                   </div>
-                ))}
-              </div>
+                  {invoiceMetrics.map((metric, index) => (
+                    <div key={index} className="flex flex-col gap-0.5">
+                      <span className="text-xs text-slate-500 font-medium">{metric.label}</span>
+                      <span className={cn('text-base font-semibold text-slate-900')}>
+                        {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+                      </span>
+                    </div>
+                  ))}
+                </Link>
+              ) : (
+                <div className="space-y-3.5">
+                  <div className={cn('text-xs font-semibold uppercase tracking-wider mb-3 pb-2 border-b', accent.text, accent.border)}>
+                    Invoices
+                  </div>
+                  {invoiceMetrics.map((metric, index) => (
+                    <div key={index} className="flex flex-col gap-0.5">
+                      <span className="text-xs text-slate-500 font-medium">{metric.label}</span>
+                      <span className={cn('text-base font-semibold text-slate-900')}>
+                        {typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3.5">

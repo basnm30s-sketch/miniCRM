@@ -33,6 +33,7 @@ export default function SalaryCalculationPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedSuccessfully, setSavedSuccessfully] = useState(false)
+  const [standardHoursInput, setStandardHoursInput] = useState<string>('160') // Local string state for input
   const [state, setState] = useState<WorkflowState>({
     currentStep: 1,
     selectedMonth: '',
@@ -67,6 +68,7 @@ export default function SalaryCalculationPage() {
       setState(prev => ({ ...prev, selectedMonth: `${now.getFullYear()}-${month}` }))
     }
   }, [state.selectedMonth])
+
 
   const formatMonth = (month: string): string => {
     if (!month) return 'N/A'
@@ -381,12 +383,37 @@ export default function SalaryCalculationPage() {
               <Label htmlFor="standardHours" className="text-xl font-semibold">Standard Hours per Month (for hourly employees)</Label>
               <Input
                 id="standardHours"
-                type="number"
-                value={state.standardHours}
-                onChange={(e) => setState(prev => ({ ...prev, standardHours: parseFloat(e.target.value) || 160 }))}
+                type="text"
+                inputMode="numeric"
+                value={standardHoursInput}
+                onChange={(e) => {
+                  const rawValue = e.target.value;
+                  // Only allow numeric characters and empty string
+                  if (rawValue === '' || /^\d+$/.test(rawValue)) {
+                    setStandardHoursInput(rawValue);
+                    // Only update numeric state if value is valid
+                    const parsed = parseFloat(rawValue);
+                    if (!Number.isNaN(parsed) && rawValue !== '') {
+                      setState(prev => ({ ...prev, standardHours: parsed }));
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  const rawValue = e.target.value;
+                  // Apply default if empty on blur
+                  if (rawValue === '' || Number.isNaN(parseFloat(rawValue)) || parseFloat(rawValue) < 1) {
+                    setStandardHoursInput('160');
+                    setState(prev => ({ ...prev, standardHours: 160 }));
+                  } else {
+                    // Ensure input and state are in sync
+                    const parsed = parseFloat(rawValue);
+                    if (!Number.isNaN(parsed)) {
+                      setStandardHoursInput(String(parsed));
+                      setState(prev => ({ ...prev, standardHours: parsed }));
+                    }
+                  }
+                }}
                 className="mt-2"
-                step="1"
-                min="1"
               />
               <p className="text-sm text-slate-500 mt-1">Default: 160 hours (8 hours/day × 20 days)</p>
             </div>
@@ -611,6 +638,7 @@ export default function SalaryCalculationPage() {
                 </Button>
                 <Button 
                   onClick={() => {
+                    setStandardHoursInput('160')
                     setState({
                       currentStep: 1,
                       selectedMonth: '',

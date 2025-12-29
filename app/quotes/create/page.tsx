@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import {
   Card,
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select'
 // Replaced top-of-page alerts with toast notifications
 import { toast } from '@/hooks/use-toast'
-import { Plus, Trash2, Download, ArrowLeft, FileSpreadsheet, FileType } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, FileText, Sheet, FileType } from 'lucide-react'
 import {
   getAdminSettings,
   initializeAdminSettings,
@@ -57,6 +57,8 @@ export default function CreateQuotePage() {
   const [newCustomerAddress, setNewCustomerAddress] = useState('')
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
   const [isValidForExport, setIsValidForExport] = useState(false)
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
   // top-of-page alerts replaced by toast notifications
 
   const [quote, setQuote] = useState<Quote>({
@@ -83,6 +85,12 @@ export default function CreateQuotePage() {
     notes: '',
   })
   const [isEditMode, setIsEditMode] = useState(false)
+
+  const snapshotQuote = (q: Quote) => {
+    // Exclude timestamp fields so they don't cause dirty state flips
+    const { createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = q as any
+    return JSON.stringify(rest)
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -120,6 +128,8 @@ export default function CreateQuotePage() {
           if (existing) {
             setQuote(existing)
             setIsEditMode(true)
+            setSavedSnapshot(snapshotQuote(existing))
+            setIsDirty(false)
           }
         } else {
           // Set quote number for new quote
@@ -240,17 +250,41 @@ export default function CreateQuotePage() {
     validateQuoteState(quote)
   }, [quote])
 
+  useEffect(() => {
+    if (!savedSnapshot) {
+      setIsDirty(false)
+      return
+    }
+    setIsDirty(snapshotQuote(quote) !== savedSnapshot)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quote, savedSnapshot])
+
+  const exportDisabledReason = useMemo(() => {
+    if (generating) return 'Generating...'
+    if (isEditMode && isDirty) return 'Update to enable export'
+    if (!isValidForExport) return 'Complete required fields to enable export'
+    return null
+  }, [generating, isEditMode, isDirty, isValidForExport])
+
+  const exportTitle = useMemo(() => {
+    if (exportDisabledReason) return exportDisabledReason
+    if (!isEditMode && !quote.createdAt) return 'Will create this record, then download.'
+    return ''
+  }, [exportDisabledReason, isEditMode, quote.createdAt])
+
   const handleCustomerChange = (customerId: string) => {
     const selectedCustomer = customers.find((c) => c.id === customerId)
     if (selectedCustomer) {
-      setQuote({
+      const updatedQuote = {
         ...quote,
         customer: selectedCustomer,
-      })
+      }
+      setQuote(updatedQuote)
+      validateQuoteState(updatedQuote)
     }
   }
 
-  const handleSaveQuote = async () => {
+  const handleSaveQuote = async (opts?: { redirectAfterSave?: boolean }): Promise<boolean> => {
     // Comprehensive validation
     const validation = await validateQuote(quote, {
       checkUniqueness: true,
@@ -267,24 +301,50 @@ export default function CreateQuotePage() {
         description: firstError?.message || 'Please fix the validation errors',
         variant: 'destructive',
       })
-      return
+      return false
     }
 
     setSaving(true)
     try {
-      await saveQuote({
+      const now = new Date().toISOString()
+      const quoteToSave: Quote = {
         ...quote,
-        createdAt: quote.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
+        createdAt: quote.createdAt || now,
+        updatedAt: now,
+      }
+      await saveQuote(quoteToSave)
+      setQuote(quoteToSave)
+      setSavedSnapshot(snapshotQuote(quoteToSave))
+      setIsDirty(false)
       toast({ title: 'Saved', description: `Quote ${quote.number} saved successfully` })
       setValidationErrors([])
+      if (!isEditMode) setIsEditMode(true)
+      // No redirects for quotes page currently; keep option for parity.
+      if (opts?.redirectAfterSave) {
+        window.location.href = '/quotations'
+      }
+      return true
     } catch (err) {
       console.error('Failed to save quote:', err)
       toast({ title: 'Error', description: 'Failed to save quote', variant: 'destructive' })
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  const ensureSavedForExport = async (): Promise<boolean> => {
+    // Edit mode must export persisted state only
+    if (isEditMode && isDirty) {
+      toast({ title: 'Update required', description: 'Please update/save before exporting', variant: 'destructive' })
+      return false
+    }
+
+    // Create mode: save first (no redirect) then export
+    if (!isEditMode && !quote.createdAt) {
+      return await handleSaveQuote({ redirectAfterSave: false })
+    }
+    return true
   }
 
   const handleDownloadPDF = async () => {
@@ -292,6 +352,9 @@ export default function CreateQuotePage() {
       toast({ title: 'Error', description: 'Admin settings not loaded', variant: 'destructive' })
       return
     }
+
+    const okToExport = await ensureSavedForExport()
+    if (!okToExport) return
 
     // Validation using shared validation function
     const validation = validateQuoteForExport(quote)
@@ -326,6 +389,9 @@ export default function CreateQuotePage() {
       return
     }
 
+    const okToExport = await ensureSavedForExport()
+    if (!okToExport) return
+
     // Validation using shared validation function
     const validation = validateQuoteForExport(quote)
     if (!validation.isValid) {
@@ -358,6 +424,9 @@ export default function CreateQuotePage() {
       toast({ title: 'Error', description: 'Admin settings not loaded', variant: 'destructive' })
       return
     }
+
+    const okToExport = await ensureSavedForExport()
+    if (!okToExport) return
 
     // Validation using shared validation function
     const validation = validateQuoteForExport(quote)
@@ -504,8 +573,6 @@ export default function CreateQuotePage() {
                   value={quote.customer.id}
                   onValueChange={(value) => {
                     handleCustomerChange(value)
-                    // Trigger validation after customer change
-                    setTimeout(() => validateQuoteState(), 100)
                   }}
                 >
                   <SelectTrigger
@@ -780,33 +847,33 @@ export default function CreateQuotePage() {
               <div className="pt-4 space-y-2">
                 <Button
                   onClick={handleDownloadPDF}
-                  disabled={generating || !isValidForExport}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
+                  disabled={!!exportDisabledReason}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={exportTitle}
                 >
-                  <Download className="w-4 h-4 mr-2" />
+                  <FileText className="w-4 h-4 mr-2" />
                   {generating ? 'Generating PDF...' : 'Save PDF'}
                 </Button>
                 <Button
                   onClick={handleDownloadExcel}
-                  disabled={generating || !isValidForExport}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
+                  disabled={!!exportDisabledReason}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={exportTitle}
                 >
-                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  <Sheet className="w-4 h-4 mr-2" />
                   {generating ? 'Generating Excel...' : 'Save Excel'}
                 </Button>
                 <Button
                   onClick={handleDownloadDocx}
-                  disabled={generating || !isValidForExport}
+                  disabled={!!exportDisabledReason}
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
+                  title={exportTitle}
                 >
                   <FileType className="w-4 h-4 mr-2" />
                   {generating ? 'Generating Word...' : 'Save Word'}
                 </Button>
                 <Button
-                  onClick={handleSaveQuote}
+                  onClick={() => handleSaveQuote({ redirectAfterSave: false })}
                   disabled={saving}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 >

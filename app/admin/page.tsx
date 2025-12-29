@@ -14,65 +14,76 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import RichTextEditor from '@/components/ui/rich-text-editor'
-// Alerts replaced by toasts
 import { toast } from '@/hooks/use-toast'
 import { getAdminSettings, saveAdminSettings, initializeAdminSettings } from '@/lib/storage'
-import { uploadFile, getFileUrl } from '@/lib/api-client'
+import { checkBrandingFiles, uploadBrandingFile, getBrandingUrl } from '@/lib/api-client'
 import { AdminSettings } from '@/lib/types'
+
+// Branding files state (separate from admin settings - stored as files, not in database)
+interface BrandingState {
+  logo: boolean
+  seal: boolean
+  signature: boolean
+  extensions: { logo: string | null; seal: string | null; signature: string | null }
+}
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<AdminSettings | null>(null)
+  const [branding, setBranding] = useState<BrandingState>({ 
+    logo: false, seal: false, signature: false, 
+    extensions: { logo: null, seal: null, signature: null } 
+  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  // top-of-page alerts replaced by toast notifications
+  const [uploading, setUploading] = useState<'logo' | 'seal' | 'signature' | null>(null)
 
+  // Load settings and check branding files
   useEffect(() => {
-    async function loadSettings() {
+    async function loadData() {
       try {
+        // Load admin settings from database
         const stored = await getAdminSettings()
         if (stored) {
-          // Ensure boolean values are properly set (handle 0/1 from database)
-          // Explicitly check for false (0) vs true (1) vs undefined
           const settingsWithBooleans: AdminSettings = {
             ...stored,
             showRevenueTrend: stored.showRevenueTrend === false || stored.showRevenueTrend === 0
               ? false
-              : (stored.showRevenueTrend === true || stored.showRevenueTrend === 1
-                  ? true
-                  : true), // default to true if undefined
+              : (stored.showRevenueTrend === true || stored.showRevenueTrend === 1 ? true : false),
             showQuickActions: stored.showQuickActions === false || stored.showQuickActions === 0
               ? false
-              : (stored.showQuickActions === true || stored.showQuickActions === 1
-                  ? true
-                  : true), // default to true if undefined
-          showReports: stored.showReports === false || stored.showReports === 0
+              : (stored.showQuickActions === true || stored.showQuickActions === 1 ? true : false),
+            showReports: stored.showReports === false || stored.showReports === 0
               ? false
-              : (stored.showReports === true || stored.showReports === 1
-                  ? true
-                  : true), // default to true if undefined
+              : (stored.showReports === true || stored.showReports === 1 ? true : false),
           }
           setSettings(settingsWithBooleans)
         } else {
           const initialized = await initializeAdminSettings()
           setSettings(initialized)
         }
-        } catch (err) {
-        console.error('Failed to load settings:', err)
+
+        // Check which branding files exist (separate from database)
+        const brandingStatus = await checkBrandingFiles()
+        console.log('Branding files status:', brandingStatus)
+        setBranding(brandingStatus)
+      } catch (err) {
+        console.error('Failed to load data:', err)
         toast({ title: 'Error', description: 'Failed to load settings', variant: 'destructive' })
       } finally {
         setLoading(false)
       }
     }
 
-    loadSettings()
+    loadData()
   }, [])
 
+  // Handle branding image upload
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    field: 'logoUrl' | 'sealUrl' | 'signatureUrl'
+    brandingType: 'logo' | 'seal' | 'signature'
   ) => {
     const file = e.target.files?.[0]
-    if (!file || !settings) return
+    if (!file) return
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -86,43 +97,26 @@ export default function AdminSettingsPage() {
       return
     }
 
+    setUploading(brandingType)
     try {
-      // Determine upload type based on field
-      let uploadType: 'logos' | 'documents' | 'signatures' = 'logos'
-      if (field === 'sealUrl') uploadType = 'logos' // Store seal in logos folder
-      else if (field === 'signatureUrl') uploadType = 'signatures'
-      else if (field === 'logoUrl') uploadType = 'logos'
-
-      // Upload file to server
-      const relativePath = await uploadFile(file, uploadType)
+      // Upload file to fixed location
+      await uploadBrandingFile(file, brandingType)
       
-      // Update settings with file path
-      const updatedSettings = {
-        ...settings,
-        [field]: relativePath,
-        updatedAt: new Date().toISOString(),
-      }
-      setSettings(updatedSettings)
+      // Refresh branding status
+      const brandingStatus = await checkBrandingFiles()
+      setBranding(brandingStatus)
       
-      // Auto-save settings immediately after image upload to persist the path
-      try {
-        await saveAdminSettings(updatedSettings)
-        toast({ 
-          title: 'Upload', 
-          description: `${field === 'logoUrl' ? 'Logo' : field === 'sealUrl' ? 'Seal' : 'Signature'} uploaded and saved successfully` 
-        })
-      } catch (saveErr) {
-        console.error('Failed to save settings after upload:', saveErr)
-        // Still show success for upload, but warn about save
-        toast({ 
-          title: 'Upload', 
-          description: `${field === 'logoUrl' ? 'Logo' : field === 'sealUrl' ? 'Seal' : 'Signature'} uploaded but failed to save. Please click 'Save Settings' to persist.`,
-          variant: 'default'
-        })
-      }
-    } catch (err) {
+      toast({ 
+        title: 'Upload', 
+        description: `${brandingType.charAt(0).toUpperCase() + brandingType.slice(1)} uploaded successfully` 
+      })
+    } catch (err: any) {
       console.error('Failed to upload image:', err)
-      toast({ title: 'Error', description: 'Failed to upload image', variant: 'destructive' })
+      toast({ title: 'Error', description: err.message || 'Failed to upload image', variant: 'destructive' })
+    } finally {
+      setUploading(null)
+      // Clear the input so the same file can be uploaded again
+      e.target.value = ''
     }
   }
 
@@ -140,52 +134,16 @@ export default function AdminSettingsPage() {
 
     setSaving(true)
     try {
-      // Save the exact boolean values from state
+      // Save settings (without branding paths - those are file-based now)
       const settingsToSave: AdminSettings = {
         ...settings,
-        // Use the actual boolean value from state
         showRevenueTrend: settings.showRevenueTrend === true ? true : false,
         showQuickActions: settings.showQuickActions === true ? true : false,
         showReports: settings.showReports === true ? true : false,
         updatedAt: new Date().toISOString(),
       }
       
-      console.log('Saving settings - before save:', {
-        stateValue: settings.showRevenueTrend,
-        savingValue: settingsToSave.showRevenueTrend,
-      })
-      
       await saveAdminSettings(settingsToSave)
-      
-      // Small delay to ensure database write completes
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Reload settings to ensure we have the latest from database
-      const reloaded = await getAdminSettings()
-      if (reloaded) {
-        // Convert values properly when reloading
-        const settingsWithBooleans: AdminSettings = {
-          ...reloaded,
-          showRevenueTrend: reloaded.showRevenueTrend === false || reloaded.showRevenueTrend === 0
-            ? false
-            : (reloaded.showRevenueTrend === true || reloaded.showRevenueTrend === 1 ? true : true),
-          showQuickActions: reloaded.showQuickActions === false || reloaded.showQuickActions === 0
-            ? false
-            : (reloaded.showQuickActions === true || reloaded.showQuickActions === 1 ? true : true),
-          showReports: reloaded.showReports === false || reloaded.showReports === 0
-            ? false
-            : (reloaded.showReports === true || reloaded.showReports === 1 ? true : true),
-        }
-        console.log('Reloaded settings:', {
-          showRevenueTrend: settingsWithBooleans.showRevenueTrend,
-          showQuickActions: settingsWithBooleans.showQuickActions,
-          raw: {
-            showRevenueTrend: reloaded.showRevenueTrend,
-            showQuickActions: reloaded.showQuickActions,
-          }
-        })
-        setSettings(settingsWithBooleans)
-      }
       toast({ title: 'Saved', description: 'Settings saved successfully' })
     } catch (err) {
       console.error('Failed to save settings:', err)
@@ -211,14 +169,17 @@ export default function AdminSettingsPage() {
     )
   }
 
+  // Generate branding image URLs
+  const logoUrl = getBrandingUrl('logo', branding.extensions.logo)
+  const sealUrl = getBrandingUrl('seal', branding.extensions.seal)
+  const signatureUrl = getBrandingUrl('signature', branding.extensions.signature)
+
   return (
     <div className="space-y-6 p-6">
       <div>
         <h1 className="text-3xl font-bold">Admin Settings</h1>
         <p className="text-gray-500">Manage company profile and branding for quotes</p>
       </div>
-
-      {/* toasts will show notifications; no top-of-page alerts */}
 
       {/* Company Profile */}
       <Card>
@@ -291,7 +252,7 @@ export default function AdminSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Default Terms & Conditions</CardTitle>
-          <CardDescription>These terms will be used as the default when creating a new quote. You can edit them per-quote in the quote editor.</CardDescription>
+          <CardDescription>These terms will be used as the default when creating a new quote.</CardDescription>
         </CardHeader>
         <CardContent>
           <RichTextEditor
@@ -307,7 +268,7 @@ export default function AdminSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Branding</CardTitle>
-          <CardDescription>Upload logo, seal and signature images</CardDescription>
+          <CardDescription>Upload logo, seal and signature images (stored as files, auto-used in documents)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Logo */}
@@ -317,26 +278,24 @@ export default function AdminSettingsPage() {
               id="logo"
               type="file"
               accept="image/*"
-              onChange={(e) => handleImageUpload(e, 'logoUrl')}
+              onChange={(e) => handleImageUpload(e, 'logo')}
+              disabled={uploading === 'logo'}
               className="mb-2"
             />
-            {settings.logoUrl && (
+            {uploading === 'logo' && <p className="text-sm text-blue-600">Uploading...</p>}
+            {branding.logo && logoUrl && (
               <div className="mt-2">
                 <img
-                  src={settings.logoUrl.startsWith('data:') ? settings.logoUrl : (getFileUrl(settings.logoUrl) || settings.logoUrl)}
+                  src={logoUrl}
                   alt="Logo preview"
                   style={{ maxHeight: '80px', maxWidth: '200px' }}
                   className="border rounded p-2"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => setSettings({ ...settings, logoUrl: null })}
-                >
-                  Remove Logo
-                </Button>
+                <p className="text-sm text-green-600 mt-1">✓ Logo uploaded</p>
               </div>
+            )}
+            {!branding.logo && (
+              <p className="text-sm text-gray-500 mt-1">No logo uploaded yet</p>
             )}
             <p className="text-sm text-gray-500 mt-1">Max size: 2MB. Recommended: PNG or JPG</p>
           </div>
@@ -348,26 +307,24 @@ export default function AdminSettingsPage() {
               id="seal"
               type="file"
               accept="image/*"
-              onChange={(e) => handleImageUpload(e, 'sealUrl')}
+              onChange={(e) => handleImageUpload(e, 'seal')}
+              disabled={uploading === 'seal'}
               className="mb-2"
             />
-            {settings.sealUrl && (
+            {uploading === 'seal' && <p className="text-sm text-blue-600">Uploading...</p>}
+            {branding.seal && sealUrl && (
               <div className="mt-2">
                 <img
-                  src={settings.sealUrl.startsWith('data:') ? settings.sealUrl : (getFileUrl(settings.sealUrl) || settings.sealUrl)}
+                  src={sealUrl}
                   alt="Seal preview"
                   style={{ maxHeight: '100px', maxWidth: '100px' }}
                   className="border rounded p-2"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => setSettings({ ...settings, sealUrl: null })}
-                >
-                  Remove Seal
-                </Button>
+                <p className="text-sm text-green-600 mt-1">✓ Seal uploaded</p>
               </div>
+            )}
+            {!branding.seal && (
+              <p className="text-sm text-gray-500 mt-1">No seal uploaded yet</p>
             )}
             <p className="text-sm text-gray-500 mt-1">Max size: 2MB. Recommended: PNG with transparency</p>
           </div>
@@ -379,26 +336,24 @@ export default function AdminSettingsPage() {
               id="signature"
               type="file"
               accept="image/*"
-              onChange={(e) => handleImageUpload(e, 'signatureUrl')}
+              onChange={(e) => handleImageUpload(e, 'signature')}
+              disabled={uploading === 'signature'}
               className="mb-2"
             />
-            {settings.signatureUrl && (
+            {uploading === 'signature' && <p className="text-sm text-blue-600">Uploading...</p>}
+            {branding.signature && signatureUrl && (
               <div className="mt-2">
                 <img
-                  src={settings.signatureUrl.startsWith('data:') ? settings.signatureUrl : (getFileUrl(settings.signatureUrl) || settings.signatureUrl)}
+                  src={signatureUrl}
                   alt="Signature preview"
                   style={{ maxHeight: '60px', maxWidth: '150px' }}
                   className="border rounded p-2"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => setSettings({ ...settings, signatureUrl: null })}
-                >
-                  Remove Signature
-                </Button>
+                <p className="text-sm text-green-600 mt-1">✓ Signature uploaded</p>
               </div>
+            )}
+            {!branding.signature && (
+              <p className="text-sm text-gray-500 mt-1">No signature uploaded yet</p>
             )}
             <p className="text-sm text-gray-500 mt-1">Max size: 2MB. Recommended: PNG with transparency</p>
           </div>

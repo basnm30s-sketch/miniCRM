@@ -7,16 +7,19 @@
   "main": "electron/main.js",
   "scripts": {
     "build": "next build",
+    "build:electron": "node scripts/build-electron.js",
+    "build:server": "tsc -p tsconfig.server.json --skipLibCheck --noCheck",
+    "build:all": "npm run build:electron && npm run build:server",
     "dev": "concurrently \"npm run api:dev\" \"next dev\"",
     "api:dev": "tsx api/server.ts",
     "lint": "eslint .",
     "start": "next start",
     "electron:dev": "concurrently \"cross-env NODE_ENV=development next dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "next build && electron-builder",
-    "electron:build-win": "next build && electron-builder --win",
-    "electron:build-win-unpacked": "next build && electron-builder --win --dir",
-    "electron:build-mac": "next build && electron-builder --mac",
-    "electron:build-linux": "next build && electron-builder --linux",
+    "electron:build": "npm run build:all && electron-builder",
+    "electron:build-win": "npm run build:all && electron-builder --win",
+    "electron:build-win-unpacked": "npm run build:all && electron-builder --win --dir",
+    "electron:build-mac": "npm run build:all && electron-builder --mac",
+    "electron:build-linux": "npm run build:all && electron-builder --linux",
     "build:static": "next build"
   },
   "dependencies": {
@@ -109,8 +112,7 @@
     "files": [
       "out/**/*",
       "electron/**/*",
-      "lib/**/*",
-      "api/**/*",
+      "dist-server/**/*",
       "data/**/*",
       "node_modules/**/*",
       "package.json"
@@ -121,7 +123,8 @@
     },
     "win": {
       "target": "nsis",
-      "forceCodeSigning": false
+      "forceCodeSigning": false,
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": "dmg"

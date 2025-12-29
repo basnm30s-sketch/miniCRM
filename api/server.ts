@@ -31,11 +31,38 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 // Initialize database
 try {
   initDatabase()
-  console.log('Database initialized successfully')
+  console.log('✓ Database initialized successfully')
 } catch (error) {
-  console.error('Failed to initialize database:', error)
-  process.exit(1)
+  console.error('✗ Failed to initialize database:', error)
+  console.error('Continuing without database (will use client-side storage)...')
+  // Don't exit - allow server to run without database
 }
+
+// ============================================
+// SERVE STATIC FRONTEND BUILD (CRITICAL FOR ELECTRON)
+// ============================================
+// In packaged mode, __dirname is dist-server/api/, so we need to go up two levels
+// to get to the app root where 'out' folder is located
+const frontendPath = path.join(__dirname, '..', '..', 'out')
+console.log('[Server] Serving static files from:', frontendPath)
+
+// Serve static assets (CSS, JS, images, fonts) with correct MIME types
+app.use(express.static(frontendPath, {
+  setHeaders: (res, filePath) => {
+    // Ensure correct MIME types for assets
+    if (filePath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css')
+    } else if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript')
+    } else if (filePath.endsWith('.json')) {
+      res.setHeader('Content-Type', 'application/json')
+    } else if (filePath.endsWith('.woff2')) {
+      res.setHeader('Content-Type', 'font/woff2')
+    } else if (filePath.endsWith('.woff')) {
+      res.setHeader('Content-Type', 'font/woff')
+    }
+  }
+}))
 
 // API Routes
 app.use('/api/customers', customersRouter)
@@ -55,6 +82,29 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'API server is running' })
 })
 
+// ============================================
+// SPA CATCH-ALL ROUTE (MUST BE AFTER API ROUTES)
+// ============================================
+// For client-side routes like /customers, /invoices, etc.
+// This allows Next.js client-side routing to work
+// Note: Express 5 requires named wildcard parameter syntax
+app.get('/{*splat}', (req: Request, res: Response, next: NextFunction) => {
+  // Skip if it's an API route (already handled above)
+  if (req.path.startsWith('/api/')) {
+    return next()
+  }
+  
+  // Serve index.html for all other routes (SPA catch-all)
+  const indexPath = path.join(frontendPath, 'index.html')
+  console.log('[Server] Catch-all route hit:', req.path, '-> serving index.html')
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error('[Server] Error serving index.html:', err)
+      res.status(500).send('Error loading application')
+    }
+  })
+})
+
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error('Error:', err)
@@ -63,8 +113,40 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 
 // Start server
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`API server running on http://localhost:${PORT}`)
+  const server = app.listen(PORT, () => {
+    console.log('========================================')
+    console.log(`✓ API server running on http://localhost:${PORT}`)
+    console.log(`✓ Frontend path: ${path.join(__dirname, '..', 'out')}`)
+    console.log(`✓ Node version: ${process.version}`)
+    console.log(`✓ Process ID: ${process.pid}`)
+    console.log('========================================')
+  })
+
+  server.on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`✗ Port ${PORT} is already in use`)
+      console.error('Another instance may be running')
+    } else {
+      console.error('✗ Server error:', error)
+    }
+    process.exit(1)
+  })
+
+  // Handle process termination
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, closing server...')
+    server.close(() => {
+      console.log('Server closed')
+      process.exit(0)
+    })
+  })
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, closing server...')
+    server.close(() => {
+      console.log('Server closed')
+      process.exit(0)
+    })
   })
 }
 

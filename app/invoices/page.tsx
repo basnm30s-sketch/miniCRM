@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Plus, Edit2, Download, Trash2, FileSpreadsheet, FileType } from 'lucide-react'
+import { Plus, Edit3, Trash2, FileText, Sheet, FileType, Eye } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import {
   getAllInvoices,
@@ -38,6 +38,7 @@ export default function InvoicesPage() {
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null)
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
   const [savingAmount, setSavingAmount] = useState(false)
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null)
 
   useEffect(() => {
     loadData()
@@ -110,6 +111,12 @@ export default function InvoicesPage() {
         return status || 'Draft'
     }
   }
+
+  const handlePreview = (invoice: Invoice) => {
+    setPreviewInvoice(invoice)
+  }
+
+  const closePreview = () => setPreviewInvoice(null)
 
   const handleDownloadPDF = async (invoice: Invoice) => {
     try {
@@ -325,31 +332,40 @@ export default function InvoicesPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              title="Preview"
+                              onClick={() => handlePreview(invoice)}
+                              className="p-2 h-8 w-8"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
                             <Link href={`/invoices/create?id=${invoice.id}`}>
-                              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800">
-                                <Edit2 className="w-4 h-4" />
+                              <Button variant="outline" size="sm" title="Edit" className="p-2 h-8 w-8">
+                                <Edit3 className="w-4 h-4" />
                               </Button>
                             </Link>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => handleDownloadPDF(invoice)}
                               title="Save PDF"
-                              className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
+                              className="p-2 h-8 w-8 text-red-600 hover:text-red-700"
                             >
-                              <Download className="w-4 h-4" />
+                              <FileText className="w-4 h-4" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => handleDownloadExcel(invoice)}
                               title="Save Excel"
-                              className="p-2 h-8 w-8 text-blue-600 hover:text-blue-700"
+                              className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
                             >
-                              <FileSpreadsheet className="w-4 h-4" />
+                              <Sheet className="w-4 h-4" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => handleDownloadDocx(invoice)}
                               title="Save Word"
@@ -358,10 +374,11 @@ export default function InvoicesPage() {
                               <FileType className="w-4 h-4" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => handleDeleteClick(invoice.id)}
-                              className="text-red-600 hover:text-red-800"
+                              title="Delete"
+                              className="p-2 h-8 w-8 text-red-600 hover:text-red-700"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -376,6 +393,81 @@ export default function InvoicesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Preview Modal */}
+      {previewInvoice && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-6">
+          <div className="fixed inset-0 bg-black/40" onClick={closePreview} />
+          <div className="relative bg-white w-full max-w-4xl rounded shadow-lg p-6 overflow-auto max-h-[90vh]">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="text-xl font-bold">Preview - {previewInvoice.number}</h2>
+                <p className="text-sm text-gray-600">{getCustomerName(previewInvoice.customerId)}</p>
+              </div>
+              <div>
+                <Button variant="ghost" onClick={closePreview}>Close</Button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-semibold">Invoice Details</h3>
+                <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+                  <div><span className="text-gray-500">Date:</span> {previewInvoice.date}</div>
+                  <div><span className="text-gray-500">Status:</span> <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(previewInvoice.status)}`}>{getStatusDisplay(previewInvoice.status)}</span></div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold">Items</h3>
+                <table className="w-full text-sm mt-2">
+                  <thead className="bg-gray-100 border-b">
+                    <tr>
+                      <th className="text-left p-2">Description</th>
+                      <th className="text-right p-2">Qty</th>
+                      <th className="text-right p-2">Unit Price</th>
+                      <th className="text-right p-2">Tax %</th>
+                      <th className="text-right p-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewInvoice.items?.map((item, index) => {
+                      const itemTotal = item.quantity * item.unitPrice
+                      const taxAmount = (itemTotal * (item.taxPercent || 0)) / 100
+                      return (
+                        <tr key={index} className="border-b">
+                          <td className="p-2">{item.description || 'N/A'}</td>
+                          <td className="p-2 text-right">{item.quantity}</td>
+                          <td className="p-2 text-right">{item.unitPrice.toFixed(2)}</td>
+                          <td className="p-2 text-right">{item.taxPercent || 0}</td>
+                          <td className="p-2 text-right">{(itemTotal + taxAmount).toFixed(2)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h3 className="font-semibold">Totals</h3>
+                <div className="mt-2 space-y-1">
+                  <div className="flex justify-between"><span>Subtotal</span><span>AED {(previewInvoice.subTotal || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Total Tax</span><span>AED {(previewInvoice.totalTax || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between font-bold"><span>Total</span><span>AED {(previewInvoice.total || 0).toFixed(2)}</span></div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold">Payment Status</h3>
+                <div className="mt-2 space-y-1">
+                  <div className="flex justify-between"><span>Amount Received</span><span className="text-green-600">AED {(previewInvoice.amountReceived || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Pending Amount</span><span className="text-orange-600 font-semibold">AED {((previewInvoice.total || 0) - (previewInvoice.amountReceived || 0)).toFixed(2)}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

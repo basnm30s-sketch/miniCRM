@@ -593,10 +593,10 @@ export const adminAdapter = {
       const columnNames = tableInfo.map((col: any) => col.name)
       
       if (!columnNames.includes('showRevenueTrend')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 1')
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0')
       }
       if (!columnNames.includes('showQuickActions')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 1')
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 0')
       }
     } catch (error: any) {
       console.log('Migration check:', error.message)
@@ -605,23 +605,23 @@ export const adminAdapter = {
     const row = db.prepare('SELECT * FROM admin_settings LIMIT 1').get() as any
     if (!row) return null
     
-    // Convert integer (0/1) to boolean, default to true if undefined
-    // Explicitly check: 0 -> false, 1 -> true, null/undefined -> true
+    // Convert integer (0/1) to boolean, default to false if undefined
+    // Explicitly check: 0 -> false, 1 -> true, null/undefined -> false
     const showRevenueTrend = (row.showRevenueTrend === 0) 
       ? false 
       : (row.showRevenueTrend === 1) 
         ? true 
-        : true // default to true if null/undefined
+        : false // default to false if null/undefined
     const showQuickActions = (row.showQuickActions === 0)
       ? false
       : (row.showQuickActions === 1)
         ? true
-        : true // default to true if null/undefined
+        : false // default to false if null/undefined
     const showReports = (row.showReports === 0)
       ? false
       : (row.showReports === 1)
         ? true
-        : true // default to true if null/undefined
+        : false // default to false if null/undefined
     
     return {
       id: row.id,
@@ -651,13 +651,13 @@ export const adminAdapter = {
       const columnNames = tableInfo.map((col: any) => col.name)
       
       if (!columnNames.includes('showRevenueTrend')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 1')
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0')
       }
       if (!columnNames.includes('showQuickActions')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 1')
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 0')
       }
       if (!columnNames.includes('showReports')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showReports INTEGER DEFAULT 1')
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showReports INTEGER DEFAULT 0')
       }
     } catch (error: any) {
       console.log('Migration check in save:', error.message)
@@ -669,10 +669,10 @@ export const adminAdapter = {
     const existing = db.prepare('SELECT id FROM admin_settings LIMIT 1').get() as any
     
     // Convert boolean to integer (SQLite doesn't have native boolean)
-    // Explicitly handle: false -> 0, true -> 1, undefined/null -> 1 (default)
-    const showRevenueTrend = (data.showRevenueTrend === false) ? 0 : 1
-    const showQuickActions = (data.showQuickActions === false) ? 0 : 1
-    const showReports = (data.showReports === false) ? 0 : 1
+    // Explicitly handle: false -> 0, true -> 1, undefined/null -> 0 (default)
+    const showRevenueTrend = (data.showRevenueTrend === true) ? 1 : 0
+    const showQuickActions = (data.showQuickActions === true) ? 1 : 0
+    const showReports = (data.showReports === true) ? 1 : 0
     
     console.log('Adapter save - converting:', {
       showRevenueTrend: { input: data.showRevenueTrend, output: showRevenueTrend },

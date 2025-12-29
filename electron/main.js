@@ -1,122 +1,198 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 const isDev = require('electron-is-dev');
 
 let db = null;
 let apiServer = null;
+let serverStartupPromise = null;
 
-// Start API server in production mode
-function startApiServer() {
-  if (apiServer) {
-    console.log('API server already running');
-    return;
+function resolveFirstExisting(...candidates) {
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
+  return null;
+}
 
-  const fs = require('fs');
-  
-  // Check if we're in packaged mode
+function getApiEntryPath() {
   if (app.isPackaged) {
-    // In packaged mode, files are in ASAR archive
-    // We need to use the correct path - ASAR files are read-only, so we can't execute from there
-    // Use process.resourcesPath which points to the resources folder (outside ASAR)
+    // In packaged mode, use compiled JavaScript from dist-server
     const resourcesPath = process.resourcesPath || app.getAppPath();
-    
-    // Try to find the API server - it should be in the app.asar or resources
-    let apiPath = path.join(resourcesPath, 'app.asar', 'api', 'server.ts');
-    if (!fs.existsSync(apiPath)) {
-      // Try without .asar (if unpacked)
-      apiPath = path.join(resourcesPath, 'api', 'server.ts');
-    }
-    if (!fs.existsSync(apiPath)) {
-      // Try app.getAppPath() which handles ASAR automatically
-      apiPath = path.join(app.getAppPath(), 'api', 'server.ts');
-    }
-    
-    // Find tsx - it should be in node_modules
-    let tsxPath = path.join(resourcesPath, 'app.asar', 'node_modules', '.bin', 'tsx');
-    if (!fs.existsSync(tsxPath)) {
-      tsxPath = path.join(resourcesPath, 'app.asar', 'node_modules', 'tsx', 'dist', 'cli.mjs');
-    }
-    if (!fs.existsSync(tsxPath)) {
-      tsxPath = path.join(app.getAppPath(), 'node_modules', '.bin', 'tsx');
-    }
-    if (!fs.existsSync(tsxPath) && process.platform === 'win32') {
-      tsxPath = path.join(app.getAppPath(), 'node_modules', '.bin', 'tsx.cmd');
-    }
-    
-    // Use Electron's node to run tsx
-    const electronPath = process.execPath;
-    let command, args;
-    
-    if (fs.existsSync(tsxPath)) {
-      // Use tsx directly
-      command = electronPath;
-      args = [tsxPath, apiPath];
-      console.log('Using tsx to run API server');
-    } else {
-      // Try using node with tsx module
-      command = electronPath;
-      args = ['-r', 'tsx/cjs/api', apiPath];
-      console.log('Trying to use node with tsx loader');
-    }
-    
-    console.log('Starting API server...');
-    console.log('Resources path:', resourcesPath);
-    console.log('App path:', app.getAppPath());
-    console.log('API path:', apiPath);
-    console.log('Command:', command);
-    console.log('Args:', args);
-    
-    try {
-      apiServer = spawn(command, args, {
-        cwd: app.getAppPath(),
-        env: {
-          ...process.env,
-          PORT: '3001',
-          NODE_ENV: 'production',
-          ELECTRON_RUN_AS_NODE: '1', // Important: allows spawning Node.js processes
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-        shell: false,
-      });
-
-      apiServer.stdout.on('data', (data) => {
-        const output = data.toString();
-        console.log(`API Server: ${output}`);
-      });
-
-      apiServer.stderr.on('data', (data) => {
-        const output = data.toString();
-        console.error(`API Server Error: ${output}`);
-      });
-
-      apiServer.on('close', (code) => {
-        console.log(`API server exited with code ${code}`);
-        apiServer = null;
-      });
-
-      apiServer.on('error', (error) => {
-        console.error('Failed to start API server:', error);
-        apiServer = null;
-      });
-
-      // Wait a bit for server to start
-      setTimeout(() => {
-        console.log('API server should be running on http://localhost:3001');
-      }, 3000);
-    } catch (error) {
-      console.error('Error spawning API server:', error);
-      apiServer = null;
-    }
-  } else {
-    // In development, the API server is started separately via npm run api:dev
-    console.log('Development mode - API server should be running separately');
+    return resolveFirstExisting(
+      path.join(resourcesPath, 'app.asar', 'dist-server', 'api', 'server.js'),
+      path.join(resourcesPath, 'dist-server', 'api', 'server.js'),
+      path.join(app.getAppPath(), 'dist-server', 'api', 'server.js'),
+    );
   }
+
+  // In development, use TypeScript source with tsx
+  return path.join(__dirname, '..', 'api', 'server.ts');
+}
+
+function getTsxExecutablePath() {
+  const binName = process.platform === 'win32' ? 'tsx.cmd' : 'tsx';
+  if (app.isPackaged) {
+    const resourcesPath = process.resourcesPath || app.getAppPath();
+    return resolveFirstExisting(
+      path.join(resourcesPath, 'app.asar', 'node_modules', '.bin', binName),
+      path.join(resourcesPath, 'node_modules', '.bin', binName),
+      path.join(app.getAppPath(), 'node_modules', '.bin', binName),
+      path.join(app.getAppPath(), 'node_modules', 'tsx', 'dist', 'cli.mjs'),
+    );
+  }
+
+  return resolveFirstExisting(
+    path.join(__dirname, '..', 'node_modules', '.bin', binName),
+    path.join(process.cwd(), 'node_modules', '.bin', binName),
+    path.join(__dirname, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs'),
+  );
+}
+
+// Start API server in production or development builds
+function startApiServer() {
+  if (serverStartupPromise) {
+    return serverStartupPromise;
+  }
+
+  const apiPath = getApiEntryPath();
+  if (!apiPath) {
+    console.warn('API server entry point not found; skipping backend start.');
+    return Promise.resolve();
+  }
+
+  // In packaged mode, run compiled JS with node
+  // In dev mode, run TS with tsx
+  const isPackaged = app.isPackaged;
+  const useNode = isPackaged && apiPath.endsWith('.js');
+  
+  let command, args, cwd;
+  
+  if (useNode) {
+    // Packaged: use node to run compiled JavaScript
+    // Get the real path outside of ASAR for spawning
+    const realExecPath = process.execPath.replace('app.asar', 'app.asar.unpacked');
+    command = process.execPath;
+    args = [apiPath];
+    // Set CWD to a real directory (not inside ASAR)
+    cwd = path.dirname(process.execPath);
+    console.log('Using Node.js to run compiled server');
+    console.log('Exec path:', process.execPath);
+  } else {
+    // Development: use tsx to run TypeScript
+    const tsxPath = getTsxExecutablePath();
+    command = process.execPath;
+    args = tsxPath ? [tsxPath, apiPath] : ['-r', 'tsx/register', apiPath];
+    cwd = path.join(__dirname, '..');
+    console.log('Using tsx to run TypeScript server');
+  }
+  const env = {
+    ...process.env,
+    PORT: '3001',
+    NODE_ENV: isDev ? 'development' : 'production',
+    ELECTRON_RUN_AS_NODE: '1',
+  };
+
+  console.log('========================================');
+  console.log('Starting API server...');
+  console.log('Is Packaged:', isPackaged);
+  console.log('API entry:', apiPath);
+  console.log('API exists:', fs.existsSync(apiPath));
+  console.log('Command:', command);
+  console.log('Args:', args);
+  console.log('CWD:', cwd);
+  console.log('========================================');
+
+  serverStartupPromise = new Promise((resolve, reject) => {
+    let resolved = false;
+    let serverOutput = '';
+
+    const markReady = () => {
+      if (resolved) return;
+      resolved = true;
+      console.log('✓ Server marked as ready');
+      resolve();
+    };
+
+    try {
+      // Use shell: true on Windows for packaged apps to avoid ENOENT issues
+      const useShell = process.platform === 'win32' && isPackaged;
+      apiServer = spawn(command, args, {
+        cwd,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: useShell,
+        windowsHide: true,
+      });
+
+      console.log('✓ API server process spawned, PID:', apiServer.pid);
+    } catch (error) {
+      console.error('✗ Error spawning API server:', error);
+      serverStartupPromise = null;
+      apiServer = null;
+      reject(error);
+      return;
+    }
+
+    apiServer.stdout.on('data', (data) => {
+      const output = data.toString();
+      serverOutput += output;
+      console.log(`[API Server STDOUT]: ${output}`);
+      
+      // Mark ready when we see the server running message
+      if (output.includes('API server running on') || output.includes('Server running on')) {
+        markReady();
+      }
+    });
+
+    apiServer.stderr.on('data', (data) => {
+      const output = data.toString();
+      console.error(`[API Server STDERR]: ${output}`);
+      
+      // If we see critical errors, reject immediately
+      if (output.includes('Cannot find module') || output.includes('Error:')) {
+        console.error('✗ Critical server error detected');
+      }
+    });
+
+    apiServer.on('close', (code) => {
+      console.log(`✗ API server exited with code ${code}`);
+      console.log('Last output:', serverOutput);
+      apiServer = null;
+      serverStartupPromise = null;
+      
+      if (!resolved && code !== 0) {
+        reject(new Error(`Server exited with code ${code}`));
+      }
+    });
+
+    apiServer.on('error', (error) => {
+      console.error('✗ Failed to start API server:', error);
+      apiServer = null;
+      const err = new Error('API server spawn error');
+      err.cause = error;
+      serverStartupPromise = null;
+      reject(err);
+    });
+
+    // Longer timeout for packaged apps (5 seconds)
+    const timeout = isPackaged ? 5000 : 3000;
+    setTimeout(() => {
+      if (!resolved) {
+        console.log(`⚠ Server startup timeout (${timeout}ms), assuming ready...`);
+        console.log('Server output so far:', serverOutput);
+        markReady();
+      }
+    }, timeout);
+  });
+
+  return serverStartupPromise;
 }
 
 // Initialize database when app is ready (optional - only if better-sqlite3 is available)
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   try {
     // Try to initialize database in main process (optional - will use localStorage if not available)
     // Note: database.ts uses ES6 imports, so we need to handle this carefully
@@ -133,19 +209,30 @@ app.whenReady().then(() => {
     db = null;
   }
   
-  // Start API server in production mode
-  if (app.isPackaged) {
-    startApiServer();
+  console.log('\n🚀 Starting Electron app initialization...\n');
+  
+  try {
+    await startApiServer();
+    console.log('✓ API server startup completed');
+    
+    // Additional delay to ensure server is fully ready
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log('✓ Additional startup delay completed');
+  } catch (error) {
+    console.error('✗ API server startup failed:', error);
+    console.error('Stack:', error.stack);
+    console.log('⚠ Continuing without backend server...');
   }
   
   createWindow();
 });
 
-function createWindow() {
+async function createWindow() {
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
     title: 'iManage - Car Rental CRM',
+    show: false, // Don't show until loaded
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -153,46 +240,110 @@ function createWindow() {
     },
   });
 
+  // Show window when ready
+  win.once('ready-to-show', () => {
+    win.show();
+  });
+
   // Load the app
-  // Use app.isPackaged - the most reliable way to detect packaged vs development
-  // app.isPackaged is true when the app is packaged, false in development
-  if (!app.isPackaged) {
-    // Development mode - load from Next.js dev server
-    // Only load from localhost if we're actually in development
-    win.loadURL('http://localhost:3000');
-    win.webContents.openDevTools();
-  } else {
-    // Production mode - load from static export
-    // In packaged Electron app, files are in resources/app.asar/out/
-    // app.getAppPath() returns the path to the ASAR archive in production
-    const indexPath = path.join(app.getAppPath(), 'out', 'index.html');
+  // CRITICAL: Always load from HTTP server (not file://)
+  // The Express server serves static files from 'out/' directory
+  const serverURL = 'http://localhost:3001';
+  
+  console.log('========================================');
+  console.log('Loading window...');
+  console.log('Mode:', app.isPackaged ? 'PRODUCTION' : 'DEVELOPMENT');
+  console.log('Server URL:', serverURL);
+  console.log('App path:', app.getAppPath());
+  console.log('========================================');
+
+  // Retry logic for server connection
+  const maxRetries = 5;
+  let attempt = 0;
+  
+  while (attempt < maxRetries) {
+    attempt++;
+    console.log(`Attempt ${attempt}/${maxRetries} to load from server...`);
     
-    console.log('Production mode - Loading from:', indexPath);
-    console.log('App path:', app.getAppPath());
-    console.log('Is packaged:', app.isPackaged);
-    
-    // loadFile can read from ASAR archives automatically
-    win.loadFile(indexPath).catch(err => {
-      console.error('Error loading index.html:', err);
-      console.error('Tried path:', indexPath);
+    try {
+      await win.loadURL(serverURL);
+      console.log('✓ Successfully loaded from server');
       
-      // Show helpful error message with debug info
-      const errorHtml = `
-        <html>
-          <head><title>iManage - Error</title></head>
-          <body style="font-family: Arial; padding: 40px; text-align: center;">
-            <h1>Application Error</h1>
-            <p>Could not load index.html</p>
-            <p><strong>Error:</strong> ${err.message}</p>
-            <p><strong>Tried path:</strong> ${indexPath}</p>
-            <p><strong>App Path:</strong> ${app.getAppPath()}</p>
-            <p><strong>Is Packaged:</strong> ${app.isPackaged}</p>
-            <p>Please rebuild the application.</p>
-          </body>
-        </html>
-      `;
-      win.loadURL('data:text/html,' + encodeURIComponent(errorHtml));
-    });
+      // Open DevTools in development
+      if (!app.isPackaged) {
+        win.webContents.openDevTools();
+      }
+      
+      break; // Success, exit retry loop
+    } catch (err) {
+      console.error(`✗ Attempt ${attempt} failed:`, err.message);
+      
+      if (attempt < maxRetries) {
+        console.log(`Waiting 2 seconds before retry...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        // All retries failed, show error
+        console.error('✗ All connection attempts failed');
+        
+        const errorHtml = `
+          <html>
+            <head>
+              <title>iManage - Error</title>
+              <style>
+                body {
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                  padding: 40px;
+                  text-align: center;
+                  background: #f5f5f5;
+                }
+                .error-box {
+                  background: white;
+                  border-radius: 8px;
+                  padding: 30px;
+                  max-width: 600px;
+                  margin: 0 auto;
+                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+                h1 { color: #e74c3c; margin-top: 0; }
+                .details {
+                  text-align: left;
+                  background: #f9f9f9;
+                  padding: 15px;
+                  border-radius: 4px;
+                  margin: 20px 0;
+                  font-family: monospace;
+                  font-size: 12px;
+                }
+                .detail-row { margin: 5px 0; }
+                .label { font-weight: bold; color: #666; }
+              </style>
+            </head>
+            <body>
+              <div class="error-box">
+                <h1>Application Error</h1>
+                <p>Could not connect to Express server</p>
+                <p><strong>Error:</strong> ${err.message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+                <div class="details">
+                  <div class="detail-row"><span class="label">Server URL:</span> ${serverURL}</div>
+                  <div class="detail-row"><span class="label">Attempts:</span> ${maxRetries}</div>
+                  <div class="detail-row"><span class="label">App Path:</span> ${app.getAppPath().replace(/\\/g, '/')}</div>
+                  <div class="detail-row"><span class="label">Is Packaged:</span> ${app.isPackaged}</div>
+                </div>
+                <p style="color: #666; font-size: 14px;">
+                  Please ensure the API server started successfully.<br>
+                  Check the Electron console for server startup logs.
+                </p>
+                <p style="color: #999; font-size: 12px; margin-top: 30px;">
+                  Press <kbd>Ctrl+Shift+I</kbd> (Windows) or <kbd>Cmd+Option+I</kbd> (Mac) to open DevTools
+                </p>
+              </div>
+            </body>
+          </html>
+        `;
+        win.loadURL('data:text/html,' + encodeURIComponent(errorHtml));
+        win.show(); // Show error page
+      }
+    }
   }
 
   // Handle window closed
@@ -209,6 +360,8 @@ function createWindow() {
       }
     }
   });
+  
+  return win;
 }
 
 // Quit when all windows are closed (except on macOS)

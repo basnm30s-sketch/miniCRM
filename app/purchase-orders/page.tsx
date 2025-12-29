@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Plus, Edit2, Trash2, Download } from 'lucide-react'
+import { Plus, Edit2, Trash2, FileText } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { getAllPurchaseOrders, deletePurchaseOrder, getAllVendors, getAdminSettings } from '@/lib/storage'
 import { pdfRenderer } from '@/lib/pdf'
@@ -206,9 +206,9 @@ export default function PurchaseOrdersPage() {
                             size="sm"
                             onClick={() => handleDownloadPDF(po)}
                             title="Save PDF"
-                            className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
+                            className="p-2 h-8 w-8 text-red-600 hover:text-red-700"
                           >
-                            <Download className="w-4 h-4" />
+                            <FileText className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"

@@ -79,9 +79,36 @@ export async function getAllCustomers(): Promise<any[]> {
 
 export async function getCustomerById(id: string): Promise<any | null> {
   try {
-    return await apiRequest<any>(`/customers/${id}`)
-  } catch (error) {
-    console.error('Failed to get customer:', error)
+    const url = `${API_BASE_URL}/customers/${id}`
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    // Handle 404 as expected - return null instead of throwing
+    if (response.status === 404) {
+      return null
+    }
+    
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`
+      try {
+        const error = await response.json()
+        errorMessage = error.error || error.message || errorMessage
+      } catch {
+        errorMessage = response.statusText || errorMessage
+      }
+      throw new Error(errorMessage)
+    }
+    
+    return await response.json()
+  } catch (error: any) {
+    // Only log unexpected errors (not 404s)
+    if (error.message && !error.message.includes('404') && !error.message.includes('Not Found') && !error.message.includes('not found')) {
+      console.error('Failed to get customer:', error)
+    }
+    // Return null for any error (including 404)
     return null
   }
 }
@@ -141,9 +168,36 @@ export async function getAllVendors(): Promise<any[]> {
 
 export async function getVendorById(id: string): Promise<any | null> {
   try {
-    return await apiRequest<any>(`/vendors/${id}`)
-  } catch (error) {
-    console.error('Failed to get vendor:', error)
+    const url = `${API_BASE_URL}/vendors/${id}`
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    // Handle 404 as expected - return null instead of throwing
+    if (response.status === 404) {
+      return null
+    }
+    
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`
+      try {
+        const error = await response.json()
+        errorMessage = error.error || error.message || errorMessage
+      } catch {
+        errorMessage = response.statusText || errorMessage
+      }
+      throw new Error(errorMessage)
+    }
+    
+    return await response.json()
+  } catch (error: any) {
+    // Only log unexpected errors (not 404s)
+    if (error.message && !error.message.includes('404') && !error.message.includes('Not Found') && !error.message.includes('not found')) {
+      console.error('Failed to get vendor:', error)
+    }
+    // Return null for any error (including 404)
     return null
   }
 }
@@ -292,9 +346,36 @@ export async function getAllVehicles(): Promise<any[]> {
 
 export async function getVehicleById(id: string): Promise<any | null> {
   try {
-    return await apiRequest<any>(`/vehicles/${id}`)
-  } catch (error) {
-    console.error('Failed to get vehicle:', error)
+    const url = `${API_BASE_URL}/vehicles/${id}`
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    // Handle 404 as expected - return null instead of throwing
+    if (response.status === 404) {
+      return null
+    }
+    
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`
+      try {
+        const error = await response.json()
+        errorMessage = error.error || error.message || errorMessage
+      } catch {
+        errorMessage = response.statusText || errorMessage
+      }
+      throw new Error(errorMessage)
+    }
+    
+    return await response.json()
+  } catch (error: any) {
+    // Only log unexpected errors (not 404s)
+    if (error.message && !error.message.includes('404') && !error.message.includes('Not Found') && !error.message.includes('not found')) {
+      console.error('Failed to get vehicle:', error)
+    }
+    // Return null for any error (including 404)
     return null
   }
 }
@@ -354,9 +435,36 @@ export async function getAllQuotes(): Promise<any[]> {
 
 export async function getQuoteById(id: string): Promise<any | null> {
   try {
-    return await apiRequest<any>(`/quotes/${id}`)
-  } catch (error) {
-    console.error('Failed to get quote:', error)
+    const url = `${API_BASE_URL}/quotes/${id}`
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    // Handle 404 as expected - return null instead of throwing
+    if (response.status === 404) {
+      return null
+    }
+    
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`
+      try {
+        const error = await response.json()
+        errorMessage = error.error || error.message || errorMessage
+      } catch {
+        errorMessage = response.statusText || errorMessage
+      }
+      throw new Error(errorMessage)
+    }
+    
+    return await response.json()
+  } catch (error: any) {
+    // Only log unexpected errors (not 404s)
+    if (error.message && !error.message.includes('404') && !error.message.includes('Not Found') && !error.message.includes('not found')) {
+      console.error('Failed to get quote:', error)
+    }
+    // Return null for any error (including 404)
     return null
   }
 }
@@ -412,9 +520,36 @@ export async function getAllPurchaseOrders(): Promise<any[]> {
 
 export async function getPurchaseOrderById(id: string): Promise<any | null> {
   try {
-    return await apiRequest<any>(`/purchase-orders/${id}`)
-  } catch (error) {
-    console.error('Failed to get purchase order:', error)
+    const url = `${API_BASE_URL}/purchase-orders/${id}`
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    // Handle 404 as expected - return null instead of throwing
+    if (response.status === 404) {
+      return null
+    }
+    
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`
+      try {
+        const error = await response.json()
+        errorMessage = error.error || error.message || errorMessage
+      } catch {
+        errorMessage = response.statusText || errorMessage
+      }
+      throw new Error(errorMessage)
+    }
+    
+    return await response.json()
+  } catch (error: any) {
+    // Only log unexpected errors (not 404s)
+    if (error.message && !error.message.includes('404') && !error.message.includes('Not Found') && !error.message.includes('not found')) {
+      console.error('Failed to get purchase order:', error)
+    }
+    // Return null for any error (including 404)
     return null
   }
 }
@@ -530,119 +665,136 @@ export async function deleteInvoice(id: string): Promise<void> {
 }
 
 // ==================== FILE UPLOADS ====================
-export async function uploadFile(file: File, type: 'logos' | 'documents' | 'signatures'): Promise<string> {
+// ==================== BRANDING FILES (SIMPLIFIED) ====================
+
+/**
+ * Check which branding files exist
+ */
+export async function checkBrandingFiles(): Promise<{
+  logo: boolean;
+  seal: boolean;
+  signature: boolean;
+  extensions: { logo: string | null; seal: string | null; signature: string | null };
+}> {
   try {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('type', type)
-
-    const response = await fetch(`${API_BASE_URL}/uploads`, {
-      method: 'POST',
-      body: formData,
-    })
-
-    // Read response as text first to avoid multiple reads
-    let responseText = ''
-    try {
-      responseText = await response.text()
-    } catch (e) {
-      // If we can't read the response, just use status
-      if (!response.ok) {
-        throw new Error(response.statusText || `Upload failed with status ${response.status}`)
-      }
-      throw new Error('Failed to read response from server')
-    }
-    
-    // Check response status
+    const response = await fetch(`${API_BASE_URL}/uploads/branding/check`)
     if (!response.ok) {
-      // Handle error response - don't try to parse as JSON if it's not valid JSON
-      let errorMessage = response.statusText || `Upload failed with status ${response.status}`
-      
-      if (responseText && responseText.trim().length > 0) {
-        const trimmed = responseText.trim()
-        // Only try to parse if it looks like valid JSON (starts with { or [)
-        // Avoid parsing if it starts with - or other invalid JSON characters
-        if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && 
-            !trimmed.startsWith('-') && trimmed.length > 1) {
-          try {
-            const errorData = JSON.parse(responseText)
-            errorMessage = errorData.error || errorData.message || errorMessage
-          } catch (parseError) {
-            // JSON parsing failed - use the text as error message
-            errorMessage = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed
-          }
-        } else {
-          // Not JSON format, use as plain text error (but limit length)
-          errorMessage = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed
-        }
-      }
-      
-      throw new Error(errorMessage)
+      console.error('Failed to check branding files:', response.statusText)
+      return { logo: false, seal: false, signature: false, extensions: { logo: null, seal: null, signature: null } }
     }
+    return await response.json()
+  } catch (error) {
+    console.error('Error checking branding files:', error)
+    return { logo: false, seal: false, signature: false, extensions: { logo: null, seal: null, signature: null } }
+  }
+}
 
-    // For successful responses, parse as JSON
-    if (!responseText || responseText.trim().length === 0) {
-      throw new Error('Empty response from server')
-    }
-    
-    const trimmed = responseText.trim()
-    
-    // Log the actual response for debugging
-    console.log('Upload response text:', trimmed.substring(0, 200))
-    
-    // Validate it looks like JSON
-    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-      console.error('Response is not JSON format:', trimmed)
-      throw new Error(`Invalid response format. Expected JSON, got: ${trimmed.substring(0, 50)}`)
-    }
-    
-    let result
+/**
+ * Get branding image URL (fixed location)
+ */
+export function getBrandingUrl(type: 'logo' | 'seal' | 'signature', extension: string | null): string | null {
+  if (!extension) return null
+  return `${API_BASE_URL}/uploads/branding/${type}.${extension}`
+}
+
+/**
+ * Load branding URLs for document generation
+ * Returns URLs for all branding images that exist
+ */
+export async function loadBrandingUrls(): Promise<{
+  logoUrl: string | null;
+  sealUrl: string | null;
+  signatureUrl: string | null;
+}> {
+  const branding = await checkBrandingFiles()
+  return {
+    logoUrl: getBrandingUrl('logo', branding.extensions.logo),
+    sealUrl: getBrandingUrl('seal', branding.extensions.seal),
+    signatureUrl: getBrandingUrl('signature', branding.extensions.signature),
+  }
+}
+
+/**
+ * Upload branding file (logo, seal, or signature)
+ * Files are saved to fixed locations - no path returned
+ */
+export async function uploadBrandingFile(file: File, brandingType: 'logo' | 'seal' | 'signature'): Promise<void> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('type', 'branding')
+  formData.append('brandingType', brandingType)
+
+  const response = await fetch(`${API_BASE_URL}/uploads`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    let errorMessage = `Upload failed with status ${response.status}`
     try {
-      result = JSON.parse(responseText)
-    } catch (parseError: any) {
-      console.error('JSON parse error. Response was:', trimmed.substring(0, 200))
-      console.error('Parse error details:', parseError)
-      // Don't try to access error.message if it might throw
-      const errorMsg = parseError && typeof parseError === 'object' && 'message' in parseError 
-        ? parseError.message 
-        : 'Invalid JSON format'
-      throw new Error(`Failed to parse JSON response: ${errorMsg}. Response: ${trimmed.substring(0, 100)}`)
+      const errorData = await response.json()
+      errorMessage = errorData.error || errorMessage
+    } catch {
+      // Ignore JSON parse errors
     }
-    
-    if (!result || typeof result !== 'object' || !result.path) {
-      throw new Error('Invalid response from server: missing path')
-    }
-    return result.path
-  } catch (error: any) {
-    // Log the full error for debugging
-    console.error('Upload error details:', {
-      message: error?.message,
-      name: error?.name,
-      stack: error?.stack?.substring(0, 200)
-    })
-    
-    // If it's already a proper Error with message, re-throw it
-    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-      throw error
-    }
-    
-    // Otherwise create a new error
-    const errorMessage = error?.message || String(error) || 'Failed to upload file'
     throw new Error(errorMessage)
   }
+  
+  // Success - no need to parse response, files are at fixed locations
+}
+
+// ==================== REGULAR FILE UPLOADS ====================
+
+export async function uploadFile(
+  file: File, 
+  type: 'logos' | 'documents' | 'signatures'
+): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('type', type)
+
+  const response = await fetch(`${API_BASE_URL}/uploads`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    let errorMessage = `Upload failed with status ${response.status}`
+    try {
+      const errorData = await response.json()
+      errorMessage = errorData.error || errorMessage
+    } catch {
+      // Ignore JSON parse errors
+    }
+    throw new Error(errorMessage)
+  }
+
+  const result = await response.json()
+  if (!result || !result.path) {
+    throw new Error('Invalid response from server: missing path')
+  }
+  return result.path
 }
 
 export function getFileUrl(relativePath: string | null): string | null {
   if (!relativePath) return null
   // Remove ./ prefix if present and extract type and filename
   const cleanPath = relativePath.startsWith('./') ? relativePath.substring(2) : relativePath
-  // Path format: data/uploads/type/filename
   const parts = cleanPath.split('/')
-  if (parts.length >= 3) {
+  
+  // Handle branding paths: data/branding/logo.png -> /api/uploads/branding/logo.png
+  if (parts.length >= 2 && parts[0] === 'data' && parts[1] === 'branding') {
+    const filename = parts[parts.length - 1] // filename (e.g., logo.png)
+    return `${API_BASE_URL}/uploads/branding/${filename}`
+  }
+  
+  // Handle regular upload paths: data/uploads/type/filename
+  if (parts.length >= 3 && parts[0] === 'data' && parts[1] === 'uploads') {
     const type = parts[parts.length - 2] // type (logos, documents, signatures)
     const filename = parts[parts.length - 1] // filename
     return `${API_BASE_URL}/uploads/${type}/${filename}`
   }
+  
   return null
 }
 

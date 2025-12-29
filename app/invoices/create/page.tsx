@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Plus, Trash2, Download, FileSpreadsheet, FileType } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, FileText, Sheet, FileType } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import {
   getInvoiceById,
@@ -58,6 +58,14 @@ export default function CreateInvoicePage() {
   const [sourceQuote, setSourceQuote] = useState<Quote | null>(null)
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
   const [isValidForExport, setIsValidForExport] = useState(false)
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+
+  const snapshotInvoice = (inv: Invoice) => {
+    // Exclude timestamp fields so they don't cause dirty state flips
+    const { createdAt: _createdAt, ...rest } = inv as any
+    return JSON.stringify(rest)
+  }
 
   useEffect(() => {
     const loadData = async () => {
@@ -85,6 +93,8 @@ export default function CreateInvoicePage() {
           if (existing) {
             setInvoice(existing)
             setIsEditMode(true)
+            setSavedSnapshot(snapshotInvoice(existing))
+            setIsDirty(false)
           }
         } else if (quoteId) {
           // Creating invoice from quote
@@ -116,6 +126,8 @@ export default function CreateInvoicePage() {
             ...prev,
             id: generateId(),
             number: newNumber,
+            // Prefill notes with default terms from admin settings if available
+            notes: settingsData?.defaultTerms || '',
           }))
         }
       } catch (err) {
@@ -204,6 +216,28 @@ export default function CreateInvoicePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoice])
 
+  useEffect(() => {
+    if (!savedSnapshot) {
+      setIsDirty(false)
+      return
+    }
+    setIsDirty(snapshotInvoice(invoice) !== savedSnapshot)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoice, savedSnapshot])
+
+  const exportDisabledReason = useMemo(() => {
+    if (generating) return 'Generating...'
+    if (isEditMode && isDirty) return 'Update to enable export'
+    if (!isValidForExport) return 'Complete required fields to enable export'
+    return null
+  }, [generating, isEditMode, isDirty, isValidForExport])
+
+  const exportTitle = useMemo(() => {
+    if (exportDisabledReason) return exportDisabledReason
+    if (!isEditMode && !invoice.createdAt) return 'Will create this record, then download.'
+    return ''
+  }, [exportDisabledReason, isEditMode, invoice.createdAt])
+
   const handleTaxChange = (newTax: number) => {
     const total = invoice.subtotal + newTax
     const updatedInvoice = {
@@ -215,7 +249,7 @@ export default function CreateInvoicePage() {
     validateInvoiceState(updatedInvoice)
   }
 
-  const handleSave = async () => {
+  const handleSave = async (opts?: { redirectAfterSave?: boolean }): Promise<boolean> => {
     // Comprehensive validation
     const validation = await validateInvoice(invoice, {
       checkUniqueness: true,
@@ -233,29 +267,52 @@ export default function CreateInvoicePage() {
         description: firstError?.message || 'Please fix the validation errors',
         variant: 'destructive',
       })
-      return
+      return false
     }
 
     try {
       setSaving(true)
+      const now = new Date().toISOString()
       const invoiceToSave: Invoice = {
         ...invoice,
-        createdAt: invoice.createdAt || new Date().toISOString(),
+        createdAt: invoice.createdAt || now,
       }
       await saveInvoice(invoiceToSave)
+      setInvoice(invoiceToSave)
+      setSavedSnapshot(snapshotInvoice(invoiceToSave))
+      setIsDirty(false)
       toast({
         title: 'Success',
         description: isEditMode ? 'Invoice updated successfully' : 'Invoice created successfully',
       })
       setValidationErrors([])
-      // Redirect to invoices list
-      window.location.href = '/invoices'
+      if (!isEditMode) setIsEditMode(true)
+      if (opts?.redirectAfterSave !== false) {
+        // Redirect to invoices list
+        window.location.href = '/invoices'
+      }
+      return true
     } catch (err) {
       console.error('Error saving invoice:', err)
       toast({ title: 'Error', description: 'Failed to save invoice', variant: 'destructive' })
+      return false
     } finally {
       setSaving(false)
     }
+  }
+
+  const ensureSavedForExport = async (): Promise<boolean> => {
+    // Edit mode must export persisted state only
+    if (isEditMode && isDirty) {
+      toast({ title: 'Update required', description: 'Please update/save before exporting', variant: 'destructive' })
+      return false
+    }
+
+    // Create mode: save first (no redirect) then export
+    if (!isEditMode && !invoice.createdAt) {
+      return await handleSave({ redirectAfterSave: false })
+    }
+    return true
   }
 
   const handleDownloadPDF = async () => {
@@ -263,6 +320,9 @@ export default function CreateInvoicePage() {
       toast({ title: 'Error', description: 'Admin settings not loaded', variant: 'destructive' })
       return
     }
+
+    const okToExport = await ensureSavedForExport()
+    if (!okToExport) return
 
     // Validation using shared validation function
     const validation = validateInvoiceForExport(invoice)
@@ -300,6 +360,9 @@ export default function CreateInvoicePage() {
       return
     }
 
+    const okToExport = await ensureSavedForExport()
+    if (!okToExport) return
+
     // Validation using shared validation function
     const validation = validateInvoiceForExport(invoice)
     if (!validation.isValid) {
@@ -335,6 +398,9 @@ export default function CreateInvoicePage() {
       toast({ title: 'Error', description: 'Admin settings not loaded', variant: 'destructive' })
       return
     }
+
+    const okToExport = await ensureSavedForExport()
+    if (!okToExport) return
 
     // Validation using shared validation function
     const validation = validateInvoiceForExport(invoice)
@@ -743,32 +809,32 @@ export default function CreateInvoicePage() {
               <div className="pt-4 space-y-2">
                 <Button
                   onClick={handleDownloadPDF}
-                  disabled={generating || !isValidForExport}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
+                  disabled={!!exportDisabledReason}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={exportTitle}
                 >
-                  <Download className="w-4 h-4 mr-2" />
+                  <FileText className="w-4 h-4 mr-2" />
                   {generating ? 'Generating PDF...' : 'Save PDF'}
                 </Button>
                 <Button
                   onClick={handleDownloadExcel}
-                  disabled={generating || !isValidForExport}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
+                  disabled={!!exportDisabledReason}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={exportTitle}
                 >
-                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  <Sheet className="w-4 h-4 mr-2" />
                   {generating ? 'Generating Excel...' : 'Save Excel'}
                 </Button>
                 <Button
                   onClick={handleDownloadDocx}
-                  disabled={generating || !isValidForExport}
+                  disabled={!!exportDisabledReason}
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!isValidForExport ? 'Please fix validation errors before exporting' : ''}
+                  title={exportTitle}
                 >
                   <FileType className="w-4 h-4 mr-2" />
                   {generating ? 'Generating Word...' : 'Save Word'}
                 </Button>
-                <Button onClick={handleSave} disabled={saving} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                <Button onClick={() => handleSave({ redirectAfterSave: true })} disabled={saving} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                   {saving ? 'Saving...' : isEditMode ? 'Update Invoice' : 'Create Invoice'}
                 </Button>
                 <Link href="/invoices" className="block">
