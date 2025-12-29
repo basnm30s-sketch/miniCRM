@@ -1,25 +1,28 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { OverviewCard } from '@/components/overview-card'
 import { RevenueTrendChart } from '@/components/revenue-trend-chart'
 import { QuickActions } from '@/components/quick-actions'
+import { DirhamIcon } from '@/components/icons/dirham-icon'
 import {
   FileText,
   Wallet,
   TrendingUp,
-  Receipt,
   Car,
   Users,
   Users2,
   CreditCard,
   BarChart3,
-  DollarSign,
   CheckCircle,
   Clock,
   AlertCircle,
   Building2,
+  Percent,
+  CalendarDays,
+  Banknote,
 } from 'lucide-react'
 import {
   getAllQuotes,
@@ -48,6 +51,8 @@ interface HomeMetrics {
   totalQuoteValue: number
   quotesThisMonth: number
   invoicesThisMonth: number
+  amountReceived: number
+  outstandingInvoiceAmount: number
 }
 
 interface Activity {
@@ -87,6 +92,8 @@ export default function Home() {
     totalQuoteValue: 0,
     quotesThisMonth: 0,
     invoicesThisMonth: 0,
+    amountReceived: 0,
+    outstandingInvoiceAmount: 0,
   })
   const [customerStats, setCustomerStats] = useState<CustomerStats[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -204,11 +211,25 @@ export default function Home() {
 
         // Calculate invoice status counts
         const paidInvoices = invoices.filter((invoice: Invoice) => 
-          invoice.status === 'paid' || (invoice.amountReceived && invoice.amountReceived >= (invoice.total || 0))
+          invoice.status === 'payment_received'
         ).length
         const pendingInvoices = invoices.filter((invoice: Invoice) => 
           invoice.status === 'invoice_sent' && (invoice.amountReceived || 0) < (invoice.total || 0)
         ).length
+
+        // Calculate amount received from all invoices
+        const amountReceived = invoices.reduce((sum: number, invoice: Invoice) => {
+          return sum + (invoice.amountReceived || 0)
+        }, 0)
+
+        // Calculate outstanding invoice amount (unpaid balance from sent invoices)
+        const outstandingInvoiceAmount = invoices.reduce((sum: number, invoice: Invoice) => {
+          if (invoice.status === 'invoice_sent') {
+            const pending = (invoice.total || 0) - (invoice.amountReceived || 0)
+            return sum + (pending > 0 ? pending : 0)
+          }
+          return sum
+        }, 0)
 
         // Calculate customer-wise statistics
         const customerStatsMap = new Map<string, CustomerStats>()
@@ -286,6 +307,8 @@ export default function Home() {
           totalQuoteValue,
           quotesThisMonth,
           invoicesThisMonth,
+          amountReceived,
+          outstandingInvoiceAmount,
         })
 
         // Build activities list
@@ -406,7 +429,7 @@ export default function Home() {
 
   const quickActions = [
     { label: 'New Quotation', href: '/quotes/create', icon: FileText, color: 'blue' as const },
-    { label: 'New Invoice', href: '/invoices/create', icon: Receipt, color: 'green' as const },
+    { label: 'New Invoice', href: '/invoices/create', icon: CreditCard, color: 'green' as const },
     { label: 'Add Vehicle', href: '/vehicles', icon: Car, color: 'green' as const },
     { label: 'Add Customer', href: '/customers', icon: Users, color: 'indigo' as const },
     { label: 'Add Employee', href: '/employees', icon: Users2, color: 'purple' as const },
@@ -433,9 +456,25 @@ export default function Home() {
       {/* Content Container */}
       <div className="relative z-10">
         {/* Header */}
-        <div className="bg-white/90 backdrop-blur-sm border-b border-slate-200 px-8 py-6">
-          <h1 className="text-2xl font-bold text-slate-900">Vehicle Rental Management</h1>
-          <p className="text-slate-500 text-sm mt-1">Welcome back! Here's your business overview</p>
+        <div className="relative bg-white/90 backdrop-blur-sm border-b border-slate-200 px-8 py-6 overflow-hidden">
+          {/* Watermark logo in header background */}
+          <div className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 opacity-[0.10]">
+            <Image
+              src="/almsar-logo.png"
+              alt=""
+              width={220}
+              height={220}
+              className="w-[180px] md:w-[220px] h-auto object-contain"
+              priority
+            />
+          </div>
+
+          <div className="relative">
+            <h1 className="text-2xl font-bold text-slate-900">iManage</h1>
+            <p className="mt-1 text-base md:text-lg font-medium text-slate-700">
+              Manage More. Worry Less.
+            </p>
+          </div>
         </div>
 
         {/* Main Content */}
@@ -481,7 +520,7 @@ export default function Home() {
                 value: loading ? '...' : metrics.invoicesThisMonth,
               },
               {
-                label: 'Paid',
+                label: 'Payment Received',
                 value: loading ? '...' : metrics.paidInvoices,
               },
               {
@@ -555,6 +594,209 @@ export default function Home() {
           />
         </div>
 
+        {/* Dashboard KPI Tiles */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Column 1: Activity This Month */}
+          <div>
+            <h3 className="text-sm font-medium text-slate-500 mb-2">Activity This Month</h3>
+            <div className="space-y-2">
+              {/* Quotes This Month */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Quotes This Month</p>
+                    <p className="text-lg font-bold text-indigo-600 leading-6">
+                      {loading ? '...' : metrics.quotesThisMonth}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Invoices This Month */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-cyan-100 rounded-lg flex items-center justify-center shrink-0">
+                    <CreditCard className="w-4 h-4 text-cyan-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Invoices This Month</p>
+                    <p className="text-lg font-bold text-cyan-600 leading-6">
+                      {loading ? '...' : metrics.invoicesThisMonth}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Amount Received */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
+                    <DirhamIcon className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Amount Received</p>
+                    <p className="text-lg font-bold text-green-600 leading-6">
+                      {loading ? '...' : `AED ${metrics.amountReceived.toLocaleString()}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payroll This Month */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-violet-100 rounded-lg flex items-center justify-center shrink-0">
+                    <Banknote className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Payroll This Month</p>
+                    <p className="text-lg font-bold text-violet-600 leading-6">
+                      {loading ? '...' : `AED ${metrics.payslipsThisMonth.toLocaleString()}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Column 2: Financial Health */}
+          <div>
+            <h3 className="text-sm font-medium text-slate-500 mb-2">Financial Health</h3>
+            <div className="space-y-2">
+              {/* Total Revenue */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Total Revenue</p>
+                    <p className="text-lg font-bold text-emerald-600 leading-6">
+                      {loading ? '...' : `AED ${metrics.totalRevenue.toLocaleString()}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Net Profit */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
+                    <BarChart3 className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Net Profit</p>
+                    <p className="text-lg font-bold text-green-600 leading-6">
+                      {loading ? '...' : `AED ${metrics.netProfit.toLocaleString()}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Profit Margin */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-lime-100 rounded-lg flex items-center justify-center shrink-0">
+                    <Percent className="w-4 h-4 text-lime-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Profit Margin</p>
+                    <p className="text-lg font-bold text-lime-600 leading-6">
+                      {loading ? '...' : metrics.totalRevenue > 0
+                        ? `${((metrics.netProfit / metrics.totalRevenue) * 100).toFixed(1)}%`
+                        : '0%'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Outstanding Amount */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Outstanding Amount</p>
+                    <p className="text-lg font-bold text-amber-600 leading-6">
+                      {loading ? '...' : `AED ${metrics.outstandingInvoiceAmount.toLocaleString()}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Column 3: Business Overview */}
+          <div>
+            <h3 className="text-sm font-medium text-slate-500 mb-2">Business Overview</h3>
+            <div className="space-y-2">
+              {/* Total Customers */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
+                    <Users className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Total Customers</p>
+                    <p className="text-lg font-bold text-blue-600 leading-6">
+                      {loading ? '...' : metrics.totalCustomers}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Quote Value */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Total Quote Value</p>
+                    <p className="text-lg font-bold text-purple-600 leading-6">
+                      {loading ? '...' : `AED ${metrics.totalQuoteValue.toLocaleString()}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pending Invoices */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
+                    <Clock className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Pending Invoices</p>
+                    <p className="text-lg font-bold text-orange-600 leading-6">
+                      {loading ? '...' : metrics.pendingInvoices}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Employees */}
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-teal-100 rounded-lg flex items-center justify-center shrink-0">
+                    <Users2 className="w-4 h-4 text-teal-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-slate-600 leading-4">Active Employees</p>
+                    <p className="text-lg font-bold text-teal-600 leading-6">
+                      {loading ? '...' : metrics.activeEmployees}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Revenue Trend Chart */}
         {adminSettings && (adminSettings.showRevenueTrend === true || adminSettings.showRevenueTrend === undefined) && (
           <RevenueTrendChart
@@ -563,69 +805,6 @@ export default function Home() {
             profitMargin={parseFloat(profitMargin)}
           />
         )}
-
-        {/* Additional KPI Tiles */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {/* Total Customers */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Total Customers</p>
-                <p className="text-2xl font-bold text-slate-900">
-                  {loading ? '...' : metrics.totalCustomers}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
-
-          {/* Total Quote Value */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Total Quote Value</p>
-                <p className="text-2xl font-bold text-slate-900">
-                  {loading ? '...' : `AED ${metrics.totalQuoteValue.toLocaleString()}`}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <FileText className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-
-          {/* Paid Invoices */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Paid Invoices</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {loading ? '...' : metrics.paidInvoices}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          {/* Pending Invoices */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Pending Invoices</p>
-                <p className="text-2xl font-bold text-orange-600">
-                  {loading ? '...' : metrics.pendingInvoices}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Clock className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Customer Statistics Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -690,7 +869,7 @@ export default function Home() {
                       case 'quote':
                         return <FileText className="w-4 h-4 text-blue-600" />
                       case 'invoice':
-                        return <Receipt className="w-4 h-4 text-green-600" />
+                        return <CreditCard className="w-4 h-4 text-green-600" />
                       case 'payslip':
                         return <Wallet className="w-4 h-4 text-purple-600" />
                       case 'employee':

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { DollarSign, Users, FileText, TrendingUp, HardDrive } from "lucide-react"
+import { Users, FileText, TrendingUp, HardDrive } from "lucide-react"
 import DataManagement from "./data-management"
+import { DirhamIcon } from "@/components/icons/dirham-icon"
 
 interface DashboardStats {
   totalInvoices: number
@@ -48,7 +49,7 @@ export default function Dashboard() {
     {
       title: "Total Revenue",
       value: `$${stats.totalRevenue.toFixed(2)}`,
-      icon: DollarSign,
+      icon: DirhamIcon,
       color: "bg-green-50 dark:bg-green-950",
       iconColor: "text-green-600 dark:text-green-400",
     },

@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { getAdminSettings } from '@/lib/storage'
 import type { AdminSettings } from '@/lib/types'
 import {
   Home,
   FileText,
-  Receipt,
+  CreditCard,
   Users,
   Briefcase,
   Car,
@@ -32,7 +33,7 @@ const docGeneratorItems = [
   {
     label: 'Invoices',
     href: '/invoices',
-    icon: Receipt,
+    icon: CreditCard,
   },
 ]
 
@@ -160,12 +161,19 @@ export function Sidebar() {
       {/* Logo / Brand */}
       <div className="p-6 border-b border-blue-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-            <Car className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 rounded-lg bg-white/95 flex items-center justify-center overflow-hidden">
+            <Image
+              src="/almsar-logo.png"
+              alt="Almsar Alzaki logo"
+              width={40}
+              height={40}
+              className="w-10 h-10 object-contain"
+              priority
+            />
           </div>
           <div className="flex-1">
-            <div className="font-bold text-sm text-white">iManage</div>
-            <div className="text-xs text-blue-200">Data Management System</div>
+            <div className="font-bold text-sm text-white">Almsar Alzaki</div>
+            <div className="text-xs text-blue-200">Car Rental Management</div>
           </div>
         </div>
       </div>

@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, CheckCircle, AlertCircle, Trash2, Clock, DollarSign } from "lucide-react"
+import { Plus, CheckCircle, AlertCircle, Trash2, Clock } from "lucide-react"
+import { DirhamIcon } from "@/components/icons/dirham-icon"
 
 interface Rental {
   id: string
@@ -165,7 +166,7 @@ export default function RentalTracker() {
         <Card className="border-border">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <DollarSign className="w-4 h-4" />
+              <DirhamIcon className="w-4 h-4" />
               Active Revenue
             </CardTitle>
           </CardHeader>
