@@ -98,7 +98,9 @@ export async function GET(
         const filename = route[2]
         const relativePath = `./data/branding/${filename}`
         
+        // Check if file exists (with fallback to repo location)
         if (!fileExists(relativePath)) {
+          console.error(`[API] Branding file not found: ${filename} at path: ${relativePath}`)
           return NextResponse.json({ error: 'File not found' }, { status: 404 })
         }
         
