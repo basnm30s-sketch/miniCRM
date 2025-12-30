@@ -175,6 +175,13 @@ export function getFilePath(relativePath: string): string {
   
   // Convert relative path to absolute using data directory
   const dataDir = getDataDirectory()
+  
+  // Special handling for paths starting with './data/' - strip both './' and 'data/'
+  // since dataDir already includes 'data'
+  if (relativePath.startsWith('./data/')) {
+    return path.join(dataDir, relativePath.substring(7)) // Skip './data/'
+  }
+  
   if (relativePath.startsWith('./')) {
     return path.join(dataDir, relativePath.substring(2))
   }
@@ -204,9 +211,15 @@ export function readFile(relativePath: string): Buffer {
   // Fallback: For branding files, check repo location
   if (relativePath.includes('branding/')) {
     const repoDataDir = getRepoDataDirectory()
-    const repoFilePath = relativePath.startsWith('./') 
-      ? path.join(repoDataDir, relativePath.substring(2))
-      : path.join(repoDataDir, relativePath)
+    // Handle './data/' paths correctly - strip both './' and 'data/' since repoDataDir already includes 'data'
+    let repoFilePath: string
+    if (relativePath.startsWith('./data/')) {
+      repoFilePath = path.join(repoDataDir, relativePath.substring(7)) // Skip './data/'
+    } else if (relativePath.startsWith('./')) {
+      repoFilePath = path.join(repoDataDir, relativePath.substring(2))
+    } else {
+      repoFilePath = path.join(repoDataDir, relativePath)
+    }
     
     console.log(`[File Storage] Checking repo location: ${repoFilePath}, exists: ${fs.existsSync(repoFilePath)}`)
     
@@ -269,9 +282,15 @@ export function fileExists(relativePath: string): boolean {
     // Fallback: For branding files, always check repo location
     if (relativePath.includes('branding/')) {
       const repoDataDir = getRepoDataDirectory()
-      const repoFilePath = relativePath.startsWith('./') 
-        ? path.join(repoDataDir, relativePath.substring(2))
-        : path.join(repoDataDir, relativePath)
+      // Handle './data/' paths correctly - strip both './' and 'data/' since repoDataDir already includes 'data'
+      let repoFilePath: string
+      if (relativePath.startsWith('./data/')) {
+        repoFilePath = path.join(repoDataDir, relativePath.substring(7)) // Skip './data/'
+      } else if (relativePath.startsWith('./')) {
+        repoFilePath = path.join(repoDataDir, relativePath.substring(2))
+      } else {
+        repoFilePath = path.join(repoDataDir, relativePath)
+      }
       const exists = fs.existsSync(repoFilePath)
       if (exists) {
         console.log(`[File Storage] Found branding file in repo location: ${repoFilePath}`)
