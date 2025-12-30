@@ -12,10 +12,13 @@ const nextConfig = {
   trailingSlash: true,
   // Proxy API requests to Express server during development
   async rewrites() {
-    // Only add rewrites if not doing a static export (Electron build)
-    if (process.env.NEXT_EXPORT === 'true') {
+    // Disable rewrites for:
+    // 1. Electron builds (static export - NEXT_EXPORT=true)
+    // 2. Production deployments (Render/Vercel - use Next.js API routes instead)
+    if (process.env.NEXT_EXPORT === 'true' || process.env.NODE_ENV === 'production') {
       return []
     }
+    // Only enable rewrites in development when Express server is running
     return [
       {
         source: '/api/:path*',
