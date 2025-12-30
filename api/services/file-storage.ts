@@ -7,8 +7,34 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
-const UPLOAD_BASE_DIR = path.join(process.cwd(), 'data', 'uploads')
-const BRANDING_BASE_DIR = path.join(process.cwd(), 'data', 'branding')
+/**
+ * Get the data directory path
+ * Uses Render persistent disk if available, otherwise uses project folder
+ */
+function getDataDirectory(): string {
+  // Check for Render persistent disk path (set via environment variable)
+  const renderDiskPath = process.env.RENDER_DISK_PATH
+  if (renderDiskPath) {
+    // Use Render persistent disk for data persistence across deployments
+    const dataDir = path.join(renderDiskPath, 'data')
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true })
+    }
+    return dataDir
+  }
+  
+  // Fall back to project folder for local development/Electron
+  const dataDir = path.join(process.cwd(), 'data')
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true })
+  }
+  return dataDir
+}
+
+// Get base directories using persistent storage on Render
+const dataDir = getDataDirectory()
+const UPLOAD_BASE_DIR = path.join(dataDir, 'uploads')
+const BRANDING_BASE_DIR = path.join(dataDir, 'branding')
 
 // Ensure upload directories exist
 function ensureDirectories() {
@@ -70,12 +96,19 @@ export function getFilePath(relativePath: string): string {
     return relativePath
   }
   
-  // Convert relative path to absolute
+  // Convert relative path to absolute using data directory
+  const dataDir = getDataDirectory()
   if (relativePath.startsWith('./')) {
-    return path.join(process.cwd(), relativePath.substring(2))
+    return path.join(dataDir, relativePath.substring(2))
   }
   
-  return path.join(process.cwd(), relativePath)
+  // If path starts with 'data/', use data directory directly
+  if (relativePath.startsWith('data/')) {
+    return path.join(dataDir, relativePath.substring(5))
+  }
+  
+  // Fallback: assume it's relative to data directory
+  return path.join(dataDir, relativePath)
 }
 
 /**
