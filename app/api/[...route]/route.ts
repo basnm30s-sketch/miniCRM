@@ -17,6 +17,13 @@ import {
   formatReferenceError,
 } from '../../../api/adapters/sqlite'
 import { getDatabase } from '../../../lib/database'
+import { 
+  saveFile, 
+  readFile, 
+  fileExists, 
+  saveBrandingFile, 
+  checkBrandingFiles 
+} from '../../../api/services/file-storage'
 
 // Initialize database on first import
 try {
@@ -66,6 +73,47 @@ export async function GET(
     if (route[0] === 'admin' && route[1] === 'settings') {
       const settings = adminAdapter.get()
       return NextResponse.json(settings)
+    }
+    
+    // Uploads routes: /api/uploads/branding/check
+    if (route[0] === 'uploads' && route[1] === 'branding' && route[2] === 'check') {
+      try {
+        const result = checkBrandingFiles()
+        return NextResponse.json(result)
+      } catch (error: any) {
+        console.error('Error checking branding files:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+    
+    // Uploads routes: /api/uploads/branding/:filename
+    if (route[0] === 'uploads' && route[1] === 'branding' && route[2]) {
+      try {
+        const filename = route[2]
+        const relativePath = `./data/branding/${filename}`
+        
+        if (!fileExists(relativePath)) {
+          return NextResponse.json({ error: 'File not found' }, { status: 404 })
+        }
+        
+        const fileBuffer = readFile(relativePath)
+        
+        // Determine content type
+        const ext = filename.split('.').pop()?.toLowerCase()
+        let contentType = 'application/octet-stream'
+        if (ext === 'png') contentType = 'image/png'
+        else if (ext === 'jpg' || ext === 'jpeg') contentType = 'image/jpeg'
+        else if (ext === 'gif') contentType = 'image/gif'
+        else if (ext === 'webp') contentType = 'image/webp'
+        
+        return new NextResponse(fileBuffer, {
+          headers: {
+            'Content-Type': contentType,
+          },
+        })
+      } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
     }
     
     // Special route: /api/payslips/month/:month
@@ -126,10 +174,83 @@ export async function POST(
   try {
     const { route: routeParam } = await params
     const route = routeParam || []
-    const body = await request.json()
+    
+    // Uploads routes: /api/uploads
+    if (route[0] === 'uploads') {
+      try {
+        const formData = await request.formData()
+        const file = formData.get('file') as File | null
+        
+        if (!file) {
+          return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
+        }
+        
+        const type = formData.get('type') as string | null
+        const brandingType = formData.get('brandingType') as string | null
+        
+        // Handle branding images (logo, seal, signature)
+        if (type === 'branding') {
+          if (!brandingType || !['logo', 'seal', 'signature'].includes(brandingType)) {
+            return NextResponse.json({ 
+              error: 'Invalid branding type. Must be: logo, seal, or signature' 
+            }, { status: 400 })
+          }
+          
+          try {
+            // Convert File to Buffer
+            const arrayBuffer = await file.arrayBuffer()
+            const buffer = Buffer.from(arrayBuffer)
+            
+            saveBrandingFile(
+              buffer,
+              file.name,
+              brandingType as 'logo' | 'seal' | 'signature'
+            )
+            
+            return NextResponse.json({ success: true, type: brandingType })
+          } catch (saveError: any) {
+            console.error('Error saving branding file:', saveError)
+            return NextResponse.json({ 
+              error: `Failed to save branding file: ${saveError?.message || 'Unknown error'}` 
+            }, { status: 500 })
+          }
+        }
+        
+        // Handle regular uploads
+        if (!type || !['logos', 'documents', 'signatures'].includes(type)) {
+          return NextResponse.json({ 
+            error: 'Invalid file type. Must be: logos, documents, signatures, or branding' 
+          }, { status: 400 })
+        }
+        
+        try {
+          // Convert File to Buffer
+          const arrayBuffer = await file.arrayBuffer()
+          const buffer = Buffer.from(arrayBuffer)
+          
+          const relativePath = saveFile(
+            buffer,
+            file.name,
+            type as 'logos' | 'documents' | 'signatures'
+          )
+          
+          return NextResponse.json({ path: relativePath })
+        } catch (saveError: any) {
+          console.error('Error saving file:', saveError)
+          return NextResponse.json({ 
+            error: `Failed to save file: ${saveError?.message || 'Unknown error'}` 
+          }, { status: 500 })
+        }
+      } catch (error: any) {
+        console.error('Upload error:', error)
+        const errorMessage = error?.message || error?.toString() || 'Unknown error occurred'
+        return NextResponse.json({ error: errorMessage }, { status: 500 })
+      }
+    }
     
     // Admin settings
     if (route[0] === 'admin' && route[1] === 'settings') {
+      const body = await request.json()
       const settings = adminAdapter.save(body)
       return NextResponse.json(settings, { status: 201 })
     }
@@ -142,6 +263,7 @@ export async function POST(
     }
     
     const adapter = routeHandlers[resource]
+    const body = await request.json()
     
     // Special validation for payslips
     if (resource === 'payslips') {
