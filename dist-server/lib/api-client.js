@@ -34,6 +34,10 @@ exports.getAllInvoices = getAllInvoices;
 exports.getInvoiceById = getInvoiceById;
 exports.saveInvoice = saveInvoice;
 exports.deleteInvoice = deleteInvoice;
+exports.checkBrandingFiles = checkBrandingFiles;
+exports.getBrandingUrl = getBrandingUrl;
+exports.loadBrandingUrls = loadBrandingUrls;
+exports.uploadBrandingFile = uploadBrandingFile;
 exports.uploadFile = uploadFile;
 exports.getFileUrl = getFileUrl;
 exports.getAllPayslips = getAllPayslips;
@@ -695,101 +699,95 @@ async function deleteInvoice(id) {
     }
 }
 // ==================== FILE UPLOADS ====================
-async function uploadFile(file, type, brandingType) {
+// ==================== BRANDING FILES (SIMPLIFIED) ====================
+/**
+ * Check which branding files exist
+ */
+async function checkBrandingFiles() {
     try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', type);
-        if (type === 'branding' && brandingType) {
-            formData.append('brandingType', brandingType);
-        }
-        const response = await fetch(`${API_BASE_URL}/uploads`, {
-            method: 'POST',
-            body: formData,
-        });
-        // Read response as text first to avoid multiple reads
-        let responseText = '';
-        try {
-            responseText = await response.text();
-        }
-        catch (e) {
-            // If we can't read the response, just use status
-            if (!response.ok) {
-                throw new Error(response.statusText || `Upload failed with status ${response.status}`);
-            }
-            throw new Error('Failed to read response from server');
-        }
-        // Check response status
+        const response = await fetch(`${API_BASE_URL}/uploads/branding/check`);
         if (!response.ok) {
-            // Handle error response - don't try to parse as JSON if it's not valid JSON
-            let errorMessage = response.statusText || `Upload failed with status ${response.status}`;
-            if (responseText && responseText.trim().length > 0) {
-                const trimmed = responseText.trim();
-                // Only try to parse if it looks like valid JSON (starts with { or [)
-                // Avoid parsing if it starts with - or other invalid JSON characters
-                if ((trimmed.startsWith('{') || trimmed.startsWith('[')) &&
-                    !trimmed.startsWith('-') && trimmed.length > 1) {
-                    try {
-                        const errorData = JSON.parse(responseText);
-                        errorMessage = errorData.error || errorData.message || errorMessage;
-                    }
-                    catch (parseError) {
-                        // JSON parsing failed - use the text as error message
-                        errorMessage = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed;
-                    }
-                }
-                else {
-                    // Not JSON format, use as plain text error (but limit length)
-                    errorMessage = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed;
-                }
-            }
-            throw new Error(errorMessage);
+            console.error('Failed to check branding files:', response.statusText);
+            return { logo: false, seal: false, signature: false, extensions: { logo: null, seal: null, signature: null } };
         }
-        // For successful responses, parse as JSON
-        if (!responseText || responseText.trim().length === 0) {
-            throw new Error('Empty response from server');
-        }
-        const trimmed = responseText.trim();
-        // Log the actual response for debugging
-        console.log('Upload response text:', trimmed.substring(0, 200));
-        // Validate it looks like JSON
-        if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-            console.error('Response is not JSON format:', trimmed);
-            throw new Error(`Invalid response format. Expected JSON, got: ${trimmed.substring(0, 50)}`);
-        }
-        let result;
-        try {
-            result = JSON.parse(responseText);
-        }
-        catch (parseError) {
-            console.error('JSON parse error. Response was:', trimmed.substring(0, 200));
-            console.error('Parse error details:', parseError);
-            // Don't try to access error.message if it might throw
-            const errorMsg = parseError && typeof parseError === 'object' && 'message' in parseError
-                ? parseError.message
-                : 'Invalid JSON format';
-            throw new Error(`Failed to parse JSON response: ${errorMsg}. Response: ${trimmed.substring(0, 100)}`);
-        }
-        if (!result || typeof result !== 'object' || !result.path) {
-            throw new Error('Invalid response from server: missing path');
-        }
-        return result.path;
+        return await response.json();
     }
     catch (error) {
-        // Log the full error for debugging
-        console.error('Upload error details:', {
-            message: error?.message,
-            name: error?.name,
-            stack: error?.stack?.substring(0, 200)
-        });
-        // If it's already a proper Error with message, re-throw it
-        if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-            throw error;
+        console.error('Error checking branding files:', error);
+        return { logo: false, seal: false, signature: false, extensions: { logo: null, seal: null, signature: null } };
+    }
+}
+/**
+ * Get branding image URL (fixed location)
+ */
+function getBrandingUrl(type, extension) {
+    if (!extension)
+        return null;
+    return `${API_BASE_URL}/uploads/branding/${type}.${extension}`;
+}
+/**
+ * Load branding URLs for document generation
+ * Returns URLs for all branding images that exist
+ */
+async function loadBrandingUrls() {
+    const branding = await checkBrandingFiles();
+    return {
+        logoUrl: getBrandingUrl('logo', branding.extensions.logo),
+        sealUrl: getBrandingUrl('seal', branding.extensions.seal),
+        signatureUrl: getBrandingUrl('signature', branding.extensions.signature),
+    };
+}
+/**
+ * Upload branding file (logo, seal, or signature)
+ * Files are saved to fixed locations - no path returned
+ */
+async function uploadBrandingFile(file, brandingType) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'branding');
+    formData.append('brandingType', brandingType);
+    const response = await fetch(`${API_BASE_URL}/uploads`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) {
+        let errorMessage = `Upload failed with status ${response.status}`;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
         }
-        // Otherwise create a new error
-        const errorMessage = error?.message || String(error) || 'Failed to upload file';
+        catch {
+            // Ignore JSON parse errors
+        }
         throw new Error(errorMessage);
     }
+    // Success - no need to parse response, files are at fixed locations
+}
+// ==================== REGULAR FILE UPLOADS ====================
+async function uploadFile(file, type) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+    const response = await fetch(`${API_BASE_URL}/uploads`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) {
+        let errorMessage = `Upload failed with status ${response.status}`;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+        }
+        catch {
+            // Ignore JSON parse errors
+        }
+        throw new Error(errorMessage);
+    }
+    const result = await response.json();
+    if (!result || !result.path) {
+        throw new Error('Invalid response from server: missing path');
+    }
+    return result.path;
 }
 function getFileUrl(relativePath) {
     if (!relativePath)

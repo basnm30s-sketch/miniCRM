@@ -31,6 +31,56 @@ function getDataDirectory(): string {
   return dataDir
 }
 
+/**
+ * Get the repo data directory path (where default files from git are located)
+ * Always uses process.cwd() regardless of RENDER_DISK_PATH
+ */
+function getRepoDataDirectory(): string {
+  return path.join(process.cwd(), 'data')
+}
+
+/**
+ * Initialize default branding files from repo to persistent disk
+ * Copies files from repo location to persistent disk if they don't exist in persistent disk
+ * This ensures default branding files are available on first Render deployment
+ */
+function initializeDefaultBrandingFiles(): void {
+  const renderDiskPath = process.env.RENDER_DISK_PATH
+  // Only run this if RENDER_DISK_PATH is set (Render deployment)
+  if (!renderDiskPath) {
+    return // Local/Electron: files are already in the right place
+  }
+
+  const persistentBrandingDir = path.join(renderDiskPath, 'data', 'branding')
+  const repoBrandingDir = path.join(getRepoDataDirectory(), 'branding')
+  
+  // Ensure persistent branding directory exists
+  if (!fs.existsSync(persistentBrandingDir)) {
+    fs.mkdirSync(persistentBrandingDir, { recursive: true })
+  }
+
+  // List of default branding files that might exist in repo
+  const brandingTypes = ['logo', 'seal', 'signature']
+  const possibleExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']
+
+  for (const type of brandingTypes) {
+    for (const ext of possibleExtensions) {
+      const repoFilePath = path.join(repoBrandingDir, `${type}${ext}`)
+      const persistentFilePath = path.join(persistentBrandingDir, `${type}${ext}`)
+      
+      // If file exists in repo but not in persistent disk, copy it
+      if (fs.existsSync(repoFilePath) && !fs.existsSync(persistentFilePath)) {
+        try {
+          fs.copyFileSync(repoFilePath, persistentFilePath)
+          console.log(`Copied default branding file: ${type}${ext} from repo to persistent disk`)
+        } catch (error) {
+          console.error(`Error copying default branding file ${type}${ext}:`, error)
+        }
+      }
+    }
+  }
+}
+
 // Get base directories using persistent storage on Render
 const dataDir = getDataDirectory()
 const UPLOAD_BASE_DIR = path.join(dataDir, 'uploads')
@@ -51,11 +101,13 @@ function ensureDirectories() {
   })
 }
 
-// Ensure branding directory exists
+// Ensure branding directory exists and initialize default files
 export function ensureBrandingDirectory() {
   if (!fs.existsSync(BRANDING_BASE_DIR)) {
     fs.mkdirSync(BRANDING_BASE_DIR, { recursive: true })
   }
+  // Initialize default branding files from repo (for Render deployments)
+  initializeDefaultBrandingFiles()
 }
 
 // Initialize directories on module load
@@ -152,6 +204,7 @@ export function fileExists(relativePath: string): boolean {
 
 /**
  * Check which branding files exist and their extensions
+ * Ensures default files are initialized before checking
  * @returns Object with existence flags and extensions for each branding type
  */
 export function checkBrandingFiles(): { 
@@ -160,7 +213,7 @@ export function checkBrandingFiles(): {
   signature: boolean;
   extensions: { logo: string | null; seal: string | null; signature: string | null }
 } {
-  ensureBrandingDirectory()
+  ensureBrandingDirectory() // This will initialize default files if needed
   
   const possibleExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
   const result = {

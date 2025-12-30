@@ -22,7 +22,8 @@ import {
   readFile, 
   fileExists, 
   saveBrandingFile, 
-  checkBrandingFiles 
+  checkBrandingFiles,
+  ensureBrandingDirectory
 } from '../../../api/services/file-storage'
 
 // Initialize database on first import
@@ -78,6 +79,8 @@ export async function GET(
     // Uploads routes: /api/uploads/branding/check
     if (route[0] === 'uploads' && route[1] === 'branding' && route[2] === 'check') {
       try {
+        // Ensure default branding files are initialized (copies from repo to persistent disk if needed)
+        ensureBrandingDirectory()
         const result = checkBrandingFiles()
         return NextResponse.json(result)
       } catch (error: any) {
@@ -89,6 +92,9 @@ export async function GET(
     // Uploads routes: /api/uploads/branding/:filename
     if (route[0] === 'uploads' && route[1] === 'branding' && route[2]) {
       try {
+        // Ensure default branding files are initialized (copies from repo to persistent disk if needed)
+        ensureBrandingDirectory()
+        
         const filename = route[2]
         const relativePath = `./data/branding/${filename}`
         

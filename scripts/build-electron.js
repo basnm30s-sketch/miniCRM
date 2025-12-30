@@ -47,10 +47,16 @@ if (fs.existsSync(apiDir)) {
 try {
   // Step 2: Run Next.js build with static export
   console.log('🏗️  Building Next.js static export...');
-  execSync('cross-env NEXT_EXPORT=true next build', {
+  // Use npm to run build, which will resolve the correct next binary
+  const projectRoot = path.join(__dirname, '..');
+  const isWindows = process.platform === 'win32';
+  const npmCommand = isWindows ? 'npm.cmd' : 'npm';
+  
+  execSync(`${npmCommand} run build`, {
     stdio: 'inherit',
-    cwd: path.join(__dirname, '..'),
-    env: { ...process.env, NEXT_EXPORT: 'true' }
+    cwd: projectRoot,
+    env: { ...process.env, NEXT_EXPORT: 'true' },
+    shell: false
   });
   
   console.log('✅ Next.js build complete!');

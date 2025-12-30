@@ -43,12 +43,37 @@ exports.getFilePath = getFilePath;
 exports.readFile = readFile;
 exports.deleteFile = deleteFile;
 exports.fileExists = fileExists;
+exports.checkBrandingFiles = checkBrandingFiles;
 exports.saveBrandingFile = saveBrandingFile;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const uuid_1 = require("uuid");
-const UPLOAD_BASE_DIR = path.join(process.cwd(), 'data', 'uploads');
-const BRANDING_BASE_DIR = path.join(process.cwd(), 'data', 'branding');
+/**
+ * Get the data directory path
+ * Uses Render persistent disk if available, otherwise uses project folder
+ */
+function getDataDirectory() {
+    // Check for Render persistent disk path (set via environment variable)
+    const renderDiskPath = process.env.RENDER_DISK_PATH;
+    if (renderDiskPath) {
+        // Use Render persistent disk for data persistence across deployments
+        const dataDir = path.join(renderDiskPath, 'data');
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
+        return dataDir;
+    }
+    // Fall back to project folder for local development/Electron
+    const dataDir = path.join(process.cwd(), 'data');
+    if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+    }
+    return dataDir;
+}
+// Get base directories using persistent storage on Render
+const dataDir = getDataDirectory();
+const UPLOAD_BASE_DIR = path.join(dataDir, 'uploads');
+const BRANDING_BASE_DIR = path.join(dataDir, 'branding');
 // Ensure upload directories exist
 function ensureDirectories() {
     const dirs = [
@@ -100,11 +125,17 @@ function getFilePath(relativePath) {
     if (path.isAbsolute(relativePath)) {
         return relativePath;
     }
-    // Convert relative path to absolute
+    // Convert relative path to absolute using data directory
+    const dataDir = getDataDirectory();
     if (relativePath.startsWith('./')) {
-        return path.join(process.cwd(), relativePath.substring(2));
+        return path.join(dataDir, relativePath.substring(2));
     }
-    return path.join(process.cwd(), relativePath);
+    // If path starts with 'data/', use data directory directly
+    if (relativePath.startsWith('data/')) {
+        return path.join(dataDir, relativePath.substring(5));
+    }
+    // Fallback: assume it's relative to data directory
+    return path.join(dataDir, relativePath);
 }
 /**
  * Read file
@@ -145,6 +176,32 @@ function fileExists(relativePath) {
     }
 }
 /**
+ * Check which branding files exist and their extensions
+ * @returns Object with existence flags and extensions for each branding type
+ */
+function checkBrandingFiles() {
+    ensureBrandingDirectory();
+    const possibleExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+    const result = {
+        logo: false,
+        seal: false,
+        signature: false,
+        extensions: { logo: null, seal: null, signature: null }
+    };
+    const brandingTypes = ['logo', 'seal', 'signature'];
+    for (const type of brandingTypes) {
+        for (const ext of possibleExtensions) {
+            const filePath = path.join(BRANDING_BASE_DIR, `${type}${ext}`);
+            if (fs.existsSync(filePath)) {
+                result[type] = true;
+                result.extensions[type] = ext.substring(1); // Remove leading dot
+                break;
+            }
+        }
+    }
+    return result;
+}
+/**
  * Save branding file (logo, seal, or signature) to static location
  * @param file Buffer or file data
  * @param filename Original filename
@@ -154,7 +211,15 @@ function fileExists(relativePath) {
 function saveBrandingFile(file, filename, brandingType) {
     ensureBrandingDirectory();
     // Get file extension from original filename
-    const ext = path.extname(filename).toLowerCase();
+    let ext = path.extname(filename).toLowerCase();
+    // If no extension, default to .png
+    if (!ext || ext === '') {
+        ext = '.png';
+    }
+    // Ensure extension starts with dot
+    if (!ext.startsWith('.')) {
+        ext = '.' + ext;
+    }
     // Use fixed filename based on branding type
     const fixedFilename = `${brandingType}${ext}`;
     const filePath = path.join(BRANDING_BASE_DIR, fixedFilename);

@@ -55,15 +55,33 @@ const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 let db = null;
 let dbPath = null;
 /**
- * Get the database path
- * Always uses ./data directory in project folder for portability
+ * Get the data directory path
+ * Uses Render persistent disk if available, otherwise uses project folder
  */
-function getDatabasePath() {
-    // Always use project folder for portability
+function getDataDirectory() {
+    // Check for Render persistent disk path (set via environment variable)
+    const renderDiskPath = process.env.RENDER_DISK_PATH;
+    if (renderDiskPath) {
+        // Use Render persistent disk for data persistence across deployments
+        const dataDir = path.join(renderDiskPath, 'data');
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
+        return dataDir;
+    }
+    // Fall back to project folder for local development/Electron
     const dbDir = path.join(process.cwd(), 'data');
     if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
     }
+    return dbDir;
+}
+/**
+ * Get the database path
+ * Uses persistent storage on Render, local filesystem for development/Electron
+ */
+function getDatabasePath() {
+    const dbDir = getDataDirectory();
     return path.join(dbDir, 'imanage.db');
 }
 /**

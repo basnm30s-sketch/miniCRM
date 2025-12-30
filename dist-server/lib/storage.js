@@ -122,9 +122,9 @@ async function initializeAdminSettings() {
         quoteNumberPattern: 'AAT-YYYYMMDD-NNNN',
         currency: 'AED',
         defaultTerms: `1. This quotation is valid for 30 days from the date of issue.\n2. Goods remain the property of the company until full payment is received.\n3. Any additional costs such as tolls, fines or damages are not included unless stated.\n4. Payment terms: as agreed in the contract.`,
-        showRevenueTrend: true,
-        showQuickActions: true,
-        showReports: true,
+        showRevenueTrend: false,
+        showQuickActions: false,
+        showReports: false,
         createdAt: new Date().toISOString(),
     };
     await saveAdminSettings(defaults);

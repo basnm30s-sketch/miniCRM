@@ -21,27 +21,66 @@ router.post('/', upload.single('file'), (req, res) => {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
-        const { type, brandingType } = req.body; // type: 'logos', 'documents', 'signatures', or 'branding'
+        // Get type and brandingType from form data
+        // Multer stores text fields in req.body
+        const type = req.body?.type;
+        const brandingType = req.body?.brandingType;
+        // Debug logging
+        console.log('Upload request received:');
+        console.log('  - File:', req.file.originalname, 'Size:', req.file.size);
+        console.log('  - Type:', type);
+        console.log('  - BrandingType:', brandingType);
+        console.log('  - Body keys:', Object.keys(req.body || {}));
         // Handle branding images (logo, seal, signature)
         if (type === 'branding') {
             if (!brandingType || !['logo', 'seal', 'signature'].includes(brandingType)) {
+                console.error('Invalid branding type:', brandingType);
                 return res.status(400).json({ error: 'Invalid branding type. Must be: logo, seal, or signature' });
             }
-            const relativePath = (0, file_storage_1.saveBrandingFile)(req.file.buffer, req.file.originalname, brandingType);
-            return res.json({ path: relativePath });
+            try {
+                (0, file_storage_1.saveBrandingFile)(req.file.buffer, req.file.originalname, brandingType);
+                console.log('Branding file saved successfully:', brandingType);
+                // Return simple success - no path needed since files are at fixed locations
+                return res.json({ success: true, type: brandingType });
+            }
+            catch (saveError) {
+                console.error('Error saving branding file:', saveError);
+                return res.status(500).json({ error: `Failed to save branding file: ${saveError?.message || 'Unknown error'}` });
+            }
         }
         // Handle regular uploads
         if (!type || !['logos', 'documents', 'signatures'].includes(type)) {
+            console.error('Invalid file type:', type);
             return res.status(400).json({ error: 'Invalid file type. Must be: logos, documents, signatures, or branding' });
         }
-        const relativePath = (0, file_storage_1.saveFile)(req.file.buffer, req.file.originalname, type);
-        res.json({ path: relativePath });
+        try {
+            const relativePath = (0, file_storage_1.saveFile)(req.file.buffer, req.file.originalname, type);
+            console.log('File saved:', relativePath);
+            return res.json({ path: relativePath });
+        }
+        catch (saveError) {
+            console.error('Error saving file:', saveError);
+            return res.status(500).json({ error: `Failed to save file: ${saveError?.message || 'Unknown error'}` });
+        }
     }
     catch (error) {
         console.error('Upload error:', error);
+        console.error('Error stack:', error?.stack);
         // Ensure we always return valid JSON with an error message
         const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
-        res.status(500).json({ error: errorMessage });
+        return res.status(500).json({ error: errorMessage });
+    }
+});
+// GET /api/uploads/branding/check
+// Check which branding files exist
+router.get('/branding/check', (req, res) => {
+    try {
+        const result = (0, file_storage_1.checkBrandingFiles)();
+        res.json(result);
+    }
+    catch (error) {
+        console.error('Error checking branding files:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 // GET /api/uploads/branding/:filename
