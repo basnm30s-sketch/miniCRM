@@ -98,13 +98,16 @@ export async function GET(
         const filename = route[2]
         const relativePath = `./data/branding/${filename}`
         
-        // Check if file exists (with fallback to repo location)
-        if (!fileExists(relativePath)) {
+        // Try to read file (readFile has fallback logic to check repo location)
+        let fileBuffer: Buffer
+        try {
+          fileBuffer = readFile(relativePath)
+        } catch (readError: any) {
+          // If readFile fails, log and return 404
           console.error(`[API] Branding file not found: ${filename} at path: ${relativePath}`)
+          console.error(`[API] Read error:`, readError?.message || readError)
           return NextResponse.json({ error: 'File not found' }, { status: 404 })
         }
-        
-        const fileBuffer = readFile(relativePath)
         
         // Determine content type
         const ext = filename.split('.').pop()?.toLowerCase()

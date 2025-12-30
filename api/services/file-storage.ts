@@ -60,9 +60,21 @@ function initializeDefaultBrandingFiles(): void {
   }
 
   // Log paths for debugging
+  console.log(`[Branding Init] RENDER_DISK_PATH: ${renderDiskPath}`)
+  console.log(`[Branding Init] process.cwd(): ${process.cwd()}`)
   console.log(`[Branding Init] Repo branding dir: ${repoBrandingDir}`)
   console.log(`[Branding Init] Persistent branding dir: ${persistentBrandingDir}`)
   console.log(`[Branding Init] Repo dir exists: ${fs.existsSync(repoBrandingDir)}`)
+  
+  // List files in repo branding dir if it exists
+  if (fs.existsSync(repoBrandingDir)) {
+    try {
+      const files = fs.readdirSync(repoBrandingDir)
+      console.log(`[Branding Init] Files in repo branding dir: ${files.join(', ')}`)
+    } catch (err) {
+      console.error(`[Branding Init] Error reading repo branding dir:`, err)
+    }
+  }
 
   // List of default branding files that might exist in repo
   const brandingTypes = ['logo', 'seal', 'signature']
@@ -189,34 +201,42 @@ export function readFile(relativePath: string): Buffer {
     return fs.readFileSync(filePath)
   }
   
-  // Fallback: For branding files, check repo location if using persistent disk
-  const renderDiskPath = process.env.RENDER_DISK_PATH
-  if (renderDiskPath && relativePath.includes('branding/')) {
+  // Fallback: For branding files, check repo location
+  if (relativePath.includes('branding/')) {
     const repoDataDir = getRepoDataDirectory()
     const repoFilePath = relativePath.startsWith('./') 
       ? path.join(repoDataDir, relativePath.substring(2))
       : path.join(repoDataDir, relativePath)
     
+    console.log(`[File Storage] Checking repo location: ${repoFilePath}, exists: ${fs.existsSync(repoFilePath)}`)
+    
     if (fs.existsSync(repoFilePath)) {
-      // Copy to persistent disk for future requests
-      try {
-        const persistentFilePath = getFilePath(relativePath)
-        const persistentDir = path.dirname(persistentFilePath)
-        if (!fs.existsSync(persistentDir)) {
-          fs.mkdirSync(persistentDir, { recursive: true })
+      // If using persistent disk, copy to persistent disk for future requests
+      const renderDiskPath = process.env.RENDER_DISK_PATH
+      if (renderDiskPath) {
+        try {
+          const persistentFilePath = getFilePath(relativePath)
+          const persistentDir = path.dirname(persistentFilePath)
+          if (!fs.existsSync(persistentDir)) {
+            fs.mkdirSync(persistentDir, { recursive: true })
+          }
+          fs.copyFileSync(repoFilePath, persistentFilePath)
+          console.log(`[File Storage] Copied branding file from repo to persistent disk: ${relativePath}`)
+        } catch (copyError: any) {
+          console.warn(`[File Storage] Could not copy to persistent disk, serving from repo: ${copyError?.message}`)
         }
-        fs.copyFileSync(repoFilePath, persistentFilePath)
-        console.log(`[File Storage] Copied branding file from repo to persistent disk: ${relativePath}`)
-      } catch (copyError: any) {
-        console.warn(`[File Storage] Could not copy to persistent disk, serving from repo: ${copyError?.message}`)
       }
       // Serve from repo location
       return fs.readFileSync(repoFilePath)
     }
   }
   
-  // If still not found, throw error
-  throw new Error(`File not found: ${relativePath}`)
+  // If still not found, throw error with more context
+  const renderDiskPath = process.env.RENDER_DISK_PATH
+  const expectedPath = renderDiskPath 
+    ? path.join(renderDiskPath, 'data', relativePath.replace('./', ''))
+    : path.join(process.cwd(), relativePath.replace('./', ''))
+  throw new Error(`File not found: ${relativePath}. Checked: ${filePath}, Expected: ${expectedPath}`)
 }
 
 /**
@@ -246,14 +266,17 @@ export function fileExists(relativePath: string): boolean {
       return true
     }
     
-    // Fallback: For branding files, check repo location if using persistent disk
-    const renderDiskPath = process.env.RENDER_DISK_PATH
-    if (renderDiskPath && relativePath.includes('branding/')) {
+    // Fallback: For branding files, always check repo location
+    if (relativePath.includes('branding/')) {
       const repoDataDir = getRepoDataDirectory()
       const repoFilePath = relativePath.startsWith('./') 
         ? path.join(repoDataDir, relativePath.substring(2))
         : path.join(repoDataDir, relativePath)
-      return fs.existsSync(repoFilePath)
+      const exists = fs.existsSync(repoFilePath)
+      if (exists) {
+        console.log(`[File Storage] Found branding file in repo location: ${repoFilePath}`)
+      }
+      return exists
     }
     
     return false
