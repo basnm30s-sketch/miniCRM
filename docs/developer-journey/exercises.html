@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iManage: Exercises</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --accent-color: #58a6ff;
+            --card-bg: #21262d;
+            --easy: #238636;
+            --medium: #d29922;
+            --hard: #f85149;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        body.no-scroll {
+            overflow: hidden;
+        }
+
+        a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 1rem;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .stat-card:hover {
+            border-color: var(--accent-color);
+        }
+
+        .stat-card.active {
+            border-color: var(--accent-color);
+        }
+
+        .stat-card .level-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .count {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .stat-card .completed {
+            font-size: 0.9rem;
+            color: #8b949e;
+        }
+
+        .stat-card.easy .level-name {
+            color: var(--easy);
+        }
+
+        .stat-card.medium .level-name {
+            color: var(--medium);
+        }
+
+        .stat-card.hard .level-name {
+            color: var(--hard);
+        }
+
+        /* Filter buttons */
+        .filter-bar {
+            margin-bottom: 1.5rem;
+        }
+
+        .filter-bar button {
+            background: var(--card-bg);
+            border: 1px solid #30363d;
+            color: var(--text-color);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+
+        .filter-bar button.active,
+        .filter-bar button:hover {
+            background: var(--accent-color);
+            color: black;
+        }
+
+        /* Exercise Card */
+        .exercise {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1.5rem 0;
+            border-left: 4px solid var(--accent-color);
+            position: relative;
+        }
+
+        .exercise.completed-exercise {
+            opacity: 0.7;
+        }
+
+        .exercise.completed-exercise .title::after {
+            content: " ✅";
+        }
+
+        .exercise .title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .exercise .level-tag {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-left: 0.5rem;
+        }
+
+        .exercise .level-tag.easy {
+            background: var(--easy);
+            color: white;
+            font-family: inherit;
+        }
+
+        .exercise .level-tag.medium {
+            background: var(--medium);
+            color: black;
+            font-family: inherit;
+        }
+
+        .exercise .level-tag.hard {
+            background: var(--hard);
+            color: white;
+            font-family: inherit;
+        }
+
+        code {
+            background: rgba(110, 118, 129, 0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+
+        /* Completion Section */
+        .completion-section {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        /* Utility class to push textarea to new line if needed, though flex-wrap handles distinct buttons */
+        .completion-controls {
+            display: flex;
+            gap: 1rem;
+            width: 100%;
+            align-items: center;
+        }
+
+        .completion-section label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: auto;
+        }
+
+        .completion-section input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--easy);
+        }
+
+        .completion-section textarea {
+            width: 100%;
+            background: var(--bg-color);
+            border: 1px solid #30363d;
+            color: var(--text-color);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-top: 0.75rem;
+            resize: vertical;
+            min-height: 80px;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+
+        .completion-section textarea::placeholder {
+            color: #6e7681;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        }
+
+        /* Buttons */
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .action-btn:hover {
+            background: var(--accent-color);
+            color: black;
+        }
+
+        .preview-btn {
+            border-color: #8b949e;
+            color: #c9d1d9;
+        }
+
+        .preview-btn:hover {
+            background: #8b949e;
+            color: white;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 2rem;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--card-bg);
+            border-radius: 12px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid #30363d;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal.modal-lg {
+            max-width: 1000px;
+            height: 90vh;
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.3rem;
+            color: var(--accent-color);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0 0.5rem;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--accent-color);
+        }
+
+        .modal-body {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .modal-body h3 {
+            color: var(--accent-color);
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-body h3:first-child {
+            margin-top: 0;
+        }
+
+        .modal-body pre {
+            background: var(--bg-color);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+
+        /* Markdown generated content styles */
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3 {
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 0.3em;
+            margin-top: 1.5em;
+        }
+
+        .markdown-content ul,
+        .markdown-content ol {
+            padding-left: 1.5em;
+        }
+
+        .markdown-content blockquote {
+            border-left: 4px solid #30363d;
+            padding-left: 1rem;
+            color: #8b949e;
+            margin: 1rem 0;
+        }
+
+        .markdown-content code {
+            background: rgba(110, 118, 129, 0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+
+        .markdown-content pre code {
+            background: transparent;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html">← Back to Documentation</a>
+    <h1>🏋️ Exercises: Prove You Understand</h1>
+    <p>Track your progress. Mark exercises complete and add your learnings.</p>
+
+    <!-- Dashboard -->
+    <div class="dashboard">
+        <div class="stat-card easy" data-filter="easy">
+            <div class="level-name">🟢 Easy</div>
+            <div class="count" id="easy-count">0/0</div>
+            <div class="completed">Completed</div>
+        </div>
+        <div class="stat-card medium" data-filter="medium">
+            <div class="level-name">🟡 Medium</div>
+            <div class="count" id="medium-count">0/0</div>
+            <div class="completed">Completed</div>
+        </div>
+        <div class="stat-card hard" data-filter="hard">
+            <div class="level-name">🔴 Hard</div>
+            <div class="count" id="hard-count">0/0</div>
+            <div class="completed">Completed</div>
+        </div>
+    </div>
+
+    <div class="filter-bar">
+        <button data-filter="all" class="active">All</button>
+        <button data-filter="easy">Easy</button>
+        <button data-filter="medium">Medium</button>
+        <button data-filter="hard">Hard</button>
+        <button data-filter="incomplete">Incomplete Only</button>
+    </div>
+
+    <div id="exercises-container">
+        <!-- EASY EXERCISES -->
+        <div class="exercise" data-id="e1" data-level="easy">
+            <div class="title">Explore package.json <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Understand dependencies.</p>
+            <ol>
+                <li>Open <code>package.json</code> in the project root.</li>
+                <li>Find the <code>dependencies</code> section.</li>
+                <li>List 3 dependencies and describe what you think they do.</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e1">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e2" data-level="easy">
+            <div class="title">Find the Database <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Locate the database file.</p>
+            <ol>
+                <li>Navigate to the <code>data/</code> folder.</li>
+                <li>Find the <code>imanage.db</code> file.</li>
+                <li>Note its file size. What does that tell you?</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e2">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e3" data-level="easy">
+            <div class="title">Trace the Data: Vendors <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> See data flow from UI to database.</p>
+            <ol>
+                <li>Create a new Vendor named "Test Supplier Ltd" in the app.</li>
+                <li>Open <code>data/imanage.db</code> in a SQLite viewer.</li>
+                <li>Find the <code>vendors</code> table and verify your entry.</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e3">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e4" data-level="easy">
+            <div class="title">Read the README <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Understand the project from the author's perspective.</p>
+            <ol>
+                <li>Open the <code>docs/</code> folder and read any available documentation.</li>
+                <li>What is the main purpose of iManage according to existing docs?</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e4">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e5" data-level="easy">
+            <div class="title">Run the Dev Server <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Start the application locally.</p>
+            <ol>
+                <li>Open a terminal in the project root.</li>
+                <li>Run <code>npm run dev</code>.</li>
+                <li>Open <code>http://localhost:3000</code> in your browser.</li>
+                <li>Explore the dashboard.</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e5">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e6" data-level="easy">
+            <div class="title">Decode npm Scripts <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Understand how scripts automate tasks.</p>
+            <ol>
+                <li>Open <code>package.json</code> and find the <code>"scripts"</code> section.</li>
+                <li>List all the script names.</li>
+                <li>What does <code>npm run dev</code> actually execute?</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e6">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e7" data-level="easy">
+            <div class="title">The tsconfig.json Decoder <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Understand TypeScript configuration.</p>
+            <ol>
+                <li>Open <code>tsconfig.json</code> in the root folder.</li>
+                <li>Find the <code>compilerOptions</code> section.</li>
+                <li>What does <code>"strict"</code> do?</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e7">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e8" data-level="easy">
+            <div class="title">Map the Directory Tree <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Know where everything lives.</p>
+            <ol>
+                <li>List all top-level folders (ignore <code>node_modules</code>).</li>
+                <li>Write one sentence about what each folder contains.</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e8">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e9" data-level="easy">
+            <div class="title">Follow an Import Chain <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Understand how files connect.</p>
+            <ol>
+                <li>Open <code>api/server.ts</code>.</li>
+                <li>Find an <code>import</code> statement and open that file.</li>
+                <li>What does that file export?</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e9">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e10" data-level="easy">
+            <div class="title">Explore the Components Folder <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Understand reusable UI pieces.</p>
+            <ol>
+                <li>Open the <code>components/</code> folder.</li>
+                <li>List 5 component files you find.</li>
+                <li>Open <code>components/ui/</code>. What kind of components are there?</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e10">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e11" data-level="easy">
+            <div class="title">The .gitignore Detective <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Know what files are NOT tracked by Git.</p>
+            <ol>
+                <li>Open <code>.gitignore</code> in the project root.</li>
+                <li>List 3 things that are ignored.</li>
+                <li>Why would you ignore <code>node_modules/</code>?</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e11">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="e12" data-level="easy">
+            <div class="title">Understand the Entry Points <span class="level-tag easy">Easy</span></div>
+            <p><strong>Goal:</strong> Know where the app starts.</p>
+            <ol>
+                <li>For <strong>Frontend</strong>: Open <code>app/layout.tsx</code>.</li>
+                <li>For <strong>Backend</strong>: Open <code>api/server.ts</code>.</li>
+                <li>For <strong>Electron</strong>: Open <code>electron/main.js</code>.</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="e12">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <!-- MEDIUM EXERCISES -->
+        <div class="exercise" data-id="m1" data-level="medium">
+            <div class="title">Understand the Schema <span class="level-tag medium">Medium</span></div>
+            <p><strong>Goal:</strong> Read the database schema definition.</p>
+            <ol>
+                <li>Open <code>lib/database.ts</code>.</li>
+                <li>Find where the <code>vehicles</code> table is created.</li>
+                <li>List all columns in that table.</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="m1">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="m2" data-level="medium">
+            <div class="title">Trace an API Call <span class="level-tag medium">Medium</span></div>
+            <p><strong>Goal:</strong> Follow a request from frontend to database.</p>
+            <ol>
+                <li>Open DevTools (F12) → Network tab.</li>
+                <li>Create a Customer in the app.</li>
+                <li>Find the POST request to <code>/api/customers</code>.</li>
+                <li>Inspect the Request Payload and Response.</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="m2">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="m3" data-level="medium">
+            <div class="title">Modify the UI <span class="level-tag medium">Medium</span></div>
+            <p><strong>Goal:</strong> Make a frontend change.</p>
+            <ol>
+                <li>Open <code>app/page.tsx</code> (the dashboard).</li>
+                <li>Change a text string.</li>
+                <li>Save and verify the change in the browser.</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="m3">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="m4" data-level="medium">
+            <div class="title">Explore a Route Handler <span class="level-tag medium">Medium</span></div>
+            <p><strong>Goal:</strong> Understand how the backend handles requests.</p>
+            <ol>
+                <li>Open <code>api/routes/customers.ts</code>.</li>
+                <li>Find the handler for <code>GET /</code>.</li>
+                <li>What adapter function does it call?</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="m4">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="m5" data-level="medium">
+            <div class="title">Understand Foreign Keys <span class="level-tag medium">Medium</span></div>
+            <p><strong>Goal:</strong> See referential integrity in action.</p>
+            <ol>
+                <li>Create a Customer.</li>
+                <li>Create a Quote linked to that Customer.</li>
+                <li>Try to delete the Customer.</li>
+                <li>What error message do you see?</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="m5">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <!-- HARD EXERCISES -->
+        <div class="exercise" data-id="h1" data-level="hard">
+            <div class="title">The Chaos Monkey <span class="level-tag hard">Hard</span></div>
+            <p><strong>Goal:</strong> Understand error handling.</p>
+            <ol>
+                <li>Open <code>api/routes/customers.ts</code>.</li>
+                <li>In the <code>POST</code> handler, add: <code>throw new Error("Test")</code>.</li>
+                <li>Try to create a customer and observe the error.</li>
+            </ol>
+            <p><strong>⚠️ Undo your changes after testing!</strong></p>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="h1">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+
+        <div class="exercise" data-id="h2" data-level="hard">
+            <div class="title">Add a New Feature: Vendor Notes <span class="level-tag hard">Hard</span></div>
+            <p><strong>Goal:</strong> Full-stack feature addition.</p>
+            <ol>
+                <li>Add a <code>notes</code> column to <code>vendors</code> in <code>lib/database.ts</code>.</li>
+                <li>Update <code>api/adapters/sqlite.ts</code> to read/write this field.</li>
+                <li>Update the frontend Vendor form.</li>
+                <li>Test end-to-end.</li>
+            </ol>
+            <div class="completion-section">
+                <label><input type="checkbox" class="complete-checkbox"> Mark as Complete</label>
+                <button class="show-answer-btn" data-id="h2">💡 Show Answer</button>
+                <textarea class="remarks" placeholder="Write your learnings here..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <hr style="margin-top: 3rem; border-color: #30363d;">
+    <p><a href="index.html">📘 Back to Documentation</a> | <a href="glossary.html">📖 Glossary</a></p>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="answerModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle">Answer</h2>
+                <button class="modal-close" id="modalClose">×</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'imanage_exercise_progress';
+
+        // Answer content for each exercise
+        const answers = {
+            e1: {
+                title: "Explore package.json",
+                content: `
+                    <h3>What is package.json?</h3>
+                    <p>This file is the <strong>identity card</strong> of any Node.js project. It tells npm (Node Package Manager) what libraries to install and how to run the app.</p>
+                    
+                    <h3>Example Dependencies</h3>
+                    <ul>
+                        <li><code>next</code>: The React framework for building the frontend UI.</li>
+                        <li><code>express</code>: The backend web server framework that handles API requests.</li>
+                        <li><code>better-sqlite3</code>: A library to read/write data to a SQLite database file.</li>
+                    </ul>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Real developers read <code>package.json</code> first when joining a new project. It tells you the tech stack instantly.</p>
+                `
+            },
+            e2: {
+                title: "Find the Database",
+                content: `
+                    <h3>Location</h3>
+                    <p>The database file is at: <code>data/imanage.db</code></p>
+                    
+                    <h3>What the file size tells you</h3>
+                    <ul>
+                        <li><strong>Small file (few KB)</strong>: Database has little or no data yet.</li>
+                        <li><strong>Larger file (MB)</strong>: Database contains substantial records.</li>
+                    </ul>
+                    
+                    <h3>Key Insight</h3>
+                    <p>SQLite stores everything in ONE file. This makes it portable—just copy the file to back up your entire database!</p>
+                `
+            },
+            e3: {
+                title: "Trace the Data: Vendors",
+                content: `
+                    <h3>What happens when you click Save</h3>
+                    <ol>
+                        <li>Frontend sends POST request to <code>/api/vendors</code></li>
+                        <li>Express route handler receives it</li>
+                        <li>Adapter inserts row into <code>vendors</code> table</li>
+                        <li>Response returns the new vendor object</li>
+                    </ol>
+                    
+                    <h3>In the database you'll see</h3>
+                    <pre>id: "some-uuid"
+name: "Test Supplier Ltd"
+createdAt: "2024-01-01T12:00:00.000Z"</pre>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Data flows: UI → API → Database. Understanding this path is fundamental to debugging.</p>
+                `
+            },
+            e4: {
+                title: "Read the README",
+                content: `
+                    <h3>Purpose of iManage</h3>
+                    <p>iManage is a <strong>Car Rental CRM System</strong>. It manages:</p>
+                    <ul>
+                        <li>Customers and Vendors</li>
+                        <li>Quotes and Invoices</li>
+                        <li>Employees and Payslips</li>
+                        <li>Vehicle inventory</li>
+                    </ul>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Good documentation explains the "why" not just the "how". When you build projects, write READMEs that explain the purpose.</p>
+                `
+            },
+            e5: {
+                title: "Run the Dev Server",
+                content: `
+                    <h3>What npm run dev does</h3>
+                    <p>It starts TWO processes concurrently:</p>
+                    <ol>
+                        <li><code>npm run api:dev</code> — Starts the Express backend on port 3001</li>
+                        <li><code>next dev</code> — Starts the Next.js frontend on port 3000</li>
+                    </ol>
+                    
+                    <h3>The dev server provides</h3>
+                    <ul>
+                        <li>Hot reload (changes appear instantly)</li>
+                        <li>Error messages in browser</li>
+                        <li>Source maps for debugging</li>
+                    </ul>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Development mode is different from production. It's slower but gives better error messages.</p>
+                `
+            },
+            e6: {
+                title: "Decode npm Scripts",
+                content: `
+                    <h3>Scripts in this project</h3>
+                    <pre>"dev": "concurrently \\"npm run api:dev\\" \\"next dev\\""
+"build": "next build"
+"build:server": "tsc -p tsconfig.server.json"
+"electron:build": "npm run build:all && electron-builder"</pre>
+                    
+                    <h3>What they mean</h3>
+                    <ul>
+                        <li><code>dev</code>: Run both backend and frontend in development mode</li>
+                        <li><code>build</code>: Compile frontend for production</li>
+                        <li><code>build:server</code>: Compile TypeScript backend to JavaScript</li>
+                        <li><code>electron:build</code>: Package everything into a desktop app</li>
+                    </ul>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Scripts are shortcuts. <code>npm run dev</code> is easier than typing the full command every time.</p>
+                `
+            },
+            e7: {
+                title: "The tsconfig.json Decoder",
+                content: `
+                    <h3>What tsconfig.json does</h3>
+                    <p>It tells TypeScript HOW to compile your code. Key options:</p>
+                    <ul>
+                        <li><code>"strict": true</code> — Enables all strict type checks (recommended)</li>
+                        <li><code>"target": "ES2020"</code> — What JavaScript version to output</li>
+                        <li><code>"outDir"</code> — Where compiled JS files go</li>
+                    </ul>
+                    
+                    <h3>Why multiple tsconfig files?</h3>
+                    <p><code>tsconfig.server.json</code> is for the backend. It outputs CommonJS modules because Node.js prefers them.</p>
+                    
+                    <h3>Key Insight</h3>
+                    <p>TypeScript needs configuration. Understanding tsconfig helps you fix mysterious compilation errors.</p>
+                `
+            },
+            e8: {
+                title: "Map the Directory Tree",
+                content: `
+                    <h3>Folder purposes</h3>
+                    <ul>
+                        <li><code>app/</code> → Frontend pages (Next.js App Router)</li>
+                        <li><code>api/</code> → Backend source code (Express routes)</li>
+                        <li><code>lib/</code> → Shared utilities (database, validation)</li>
+                        <li><code>components/</code> → Reusable React UI components</li>
+                        <li><code>electron/</code> → Desktop app configuration</li>
+                        <li><code>data/</code> → SQLite database file</li>
+                        <li><code>dist-server/</code> → Compiled backend (production)</li>
+                    </ul>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Every project has a structure. Learn it once, navigate forever.</p>
+                `
+            },
+            e9: {
+                title: "Follow an Import Chain",
+                content: `
+                    <h3>Example import</h3>
+                    <pre>import customersRouter from './routes/customers'</pre>
+                    
+                    <h3>What it means</h3>
+                    <p>This imports the <code>default export</code> from <code>api/routes/customers.ts</code>.</p>
+                    
+                    <h3>At the end of customers.ts</h3>
+                    <pre>export default router</pre>
+                    <p>This exports the Express router so other files can use it.</p>
+                    
+                    <h3>Key Insight</h3>
+                    <p><code>import</code> brings code IN. <code>export</code> sends code OUT. Master this concept.</p>
+                `
+            },
+            e10: {
+                title: "Explore the Components Folder",
+                content: `
+                    <h3>Component files found</h3>
+                    <ul>
+                        <li><code>sidebar.tsx</code> — Navigation menu</li>
+                        <li><code>dashboard.tsx</code> — Overview widgets</li>
+                        <li><code>invoice-generator.tsx</code> — Invoice creation form</li>
+                        <li><code>revenue-trend-chart.tsx</code> — Recharts line graph</li>
+                    </ul>
+                    
+                    <h3>The ui/ folder</h3>
+                    <p>Contains 58 Shadcn components: Button, Dialog, Table, Input, etc. These are building blocks.</p>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Components are LEGO bricks. Build small, reusable pieces. Combine them into pages.</p>
+                `
+            },
+            e11: {
+                title: "The .gitignore Detective",
+                content: `
+                    <h3>Common ignored items</h3>
+                    <ul>
+                        <li><code>node_modules/</code> — Dependencies (can be reinstalled with npm install)</li>
+                        <li><code>.env</code> — Environment secrets (API keys, passwords)</li>
+                        <li><code>dist/</code>, <code>out/</code> — Build outputs (can be regenerated)</li>
+                    </ul>
+                    
+                    <h3>Why ignore node_modules?</h3>
+                    <p>It can contain 100,000+ files. It's faster to reinstall than to commit them.</p>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Never commit secrets. Never commit files that can be regenerated.</p>
+                `
+            },
+            e12: {
+                title: "Understand the Entry Points",
+                content: `
+                    <h3>Entry points</h3>
+                    <ul>
+                        <li><strong>Frontend</strong>: <code>app/layout.tsx</code> wraps every page with common UI (sidebar, providers).</li>
+                        <li><strong>Backend</strong>: <code>api/server.ts</code> creates the Express app and registers all routes.</li>
+                        <li><strong>Electron</strong>: <code>electron/main.js</code> creates the desktop window and loads the app.</li>
+                    </ul>
+                    
+                    <h3>Key Insight</h3>
+                    <p>To understand any app, find where it begins. Entry points are the starting line.</p>
+                `
+            },
+            m1: {
+                title: "Understand the Schema",
+                content: `
+                    <h3>Vehicles table columns</h3>
+                    <pre>id TEXT PRIMARY KEY
+type TEXT NOT NULL
+description TEXT
+basePrice REAL
+createdAt TEXT</pre>
+                    
+                    <h3>To add a "Color" field, change:</h3>
+                    <ol>
+                        <li><code>lib/database.ts</code> — Add column to CREATE TABLE</li>
+                        <li><code>api/adapters/sqlite.ts</code> — Update getAll, getById, create, update functions</li>
+                    </ol>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Schema changes require updates in multiple places. Plan before coding.</p>
+                `
+            },
+            m2: {
+                title: "Trace an API Call",
+                content: `
+                    <h3>In DevTools Network tab you'll see</h3>
+                    <ul>
+                        <li><strong>Request URL</strong>: http://localhost:3001/api/customers</li>
+                        <li><strong>Method</strong>: POST</li>
+                        <li><strong>Payload</strong>: { "name": "...", "email": "..." }</li>
+                        <li><strong>Response</strong>: { "id": "uuid", "name": "...", ... }</li>
+                    </ul>
+                    
+                    <h3>Key Insight</h3>
+                    <p>DevTools is your X-ray vision. Use the Network tab to see exactly what's happening.</p>
+                `
+            },
+            m3: {
+                title: "Modify the UI",
+                content: `
+                    <h3>Steps</h3>
+                    <ol>
+                        <li>Open <code>app/page.tsx</code></li>
+                        <li>Find a text string like "Welcome" or a heading</li>
+                        <li>Change it and save</li>
+                        <li>The browser auto-refreshes (hot reload)</li>
+                    </ol>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Making small changes builds confidence. Start small, then go bigger.</p>
+                `
+            },
+            m4: {
+                title: "Explore a Route Handler",
+                content: `
+                    <h3>The GET / handler</h3>
+                    <pre>router.get('/', (req, res) => {
+  const customers = customersAdapter.getAll()
+  res.json(customers)
+})</pre>
+                    
+                    <h3>What it does</h3>
+                    <ol>
+                        <li>Calls <code>customersAdapter.getAll()</code> from sqlite.ts</li>
+                        <li>Returns the result as JSON</li>
+                        <li>If error, catches and returns 500 status</li>
+                    </ol>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Routes delegate work to adapters. This separation makes code easier to test and maintain.</p>
+                `
+            },
+            m5: {
+                title: "Understand Foreign Keys",
+                content: `
+                    <h3>What happens</h3>
+                    <p>The database refuses to delete the customer because a Quote references it.</p>
+                    
+                    <h3>Error message</h3>
+                    <p>"Cannot delete Customer as it is referenced in Quote QUO-001"</p>
+                    
+                    <h3>Why this matters</h3>
+                    <p>Foreign keys prevent orphaned data. If you delete a customer, their quotes would point to nothing.</p>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Databases enforce rules. This is called referential integrity.</p>
+                `
+            },
+            h1: {
+                title: "The Chaos Monkey",
+                content: `
+                    <h3>What happens when you throw an error</h3>
+                    <ol>
+                        <li>The POST handler throws before inserting data</li>
+                        <li>Express catches it and returns status 500</li>
+                        <li>Frontend shows an error toast</li>
+                        <li>Console logs the error</li>
+                    </ol>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Error handling is crucial. Without try/catch, errors crash the server. With it, they're graceful failures.</p>
+                `
+            },
+            h2: {
+                title: "Add a New Feature: Vendor Notes",
+                content: `
+                    <h3>Step 1: Database (lib/database.ts)</h3>
+                    <pre>CREATE TABLE vendors (
+  ...
+  notes TEXT,  // Add this line
+  ...
+)</pre>
+                    
+                    <h3>Step 2: Adapter (api/adapters/sqlite.ts)</h3>
+                    <p>Update getAll, getById, create, and update to include <code>notes</code>.</p>
+                    
+                    <h3>Step 3: Frontend</h3>
+                    <p>Add a Textarea component to the Vendor form, bind it to form state.</p>
+                    
+                    <h3>Key Insight</h3>
+                    <p>Full-stack changes touch many files. Plan the data flow before coding.</p>
+                `
+            }
+        };
+
+        // Load progress from localStorage
+        function loadProgress() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            return data ? JSON.parse(data) : {};
+        }
+
+        // Save progress to localStorage
+        function saveProgress(progress) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+        }
+
+        // Initialize the page
+        function init() {
+            const progress = loadProgress();
+            const exercises = document.querySelectorAll('.exercise');
+
+            exercises.forEach(ex => {
+                const id = ex.dataset.id;
+                const completionSection = ex.querySelector('.completion-section');
+
+                // Reformat DOM to include wrapper and buttons
+                // Check if already updated (in case of re-runs)
+                if (!completionSection.querySelector('.preview-btn')) {
+                    const checkboxLabel = completionSection.querySelector('label');
+                    const showAnswerBtn = completionSection.querySelector('.show-answer-btn');
+                    const textarea = completionSection.querySelector('.remarks');
+
+                    // Update classes
+                    showAnswerBtn.classList.add('action-btn');
+
+                    // Create wrapper
+                    const controls = document.createElement('div');
+                    controls.className = 'completion-controls';
+
+                    // Create Preview button
+                    const previewBtn = document.createElement('button');
+                    previewBtn.className = 'action-btn preview-btn';
+                    previewBtn.dataset.id = id;
+                    previewBtn.innerHTML = '👁️ Preview Remarks';
+
+                    // Assemble
+                    // Note: showAnswerBtn might be missing if I messed up previous file content, but it should be there.
+                    // We need to move elements into controls wrapper
+                    completionSection.insertBefore(controls, textarea);
+                    controls.appendChild(checkboxLabel);
+                    if (showAnswerBtn) controls.appendChild(showAnswerBtn);
+                    controls.appendChild(previewBtn);
+                }
+
+                const checkbox = ex.querySelector('.complete-checkbox');
+                const remarks = ex.querySelector('.remarks');
+
+                // Add Markdown placeholder hint
+                remarks.placeholder = "Write your learnings here using Markdown (## headings, **bold**, - lists)...";
+
+                // Restore saved state
+                if (progress[id]) {
+                    if (progress[id].completed) {
+                        checkbox.checked = true;
+                        ex.classList.add('completed-exercise');
+                    }
+                    if (progress[id].remarks) {
+                        remarks.value = progress[id].remarks;
+                    }
+                }
+
+                // Event listeners
+                checkbox.addEventListener('change', () => {
+                    progress[id] = progress[id] || {};
+                    progress[id].completed = checkbox.checked;
+                    ex.classList.toggle('completed-exercise', checkbox.checked);
+                    saveProgress(progress);
+                    updateDashboard();
+                });
+
+                remarks.addEventListener('input', () => {
+                    progress[id] = progress[id] || {};
+                    progress[id].remarks = remarks.value;
+                    saveProgress(progress);
+                });
+            });
+
+            updateDashboard();
+            setupFilters();
+            setupModal();
+        }
+
+        // Update dashboard counts
+        function updateDashboard() {
+            const progress = loadProgress();
+            ['easy', 'medium', 'hard'].forEach(level => {
+                const all = document.querySelectorAll(`.exercise[data-level="${level}"]`);
+                const completed = [...all].filter(ex => progress[ex.dataset.id]?.completed).length;
+                document.getElementById(`${level}-count`).textContent = `${completed}/${all.length}`;
+            });
+        }
+
+        // Setup filter buttons
+        function setupFilters() {
+            const buttons = document.querySelectorAll('.filter-bar button, .stat-card');
+            const exercises = document.querySelectorAll('.exercise');
+            const progress = loadProgress();
+
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const filter = btn.dataset.filter;
+
+                    document.querySelectorAll('.filter-bar button').forEach(b => b.classList.remove('active'));
+                    if (btn.tagName === 'BUTTON') btn.classList.add('active');
+
+                    exercises.forEach(ex => {
+                        const level = ex.dataset.level;
+                        const isCompleted = progress[ex.dataset.id]?.completed;
+
+                        if (filter === 'all') {
+                            ex.style.display = 'block';
+                        } else if (filter === 'incomplete') {
+                            ex.style.display = isCompleted ? 'none' : 'block';
+                        } else {
+                            ex.style.display = level === filter ? 'block' : 'none';
+                        }
+                    });
+                });
+            });
+        }
+
+        // Setup modal
+        function setupModal() {
+            const modal = document.getElementById('answerModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            const modalClose = document.getElementById('modalClose');
+
+            function openModal() {
+                modal.classList.add('active');
+                document.body.classList.add('no-scroll');
+            }
+
+            function closeModal() {
+                modal.classList.remove('active');
+                document.body.classList.remove('no-scroll');
+            }
+
+            // Show Answer buttons
+            // Delegate logic for both Answer and Preview buttons
+            document.addEventListener('click', (e) => {
+                // Show Answer
+                if (e.target.classList.contains('show-answer-btn')) {
+                    const id = e.target.dataset.id;
+                    const answer = answers[e.target.dataset.id];
+                    if (answer) {
+                        modalTitle.textContent = answer.title;
+                        modalBody.innerHTML = answer.content;
+                        modalBody.classList.remove('markdown-content');
+                        modal.classList.remove('modal-lg');
+                        openModal();
+                    }
+                }
+
+                // Preview Remarks
+                if (e.target.classList.contains('preview-btn')) {
+                    const id = e.target.dataset.id;
+                    const exerciseDiv = document.querySelector(`.exercise[data-id="${id}"]`);
+                    const textarea = exerciseDiv.querySelector('.remarks');
+                    const content = textarea.value;
+
+                    modalTitle.textContent = "My Learnings (Preview)";
+
+                    if (!content.trim()) {
+                        modalBody.innerHTML = '<p style="color: #8b949e; font-style: italic;">Nothing to preview yet. Write some markdown in the text area.</p>';
+                    } else {
+                        // Use marked to parse
+                        modalBody.innerHTML = marked.parse(content);
+                    }
+
+                    modalBody.classList.add('markdown-content');
+                    modal.classList.add('modal-lg');
+                    openModal();
+                }
+            });
+
+            // Close modal
+            modalClose.addEventListener('click', () => {
+                closeModal();
+            });
+
+            // Close on overlay click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+
+            // Close on Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeModal();
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+
+</html>

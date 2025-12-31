@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iManage Documentation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --accent-color: #58a6ff;
+            --code-bg: #161b22;
+            --card-bg: #21262d;
+            --sidebar-bg: #161b22;
+            --success: #238636;
+            --warning: #d29922;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid #30363d;
+            padding: 1.5rem;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            font-size: 1.1rem;
+            color: #8b949e;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .sidebar a {
+            display: block;
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 0.4rem 0;
+            font-size: 0.95rem;
+        }
+
+        .sidebar a:hover {
+            color: var(--accent-color);
+        }
+
+        .sidebar .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-bottom: 2rem;
+        }
+
+        /* Main Content */
+        .main {
+            margin-left: 280px;
+            padding: 2rem 3rem;
+            max-width: 900px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            margin-top: 3rem;
+            font-size: 1.8rem;
+            color: var(--accent-color);
+        }
+
+        h3 {
+            margin-top: 2rem;
+        }
+
+        .chapter {
+            padding: 1.5rem;
+            background: var(--card-bg);
+            border-radius: 10px;
+            margin: 1.5rem 0;
+            border: 1px solid #30363d;
+        }
+
+        code {
+            background: rgba(110, 118, 129, 0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            font-size: 85%;
+        }
+
+        pre {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th,
+        td {
+            border: 1px solid #30363d;
+            padding: 0.75rem;
+            text-align: left;
+        }
+
+        th {
+            background: var(--code-bg);
+        }
+
+        .diagram-container {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+
+        .analogy {
+            background: rgba(88, 166, 255, 0.1);
+            border-left: 4px solid var(--accent-color);
+            padding: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .analogy-title {
+            font-weight: bold;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+
+        .tag-vibe {
+            background: #d29922;
+            color: black;
+        }
+
+        .tag-dev {
+            background: #238636;
+            color: white;
+        }
+
+        .method {
+            display: inline-block;
+            width: 60px;
+            font-weight: bold;
+        }
+
+        .get {
+            color: #238636;
+        }
+
+        .post {
+            color: #58a6ff;
+        }
+
+        .put {
+            color: #d29922;
+        }
+
+        .delete {
+            color: #f85149;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="sidebar">
+        <div class="logo">📘 iManage Docs</div>
+        <h2>Navigation</h2>
+        <a href="#intro">Introduction</a>
+        <a href="#architecture">System Architecture</a>
+        <a href="#directory">Directory Map</a>
+        <a href="#database">Database Schema</a>
+        <a href="#api">API Reference</a>
+        <a href="#components">Frontend Components</a>
+        <a href="#journey">Developer Journey</a>
+        <h2>Appendices</h2>
+        <a href="glossary.html">📖 Glossary</a>
+        <a href="exercises.html">🏋️ Exercises</a>
+    </nav>
+
+    <main class="main">
+        <h1 id="intro">iManage Documentation</h1>
+        <p>Welcome to the official technical documentation for <strong>iManage</strong>, a desktop CRM application for
+            car rental management. This document serves as both a technical reference and an educational guide for
+            developers.</p>
+
+        <!-- ===================== ARCHITECTURE ===================== -->
+        <h2 id="architecture">1. System Architecture</h2>
+        <p>iManage is a hybrid desktop application built with web technologies. It runs locally with no cloud
+            dependencies.</p>
+        <div class="diagram-container">
+            <div class="mermaid">
+                graph LR
+                User((User)) -- Clicks UI --> Frontend["Frontend (Next.js)"]
+                Frontend -- HTTP REST --> Backend["Backend (Express)"]
+                Backend -- SQL --> DB[("SQLite DB")]
+                subgraph Electron["Electron Container"]
+                Frontend
+                Backend
+                DB
+                end
+                style Frontend fill:#d4e6f1,stroke:#2e86c1,color:black
+                style Backend fill:#d5f5e3,stroke:#27ae60,color:black
+                style DB fill:#fcf3cf,stroke:#f1c40f,color:black
+            </div>
+        </div>
+        <table>
+            <tr>
+                <th>Layer</th>
+                <th>Technology</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td>Container</td>
+                <td>Electron</td>
+                <td>Packages the app as a native desktop executable.</td>
+            </tr>
+            <tr>
+                <td>Frontend</td>
+                <td>Next.js + React</td>
+                <td>Renders the UI; handles client-side routing.</td>
+            </tr>
+            <tr>
+                <td>Styling</td>
+                <td>Tailwind CSS</td>
+                <td>Utility-first CSS framework for rapid styling.</td>
+            </tr>
+            <tr>
+                <td>UI Kit</td>
+                <td>Shadcn/Radix</td>
+                <td>Accessible, pre-built React components.</td>
+            </tr>
+            <tr>
+                <td>Backend</td>
+                <td>Express.js</td>
+                <td>REST API server; handles business logic.</td>
+            </tr>
+            <tr>
+                <td>Database</td>
+                <td>SQLite (better-sqlite3)</td>
+                <td>File-based relational database for persistence.</td>
+            </tr>
+        </table>
+
+        <!-- ===================== DIRECTORY ===================== -->
+        <h2 id="directory">2. Directory Map</h2>
+        <pre><code>miniCRM/
+├── api/                    # Backend source (TypeScript)
+│   ├── routes/             # Express route handlers
+│   ├── adapters/           # Data Access Layer (sqlite.ts)
+│   └── server.ts           # API entry point
+├── app/                    # Frontend pages (Next.js App Router)
+│   ├── customers/          # Customer management UI
+│   ├── invoices/           # Invoice UI
+│   ├── quotes/             # Quotation UI
+│   └── ...                 # Other modules
+├── components/             # Reusable React components
+│   ├── ui/                 # Shadcn components (buttons, modals)
+│   ├── sidebar.tsx         # Navigation sidebar
+│   └── dashboard.tsx       # Dashboard widgets
+├── lib/                    # Shared utilities
+│   ├── database.ts         # DB initialization & schema
+│   ├── api-client.ts       # Frontend HTTP client
+│   └── validation.ts       # Zod schemas
+├── electron/               # Electron main process
+├── dist-server/            # Compiled backend (for production)
+├── data/                   # SQLite database file (imanage.db)
+└── package.json            # Dependencies and scripts
+</code></pre>
+
+        <!-- ===================== DATABASE ===================== -->
+        <h2 id="database">3. Database Schema</h2>
+        <p>The database is a single SQLite file located at <code>data/imanage.db</code>. Below is the
+            Entity-Relationship Diagram:</p>
+        <div class="diagram-container">
+            <div class="mermaid">
+                erDiagram
+                CUSTOMERS ||--o{ QUOTES : receives
+                CUSTOMERS ||--o{ INVOICES : billed_to
+                VENDORS ||--o{ PURCHASE_ORDERS : supplies
+                VENDORS ||--o{ INVOICES : billed_from
+                QUOTES ||--|{ QUOTE_ITEMS : contains
+                PURCHASE_ORDERS ||--|{ PO_ITEMS : contains
+                INVOICES ||--|{ INVOICE_ITEMS : contains
+                QUOTES ||--o{ INVOICES : generates
+                PURCHASE_ORDERS ||--o{ INVOICES : generates
+                EMPLOYEES ||--o{ PAYSLIPS : receives
+                VEHICLES ||--o{ QUOTE_ITEMS : referenced_in
+            </div>
+        </div>
+        <h3>Table Definitions</h3>
+        <table>
+            <tr>
+                <th>Table</th>
+                <th>Key Columns</th>
+                <th>Description</th>
+            </tr>
+            <tr>
+                <td><code>customers</code></td>
+                <td>id, name, company, email, phone</td>
+                <td>People or companies buying services.</td>
+            </tr>
+            <tr>
+                <td><code>vendors</code></td>
+                <td>id, name, contactPerson, bankDetails</td>
+                <td>Suppliers providing goods/services.</td>
+            </tr>
+            <tr>
+                <td><code>employees</code></td>
+                <td>id, name, role, paymentType, salary</td>
+                <td>Staff members.</td>
+            </tr>
+            <tr>
+                <td><code>vehicles</code></td>
+                <td>id, type, description, basePrice</td>
+                <td>Rentable vehicle catalog.</td>
+            </tr>
+            <tr>
+                <td><code>quotes</code></td>
+                <td>id, number, customerId, total</td>
+                <td>Price proposals for customers.</td>
+            </tr>
+            <tr>
+                <td><code>quote_items</code></td>
+                <td>id, quoteId, vehicleTypeId, quantity</td>
+                <td>Line items in a quote.</td>
+            </tr>
+            <tr>
+                <td><code>purchase_orders</code></td>
+                <td>id, number, vendorId, amount</td>
+                <td>Orders placed with vendors.</td>
+            </tr>
+            <tr>
+                <td><code>po_items</code></td>
+                <td>id, purchaseOrderId, description</td>
+                <td>Line items in a PO.</td>
+            </tr>
+            <tr>
+                <td><code>invoices</code></td>
+                <td>id, number, customerId/vendorId, total</td>
+                <td>Bills (sales or purchases).</td>
+            </tr>
+            <tr>
+                <td><code>invoice_items</code></td>
+                <td>id, invoiceId, description, total</td>
+                <td>Line items in an invoice.</td>
+            </tr>
+            <tr>
+                <td><code>payslips</code></td>
+                <td>id, employeeId, month, netPay</td>
+                <td>Salary records per employee/month.</td>
+            </tr>
+            <tr>
+                <td><code>admin_settings</code></td>
+                <td>companyName, currency, logoUrl</td>
+                <td>Global application settings.</td>
+            </tr>
+        </table>
+
+        <!-- ===================== API ===================== -->
+        <h2 id="api">4. API Reference</h2>
+        <p>The backend runs on <code>http://localhost:3001</code>. All endpoints follow REST conventions.</p>
+
+        <h3>Customers <code>/api/customers</code></h3>
+        <ul>
+            <li><span class="method get">GET</span> <code>/</code> — List all customers</li>
+            <li><span class="method get">GET</span> <code>/:id</code> — Get customer by ID</li>
+            <li><span class="method post">POST</span> <code>/</code> — Create a new customer</li>
+            <li><span class="method put">PUT</span> <code>/:id</code> — Update a customer</li>
+            <li><span class="method delete">DELETE</span> <code>/:id</code> — Delete a customer (fails if referenced)
+            </li>
+        </ul>
+
+        <h3>Vendors <code>/api/vendors</code></h3>
+        <ul>
+            <li><span class="method get">GET</span> <code>/</code> — List all vendors</li>
+            <li><span class="method get">GET</span> <code>/:id</code> — Get vendor by ID</li>
+            <li><span class="method post">POST</span> <code>/</code> — Create a new vendor</li>
+            <li><span class="method put">PUT</span> <code>/:id</code> — Update a vendor</li>
+            <li><span class="method delete">DELETE</span> <code>/:id</code> — Delete a vendor</li>
+        </ul>
+
+        <h3>Employees <code>/api/employees</code></h3>
+        <ul>
+            <li><span class="method get">GET</span> <code>/</code> — List all employees</li>
+            <li><span class="method post">POST</span> <code>/</code> — Create employee</li>
+            <li><span class="method put">PUT</span> <code>/:id</code> — Update employee</li>
+            <li><span class="method delete">DELETE</span> <code>/:id</code> — Delete employee</li>
+        </ul>
+
+        <h3>Vehicles <code>/api/vehicles</code></h3>
+        <ul>
+            <li><span class="method get">GET</span> <code>/</code> — List all vehicles</li>
+            <li><span class="method post">POST</span> <code>/</code> — Create vehicle type</li>
+            <li><span class="method put">PUT</span> <code>/:id</code> — Update vehicle</li>
+            <li><span class="method delete">DELETE</span> <code>/:id</code> — Delete vehicle</li>
+        </ul>
+
+        <h3>Quotes <code>/api/quotes</code></h3>
+        <ul>
+            <li><span class="method get">GET</span> <code>/</code> — List all quotes</li>
+            <li><span class="method get">GET</span> <code>/:id</code> — Get quote with items</li>
+            <li><span class="method post">POST</span> <code>/</code> — Create quote</li>
+            <li><span class="method put">PUT</span> <code>/:id</code> — Update quote</li>
+            <li><span class="method delete">DELETE</span> <code>/:id</code> — Delete quote</li>
+        </ul>
+
+        <h3>Purchase Orders <code>/api/purchase-orders</code></h3>
+        <ul>
+            <li><span class="method get">GET</span> <code>/</code> — List all POs</li>
+            <li><span class="method post">POST</span> <code>/</code> — Create PO</li>
+            <li><span class="method put">PUT</span> <code>/:id</code> — Update PO</li>
+            <li><span class="method delete">DELETE</span> <code>/:id</code> — Delete PO</li>
+        </ul>
+
+        <h3>Invoices <code>/api/invoices</code></h3>
+        <ul>
+            <li><span class="method get">GET</span> <code>/</code> — List all invoices</li>
+            <li><span class="method get">GET</span> <code>/:id</code> — Get invoice with items</li>
+            <li><span class="method post">POST</span> <code>/</code> — Create invoice</li>
+            <li><span class="method put">PUT</span> <code>/:id</code> — Update invoice</li>
+            <li><span class="method delete">DELETE</span> <code>/:id</code> — Delete invoice</li>
+        </ul>
+
+        <h3>Payslips <code>/api/payslips</code></h3>
+        <ul>
+            <li><span class="method get">GET</span> <code>/</code> — List all payslips</li>
+            <li><span class="method post">POST</span> <code>/</code> — Create payslip</li>
+            <li><span class="method put">PUT</span> <code>/:id</code> — Update payslip</li>
+            <li><span class="method delete">DELETE</span> <code>/:id</code> — Delete payslip</li>
+        </ul>
+
+        <h3>Admin <code>/api/admin</code></h3>
+        <ul>
+            <li><span class="method get">GET</span> <code>/settings</code> — Get company settings</li>
+            <li><span class="method post">POST</span> <code>/settings</code> — Save settings</li>
+        </ul>
+
+        <h3>Uploads <code>/api/uploads</code></h3>
+        <ul>
+            <li><span class="method post">POST</span> <code>/</code> — Upload a file (logo, signature)</li>
+        </ul>
+
+        <!-- ===================== COMPONENTS ===================== -->
+        <h2 id="components">5. Frontend Components</h2>
+        <p>Key reusable components in <code>components/</code>:</p>
+        <table>
+            <tr>
+                <th>Component</th>
+                <th>File</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td>Sidebar</td>
+                <td><code>sidebar.tsx</code></td>
+                <td>Main navigation menu.</td>
+            </tr>
+            <tr>
+                <td>Dashboard</td>
+                <td><code>dashboard.tsx</code></td>
+                <td>Overview cards, metrics.</td>
+            </tr>
+            <tr>
+                <td>Invoice Generator</td>
+                <td><code>invoice-generator.tsx</code></td>
+                <td>Form for creating invoices.</td>
+            </tr>
+            <tr>
+                <td>Billing Tracker</td>
+                <td><code>billing-tracker.tsx</code></td>
+                <td>Tracks payment statuses.</td>
+            </tr>
+            <tr>
+                <td>Revenue Trend Chart</td>
+                <td><code>revenue-trend-chart.tsx</code></td>
+                <td>Recharts-based line chart.</td>
+            </tr>
+            <tr>
+                <td>UI Kit</td>
+                <td><code>ui/*</code></td>
+                <td>58 Shadcn components (Button, Dialog, Table, etc.).</td>
+            </tr>
+        </table>
+
+        <!-- ===================== DEVELOPER JOURNEY ===================== -->
+        <h2 id="journey">6. Developer Journey</h2>
+        <p>This section is for aspiring developers who want to understand how to <em>think</em> like an engineer, not
+            just copy-paste code.</p>
+
+        <div class="chapter">
+            <h3>The Restaurant Analogy</h3>
+            <div class="analogy">
+                <div class="analogy-title">Concept: Separation of Concerns</div>
+                <p><strong>Customer (User)</strong> looks at the <strong>Menu (Frontend)</strong>.</p>
+                <p>When they order (e.g., "Create Invoice"), they call the <strong>Waiter (API Request)</strong>.</p>
+                <p>The Waiter goes to the <strong>Kitchen (Backend)</strong>.</p>
+                <p>The Chef uses ingredients from the <strong>Pantry (Database)</strong>.</p>
+                <p>The Waiter brings back the finished dish (API Response).</p>
+            </div>
+            <p><span class="tag tag-vibe">Vibe Coder</span> puts database code inside React components. 🔥</p>
+            <p><span class="tag tag-dev">Developer</span> sends a request to the backend. The backend handles the risky
+                stuff. ✅</p>
+        </div>
+
+        <div class="chapter">
+            <h3>Tracing a Request: Create Customer</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+                    sequenceDiagram
+                    participant U as User
+                    participant UI as Frontend
+                    participant API as Express Server
+                    participant DB as SQLite
+                    U->>UI: Fills form, clicks Save
+                    UI->>API: POST /api/customers
+                    API->>DB: INSERT INTO customers...
+                    DB-->>API: OK
+                    API-->>UI: 201 Created
+                    UI-->>U: Toast: "Customer Saved"
+                </div>
+            </div>
+            <ul>
+                <li><code>app/customers/page.tsx</code> — The form.</li>
+                <li><code>api/routes/customers.ts</code> — The route handler.</li>
+                <li><code>api/adapters/sqlite.ts</code> — The database adapter.</li>
+            </ul>
+        </div>
+
+        <div class="chapter">
+            <h3>Level Up: Ask "What If?"</h3>
+            <ul>
+                <li>What if the database file is locked?</li>
+                <li>What if the user enters an emoji as a phone number?</li>
+                <li>What if the network fails mid-request?</li>
+            </ul>
+            <p>Developers anticipate failure. Vibe coders pray it works.</p>
+        </div>
+
+        <hr style="margin: 3rem 0; border-color: #30363d;">
+        <p>📖 <a href="glossary.html">Glossary</a> | 🏋️ <a href="exercises.html">Exercises</a></p>
+    </main>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+</body>
+
+</html>

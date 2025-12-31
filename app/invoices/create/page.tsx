@@ -517,9 +517,8 @@ export default function CreateInvoicePage() {
                       setInvoice(updated)
                       validateInvoiceState(updated)
                     }}
-                    className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 ${
-                      validationErrors.some((e) => e.field === 'date') ? 'border-red-500' : ''
-                    }`}
+                    className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 ${validationErrors.some((e) => e.field === 'date') ? 'border-red-500' : ''
+                      }`}
                   />
                   {validationErrors
                     .filter((e) => e.field === 'date')
@@ -542,9 +541,8 @@ export default function CreateInvoicePage() {
                       setInvoice(updated)
                       validateInvoiceState(updated)
                     }}
-                    className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 ${
-                      validationErrors.some((e) => e.field === 'dueDate') ? 'border-red-500' : ''
-                    }`}
+                    className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 ${validationErrors.some((e) => e.field === 'dueDate') ? 'border-red-500' : ''
+                      }`}
                   />
                   {validationErrors
                     .filter((e) => e.field === 'dueDate')
@@ -592,9 +590,8 @@ export default function CreateInvoicePage() {
                     setInvoice(updated)
                     setTimeout(() => validateInvoiceState(updated), 100)
                   }}
-                  className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 ${
-                    validationErrors.some((e) => e.field === 'customerId') ? 'border-red-500' : ''
-                  }`}
+                  className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 ${validationErrors.some((e) => e.field === 'customerId') ? 'border-red-500' : ''
+                    }`}
                 >
                   <option value="">Select Customer</option>
                   {customers.map((c) => (
@@ -810,7 +807,7 @@ export default function CreateInvoicePage() {
                 <Button
                   onClick={handleDownloadPDF}
                   disabled={!!exportDisabledReason}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-action-pdf hover:bg-action-pdf/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                   title={exportTitle}
                 >
                   <FileText className="w-4 h-4 mr-2" />
@@ -819,7 +816,7 @@ export default function CreateInvoicePage() {
                 <Button
                   onClick={handleDownloadExcel}
                   disabled={!!exportDisabledReason}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-action-excel hover:bg-action-excel/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                   title={exportTitle}
                 >
                   <Sheet className="w-4 h-4 mr-2" />
@@ -828,17 +825,21 @@ export default function CreateInvoicePage() {
                 <Button
                   onClick={handleDownloadDocx}
                   disabled={!!exportDisabledReason}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-action-word hover:bg-action-word/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                   title={exportTitle}
                 >
                   <FileType className="w-4 h-4 mr-2" />
                   {generating ? 'Generating Word...' : 'Save Word'}
                 </Button>
-                <Button onClick={() => handleSave({ redirectAfterSave: true })} disabled={saving} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                <Button
+                  onClick={() => handleSave({ redirectAfterSave: false })}
+                  disabled={saving}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+                >
                   {saving ? 'Saving...' : isEditMode ? 'Update Invoice' : 'Create Invoice'}
                 </Button>
                 <Link href="/invoices" className="block">
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full shadow-sm hover:bg-slate-50">
                     Cancel
                   </Button>
                 </Link>

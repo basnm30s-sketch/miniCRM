@@ -510,9 +510,8 @@ export default function CreateQuotePage() {
                       setQuote(updated)
                       validateQuoteState(updated)
                     }}
-                    className={`mt-2 text-slate-900 ${
-                      validationErrors.some((e) => e.field === 'date') ? 'border-red-500' : ''
-                    }`}
+                    className={`mt-2 text-slate-900 ${validationErrors.some((e) => e.field === 'date') ? 'border-red-500' : ''
+                      }`}
                   />
                   {validationErrors
                     .filter((e) => e.field === 'date')
@@ -536,9 +535,8 @@ export default function CreateQuotePage() {
                       setQuote(updated)
                       validateQuoteState(updated)
                     }}
-                    className={`mt-2 text-slate-900 ${
-                      validationErrors.some((e) => e.field === 'validUntil') ? 'border-red-500' : ''
-                    }`}
+                    className={`mt-2 text-slate-900 ${validationErrors.some((e) => e.field === 'validUntil') ? 'border-red-500' : ''
+                      }`}
                   />
                   {validationErrors
                     .filter((e) => e.field === 'validUntil')
@@ -576,9 +574,8 @@ export default function CreateQuotePage() {
                   }}
                 >
                   <SelectTrigger
-                    className={`mt-2 ${
-                      validationErrors.some((e) => e.field === 'customer') ? 'border-red-500' : ''
-                    }`}
+                    className={`mt-2 ${validationErrors.some((e) => e.field === 'customer') ? 'border-red-500' : ''
+                      }`}
                   >
                     <SelectValue placeholder="Select a customer..." />
                   </SelectTrigger>
@@ -848,7 +845,7 @@ export default function CreateQuotePage() {
                 <Button
                   onClick={handleDownloadPDF}
                   disabled={!!exportDisabledReason}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-action-pdf hover:bg-action-pdf/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                   title={exportTitle}
                 >
                   <FileText className="w-4 h-4 mr-2" />
@@ -857,7 +854,7 @@ export default function CreateQuotePage() {
                 <Button
                   onClick={handleDownloadExcel}
                   disabled={!!exportDisabledReason}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-action-excel hover:bg-action-excel/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                   title={exportTitle}
                 >
                   <Sheet className="w-4 h-4 mr-2" />
@@ -866,7 +863,7 @@ export default function CreateQuotePage() {
                 <Button
                   onClick={handleDownloadDocx}
                   disabled={!!exportDisabledReason}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-action-word hover:bg-action-word/90 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                   title={exportTitle}
                 >
                   <FileType className="w-4 h-4 mr-2" />
@@ -875,12 +872,12 @@ export default function CreateQuotePage() {
                 <Button
                   onClick={() => handleSaveQuote({ redirectAfterSave: false })}
                   disabled={saving}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md"
                 >
                   {saving ? 'Saving...' : isEditMode ? 'Update Quote' : 'Create Quote'}
                 </Button>
                 <Link href="/quotations" className="block">
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full shadow-sm hover:bg-slate-50">
                     Cancel
                   </Button>
                 </Link>

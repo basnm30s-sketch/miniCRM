@@ -113,7 +113,7 @@ export default function PayslipsPage() {
         await deletePayslip(id)
         const updated = await getAllPayslips()
         setAllPayslips(updated)
-        
+
         // If in employee view, check if there are any payslips left for the month
         if (viewMode === 'employees' && selectedMonthForView) {
           const remainingPayslips = updated.filter(p => p.month === selectedMonthForView)
@@ -144,11 +144,11 @@ export default function PayslipsPage() {
     try {
       const newStatus = currentStatus === 'paid' ? 'processed' : 'paid'
       await updatePayslipStatus(payslipId, newStatus)
-      
+
       // Refresh data
       const updated = await getAllPayslips()
       setAllPayslips(updated)
-      
+
       // Show success message
       alert(`Payslip marked as ${newStatus}`)
     } catch (err) {
@@ -159,26 +159,26 @@ export default function PayslipsPage() {
 
   const handleMarkAllAsPaid = async () => {
     if (!selectedMonthForView) return
-    
+
     const processedPayslips = payslips.filter(p => p.status === 'processed')
     if (processedPayslips.length === 0) {
       alert('All payslips are already paid')
       return
     }
-    
+
     const confirmed = confirm(`Mark all ${processedPayslips.length} payslip(s) as paid?`)
     if (!confirmed) return
-    
+
     try {
       // Update all processed payslips to paid
       await Promise.all(
         processedPayslips.map(p => updatePayslipStatus(p.id, 'paid'))
       )
-      
+
       // Refresh data
       const updated = await getAllPayslips()
       setAllPayslips(updated)
-      
+
       // Show success message
       alert(`All ${processedPayslips.length} payslip(s) marked as paid`)
     } catch (err) {
@@ -246,13 +246,13 @@ export default function PayslipsPage() {
     // Add data rows
     monthPayslips.forEach((payslip, index) => {
       const rowNumber = index + 2 // +2 because row 1 is header, data starts at row 2
-      
+
       // Use numeric values for calculations (0 instead of '-' for empty values)
       const baseSalaryValue = payslip.baseSalary
       const overtimeHoursValue = payslip.overtimeHours || 0
       const overtimeRateValue = payslip.overtimeRate || 0
       const deductionsValue = payslip.deductions
-      
+
       // Add row with data
       const row = worksheet.addRow({
         employee: getEmployeeName(payslip.employeeId),
@@ -264,7 +264,7 @@ export default function PayslipsPage() {
         netPay: 0, // Placeholder, will be replaced with formula
         status: payslip.status || 'draft',
       })
-      
+
       // Set Overtime Pay column with formula: Overtime Hours × Hourly Overtime Pay
       // Column C = Overtime Hours, Column D = Hourly Overtime Pay, Column E = Overtime Pay
       const overtimePayCell = row.getCell(5) // Column E (Overtime Pay)
@@ -272,7 +272,7 @@ export default function PayslipsPage() {
         formula: `C${rowNumber}*D${rowNumber}`,
       }
       overtimePayCell.numFmt = '#,##0.00' // Format as number with 2 decimals
-      
+
       // Set Net Pay column with formula: Base Salary + Overtime Pay - Deductions
       // Column B = Base Salary, Column E = Overtime Pay, Column F = Deductions, Column G = Net Pay
       const netPayCell = row.getCell(7) // Column G (Net Pay)
@@ -521,7 +521,7 @@ export default function PayslipsPage() {
                 </CardTitle>
                 <div className="flex gap-2">
                   <Button
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-primary hover:bg-primary/90 text-white shadow-md"
                     onClick={handleMarkAllAsPaid}
                     disabled={payslips.filter(p => p.status === 'processed').length === 0}
                     title={payslips.filter(p => p.status === 'processed').length === 0 ? 'All payslips are paid' : 'Mark all processed payslips as paid'}
@@ -529,7 +529,7 @@ export default function PayslipsPage() {
                     Mark All as Paid
                   </Button>
                   <Button
-                    className="bg-green-600 hover:bg-green-700 text-white"
+                    className="bg-action-excel hover:bg-action-excel/90 text-white shadow-md"
                     onClick={handleExportToExcel}
                     disabled={payslips.length === 0}
                   >
@@ -586,19 +586,18 @@ export default function PayslipsPage() {
                                 e.stopPropagation()
                                 handleTogglePaymentStatus(payslip.id, payslip.status || 'processed')
                               }}
-                              className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer hover:opacity-80 hover:scale-105 ${
-                                payslip.status === 'processed'
+                              className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer hover:opacity-80 hover:scale-105 ${payslip.status === 'processed'
                                   ? 'bg-green-100 text-green-800 hover:bg-green-200'
                                   : payslip.status === 'paid'
-                                  ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                              }`}
+                                    ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                }`}
                               title={
                                 payslip.status === 'paid'
                                   ? 'Click to mark as processed'
                                   : payslip.status === 'processed'
-                                  ? 'Click to mark as paid'
-                                  : 'Click to change status'
+                                    ? 'Click to mark as paid'
+                                    : 'Click to change status'
                               }
                             >
                               {payslip.status || 'draft'}

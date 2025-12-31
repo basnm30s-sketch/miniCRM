@@ -114,7 +114,7 @@ export default function CustomersPage() {
           <h1 className="text-3xl font-bold text-slate-900">Customers</h1>
           <p className="text-slate-500">Manage your customers</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowAdd(true)}>
+        <Button className="bg-primary hover:bg-primary/90 text-white shadow-md" onClick={() => setShowAdd(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Add Customer
         </Button>
@@ -147,10 +147,10 @@ export default function CustomersPage() {
                       {renderCell('phone', customer.phone)}
                       {renderCell('address', customer.address)}
                       <TableCell className="text-center gap-2 flex justify-center">
-                        <button onClick={() => handleEdit(customer)} className="text-blue-600 hover:text-blue-800">
+                        <button onClick={() => handleEdit(customer)} className="text-primary hover:text-primary/90">
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(customer.id)} className="text-red-600 hover:text-red-800">
+                        <button onClick={() => handleDelete(customer.id)} className="text-destructive hover:text-destructive/90">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </TableCell>

@@ -237,7 +237,7 @@ export default function QuotationsPage() {
                               size="sm"
                               onClick={() => handleDownloadPDF(quote)}
                               title="Save PDF"
-                              className="p-2 h-8 w-8 text-red-600 hover:text-red-700"
+                              className="p-2 h-8 w-8 text-action-pdf hover:text-action-pdf hover:bg-action-pdf/10 border-action-pdf/20"
                             >
                               <FileText className="w-4 h-4" />
                             </Button>
@@ -246,7 +246,7 @@ export default function QuotationsPage() {
                               size="sm"
                               onClick={() => handleDownloadExcel(quote)}
                               title="Save Excel"
-                              className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
+                              className="p-2 h-8 w-8 text-action-excel hover:text-action-excel hover:bg-action-excel/10 border-action-excel/20"
                             >
                               <Sheet className="w-4 h-4" />
                             </Button>
@@ -255,7 +255,7 @@ export default function QuotationsPage() {
                               size="sm"
                               onClick={() => handleDownloadDocx(quote)}
                               title="Save Word"
-                              className="p-2 h-8 w-8 text-purple-600 hover:text-purple-700"
+                              className="p-2 h-8 w-8 text-action-word hover:text-action-word hover:bg-action-word/10 border-action-word/20"
                             >
                               <FileType className="w-4 h-4" />
                             </Button>

@@ -14,7 +14,7 @@ function getDb(): Db {
 }
 
 // Helper function to format reference error messages
-export function formatReferenceError(entityName: string, references: Array<{type: string, number: string}>): string {
+export function formatReferenceError(entityName: string, references: Array<{ type: string, number: string }>): string {
   if (references.length === 0) return ''
   if (references.length === 1) {
     return `Cannot delete ${entityName} as it is referenced in ${references[0].type} ${references[0].number}`
@@ -98,23 +98,23 @@ export const customersAdapter = {
 
   delete: (id: string): void => {
     const db = getDb()
-    
+
     // Check for related quotes
     const quotes = db.prepare('SELECT number FROM quotes WHERE customerId = ?').all(id) as any[]
-    
+
     // Check for related invoices
     const invoices = db.prepare('SELECT number FROM invoices WHERE customerId = ?').all(id) as any[]
-    
+
     // Build references array
     const references = [
       ...quotes.map(q => ({ type: 'Quote', number: q.number })),
       ...invoices.map(i => ({ type: 'Invoice', number: i.number }))
     ]
-    
+
     if (references.length > 0) {
       throw new Error(formatReferenceError('Customer', references))
     }
-    
+
     // If no related records, proceed with deletion
     // Wrap in try-catch to handle any database constraint errors as fallback
     try {
@@ -219,23 +219,23 @@ export const vendorsAdapter = {
 
   delete: (id: string): void => {
     const db = getDb()
-    
+
     // Check for related purchase orders
     const purchaseOrders = db.prepare('SELECT number FROM purchase_orders WHERE vendorId = ?').all(id) as any[]
-    
+
     // Check for related invoices
     const invoices = db.prepare('SELECT number FROM invoices WHERE vendorId = ?').all(id) as any[]
-    
+
     // Build references array
     const references = [
       ...purchaseOrders.map(po => ({ type: 'Purchase Order', number: po.number })),
       ...invoices.map(i => ({ type: 'Invoice', number: i.number }))
     ]
-    
+
     if (references.length > 0) {
       throw new Error(formatReferenceError('Vendor', references))
     }
-    
+
     // If no related records, proceed with deletion
     db.prepare('DELETE FROM vendors WHERE id = ?').run(id)
   },
@@ -319,20 +319,20 @@ export const employeesAdapter = {
 
   delete: (id: string): void => {
     const db = getDb()
-    
+
     // Check for related payslips
     const payslips = db.prepare('SELECT id, month FROM payslips WHERE employeeId = ?').all(id) as any[]
-    
+
     // Build references array
-    const references = payslips.map(ps => ({ 
-      type: 'Payslip', 
-      number: ps.month || ps.id 
+    const references = payslips.map(ps => ({
+      type: 'Payslip',
+      number: ps.month || ps.id
     }))
-    
+
     if (references.length > 0) {
       throw new Error(formatReferenceError('Employee', references))
     }
-    
+
     // If no related records, proceed with deletion
     db.prepare('DELETE FROM employees WHERE id = ?').run(id)
   },
@@ -424,7 +424,7 @@ export const payslipsAdapter = {
     try {
       const db = getDb()
       const now = new Date().toISOString()
-      
+
       // Validate required fields
       if (!data.id) {
         throw new Error('Payslip id is required')
@@ -435,7 +435,7 @@ export const payslipsAdapter = {
       if (!data.month) {
         throw new Error('Month is required')
       }
-      
+
       const stmt = db.prepare(`
         INSERT INTO payslips (id, employeeId, month, year, baseSalary, overtimeHours, overtimeRate, overtimePay, deductions, netPay, status, notes, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -503,9 +503,27 @@ export const vehiclesAdapter = {
     const rows = db.prepare('SELECT * FROM vehicles ORDER BY createdAt DESC').all() as any[]
     return rows.map(row => ({
       id: row.id,
-      type: row.type,
+      vehicleNumber: row.vehicleNumber || row.type || '', // Fallback to type for migration
+      vehicleType: row.vehicleType || '',
+      make: row.make || '',
+      model: row.model || '',
+      year: row.year || undefined,
+      color: row.color || '',
+      purchasePrice: row.purchasePrice || undefined,
+      purchaseDate: row.purchaseDate || '',
+      currentValue: row.currentValue || undefined,
+      insuranceCostMonthly: row.insuranceCostMonthly || undefined,
+      financingCostMonthly: row.financingCostMonthly || undefined,
+      odometerReading: row.odometerReading || undefined,
+      lastServiceDate: row.lastServiceDate || '',
+      nextServiceDue: row.nextServiceDue || '',
+      fuelType: row.fuelType || undefined,
+      status: row.status || 'active',
+      registrationExpiry: row.registrationExpiry || '',
+      insuranceExpiry: row.insuranceExpiry || '',
       description: row.description || '',
       basePrice: row.basePrice || 0,
+      notes: row.notes || '',
       createdAt: row.createdAt,
     }))
   },
@@ -516,9 +534,27 @@ export const vehiclesAdapter = {
     if (!row) return null
     return {
       id: row.id,
-      type: row.type,
+      vehicleNumber: row.vehicleNumber || row.type || '',
+      vehicleType: row.vehicleType || '',
+      make: row.make || '',
+      model: row.model || '',
+      year: row.year || undefined,
+      color: row.color || '',
+      purchasePrice: row.purchasePrice || undefined,
+      purchaseDate: row.purchaseDate || '',
+      currentValue: row.currentValue || undefined,
+      insuranceCostMonthly: row.insuranceCostMonthly || undefined,
+      financingCostMonthly: row.financingCostMonthly || undefined,
+      odometerReading: row.odometerReading || undefined,
+      lastServiceDate: row.lastServiceDate || '',
+      nextServiceDue: row.nextServiceDue || '',
+      fuelType: row.fuelType || undefined,
+      status: row.status || 'active',
+      registrationExpiry: row.registrationExpiry || '',
+      insuranceExpiry: row.insuranceExpiry || '',
       description: row.description || '',
       basePrice: row.basePrice || 0,
+      notes: row.notes || '',
       createdAt: row.createdAt,
     }
   },
@@ -526,15 +562,52 @@ export const vehiclesAdapter = {
   create: (data: any): any => {
     const db = getDb()
     const now = new Date().toISOString()
+
+    // Validate vehicle number is provided
+    if (!data.vehicleNumber || data.vehicleNumber.trim() === '') {
+      throw new Error('Vehicle Number is required')
+    }
+
+    // Check uniqueness of vehicle number
+    const existing = db.prepare('SELECT id FROM vehicles WHERE vehicleNumber = ?').get(data.vehicleNumber.trim()) as any
+    if (existing) {
+      throw new Error(`Vehicle Number "${data.vehicleNumber}" already exists`)
+    }
+
+    // Note: 'type' column included for backward compatibility with existing databases
     const stmt = db.prepare(`
-      INSERT INTO vehicles (id, type, description, basePrice, createdAt)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO vehicles (
+        id, vehicleNumber, vehicleType, make, model, year, color,
+        purchasePrice, purchaseDate, currentValue, insuranceCostMonthly, financingCostMonthly,
+        odometerReading, lastServiceDate, nextServiceDue, fuelType, status,
+        registrationExpiry, insuranceExpiry, description, basePrice, notes, type, createdAt
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     stmt.run(
       data.id,
-      data.type,
+      data.vehicleNumber.trim(),
+      data.vehicleType || '',
+      data.make || '',
+      data.model || '',
+      data.year || null,
+      data.color || '',
+      data.purchasePrice || null,
+      data.purchaseDate || '',
+      data.currentValue || null,
+      data.insuranceCostMonthly || null,
+      data.financingCostMonthly || null,
+      data.odometerReading || null,
+      data.lastServiceDate || '',
+      data.nextServiceDue || '',
+      data.fuelType || null,
+      data.status || 'active',
+      data.registrationExpiry || '',
+      data.insuranceExpiry || '',
       data.description || '',
       data.basePrice || 0,
+      data.notes || '',
+      data.vehicleNumber.trim(), // Legacy 'type' column - copy vehicleNumber for compat
       now
     )
     return vehiclesAdapter.getById(data.id)
@@ -542,15 +615,50 @@ export const vehiclesAdapter = {
 
   update: (id: string, data: any): any => {
     const db = getDb()
+
+    // Validate vehicle number is provided
+    if (!data.vehicleNumber || data.vehicleNumber.trim() === '') {
+      throw new Error('Vehicle Number is required')
+    }
+
+    // Check uniqueness of vehicle number (excluding current vehicle)
+    const existing = db.prepare('SELECT id FROM vehicles WHERE vehicleNumber = ? AND id != ?').get(data.vehicleNumber.trim(), id) as any
+    if (existing) {
+      throw new Error(`Vehicle Number "${data.vehicleNumber}" already exists`)
+    }
+
+    // Note: 'type' column included for backward compatibility with existing databases
     const stmt = db.prepare(`
       UPDATE vehicles 
-      SET type = ?, description = ?, basePrice = ?
+      SET vehicleNumber = ?, vehicleType = ?, make = ?, model = ?, year = ?, color = ?,
+          purchasePrice = ?, purchaseDate = ?, currentValue = ?, insuranceCostMonthly = ?, financingCostMonthly = ?,
+          odometerReading = ?, lastServiceDate = ?, nextServiceDue = ?, fuelType = ?, status = ?,
+          registrationExpiry = ?, insuranceExpiry = ?, description = ?, basePrice = ?, notes = ?, type = ?
       WHERE id = ?
     `)
     stmt.run(
-      data.type,
+      data.vehicleNumber.trim(),
+      data.vehicleType || '',
+      data.make || '',
+      data.model || '',
+      data.year || null,
+      data.color || '',
+      data.purchasePrice || null,
+      data.purchaseDate || '',
+      data.currentValue || null,
+      data.insuranceCostMonthly || null,
+      data.financingCostMonthly || null,
+      data.odometerReading || null,
+      data.lastServiceDate || '',
+      data.nextServiceDue || '',
+      data.fuelType || null,
+      data.status || 'active',
+      data.registrationExpiry || '',
+      data.insuranceExpiry || '',
       data.description || '',
       data.basePrice || 0,
+      data.notes || '',
+      data.vehicleNumber.trim(), // Legacy 'type' column - copy vehicleNumber for compat
       id
     )
     return vehiclesAdapter.getById(id)
@@ -558,7 +666,7 @@ export const vehiclesAdapter = {
 
   delete: (id: string): void => {
     const db = getDb()
-    
+
     // Check for related quote items (vehicleTypeId references this vehicle)
     const quoteItems = db.prepare(`
       SELECT DISTINCT q.number 
@@ -566,17 +674,17 @@ export const vehiclesAdapter = {
       JOIN quotes q ON qi.quoteId = q.id
       WHERE qi.vehicleTypeId = ?
     `).all(id) as any[]
-    
+
     // Build references array
-    const references = quoteItems.map(qi => ({ 
-      type: 'Quote', 
-      number: qi.number 
+    const references = quoteItems.map(qi => ({
+      type: 'Quote',
+      number: qi.number
     }))
-    
+
     if (references.length > 0) {
       throw new Error(formatReferenceError('Vehicle', references))
     }
-    
+
     // If no related records, proceed with deletion
     db.prepare('DELETE FROM vehicles WHERE id = ?').run(id)
   },
@@ -586,12 +694,12 @@ export const vehiclesAdapter = {
 export const adminAdapter = {
   get: (): any | null => {
     const db = getDb()
-    
+
     // Ensure migration runs - check and add columns if needed
     try {
       const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all() as any[]
       const columnNames = tableInfo.map((col: any) => col.name)
-      
+
       if (!columnNames.includes('showRevenueTrend')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0')
       }
@@ -601,16 +709,16 @@ export const adminAdapter = {
     } catch (error: any) {
       console.log('Migration check:', error.message)
     }
-    
+
     const row = db.prepare('SELECT * FROM admin_settings LIMIT 1').get() as any
     if (!row) return null
-    
+
     // Convert integer (0/1) to boolean, default to false if undefined
     // Explicitly check: 0 -> false, 1 -> true, null/undefined -> false
-    const showRevenueTrend = (row.showRevenueTrend === 0) 
-      ? false 
-      : (row.showRevenueTrend === 1) 
-        ? true 
+    const showRevenueTrend = (row.showRevenueTrend === 0)
+      ? false
+      : (row.showRevenueTrend === 1)
+        ? true
         : false // default to false if null/undefined
     const showQuickActions = (row.showQuickActions === 0)
       ? false
@@ -622,7 +730,7 @@ export const adminAdapter = {
       : (row.showReports === 1)
         ? true
         : false // default to false if null/undefined
-    
+
     return {
       id: row.id,
       companyName: row.companyName || '',
@@ -644,12 +752,12 @@ export const adminAdapter = {
 
   save: (data: any): any => {
     const db = getDb()
-    
+
     // Ensure migration runs before save
     try {
       const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all() as any[]
       const columnNames = tableInfo.map((col: any) => col.name)
-      
+
       if (!columnNames.includes('showRevenueTrend')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0')
       }
@@ -662,18 +770,18 @@ export const adminAdapter = {
     } catch (error: any) {
       console.log('Migration check in save:', error.message)
     }
-    
+
     const now = new Date().toISOString()
-    
+
     // Get existing record (but don't use its boolean values - use the data being saved)
     const existing = db.prepare('SELECT id FROM admin_settings LIMIT 1').get() as any
-    
+
     // Convert boolean to integer (SQLite doesn't have native boolean)
     // Explicitly handle: false -> 0, true -> 1, undefined/null -> 0 (default)
     const showRevenueTrend = (data.showRevenueTrend === true) ? 1 : 0
     const showQuickActions = (data.showQuickActions === true) ? 1 : 0
     const showReports = (data.showReports === true) ? 1 : 0
-    
+
     console.log('Adapter save - converting:', {
       showRevenueTrend: { input: data.showRevenueTrend, output: showRevenueTrend },
       showQuickActions: { input: data.showQuickActions, output: showQuickActions },
@@ -774,7 +882,7 @@ export const quotesAdapter = {
     const db = getDb()
     const quote = db.prepare('SELECT * FROM quotes WHERE id = ?').get(id) as any
     if (!quote) return null
-    
+
     const items = db.prepare('SELECT * FROM quote_items WHERE quoteId = ?').all(id) as any[]
     // Get customer object
     const customer = quote.customerId ? customersAdapter.getById(quote.customerId) : null
@@ -812,21 +920,21 @@ export const quotesAdapter = {
   create: (data: any): any => {
     const db = getDb()
     const now = new Date().toISOString()
-    
+
     // Validate required fields
     if (!data.number || data.number.trim() === '') {
       throw new Error('Quote number is required')
     }
-    
+
     // Check uniqueness of quote number
     const existingQuote = db.prepare('SELECT id FROM quotes WHERE number = ?').get(data.number) as any
     if (existingQuote) {
       throw new Error(`Quote number "${data.number}" already exists`)
     }
-    
+
     // Extract customerId from customer object if present
     const customerId = data.customerId || (data.customer?.id || '')
-    
+
     // Validate customer exists
     if (customerId) {
       const customer = db.prepare('SELECT id FROM customers WHERE id = ?').get(customerId) as any
@@ -834,7 +942,7 @@ export const quotesAdapter = {
         throw new Error(`Customer with ID "${customerId}" does not exist`)
       }
     }
-    
+
     // Insert quote
     const quoteStmt = db.prepare(`
       INSERT INTO quotes (id, number, date, validUntil, currency, customerId, subTotal, totalTax, total, terms, notes, createdAt, updatedAt)
@@ -855,7 +963,7 @@ export const quotesAdapter = {
       now,
       now
     )
-    
+
     // Insert items
     if (data.items && data.items.length > 0) {
       const itemStmt = db.prepare(`
@@ -879,28 +987,28 @@ export const quotesAdapter = {
       })
       insertItems(data.items)
     }
-    
+
     return quotesAdapter.getById(data.id)
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
     const now = new Date().toISOString()
-    
+
     // Validate required fields
     if (!data.number || data.number.trim() === '') {
       throw new Error('Quote number is required')
     }
-    
+
     // Check uniqueness of quote number (excluding current quote)
     const existingQuote = db.prepare('SELECT id FROM quotes WHERE number = ? AND id != ?').get(data.number, id) as any
     if (existingQuote) {
       throw new Error(`Quote number "${data.number}" already exists`)
     }
-    
+
     // Extract customerId from customer object if present
     const customerId = data.customerId || (data.customer?.id || '')
-    
+
     // Validate customer exists
     if (customerId) {
       const customer = db.prepare('SELECT id FROM customers WHERE id = ?').get(customerId) as any
@@ -908,7 +1016,7 @@ export const quotesAdapter = {
         throw new Error(`Customer with ID "${customerId}" does not exist`)
       }
     }
-    
+
     // Update quote
     const quoteStmt = db.prepare(`
       UPDATE quotes 
@@ -930,7 +1038,7 @@ export const quotesAdapter = {
       now,
       id
     )
-    
+
     // Delete existing items and insert new ones
     db.prepare('DELETE FROM quote_items WHERE quoteId = ?').run(id)
     if (data.items && data.items.length > 0) {
@@ -955,26 +1063,26 @@ export const quotesAdapter = {
       })
       insertItems(data.items)
     }
-    
+
     return quotesAdapter.getById(id)
   },
 
   delete: (id: string): void => {
     const db = getDb()
-    
+
     // Check for related invoices
     const invoices = db.prepare('SELECT number FROM invoices WHERE quoteId = ?').all(id) as any[]
-    
+
     // Build references array
-    const references = invoices.map(i => ({ 
-      type: 'Invoice', 
-      number: i.number 
+    const references = invoices.map(i => ({
+      type: 'Invoice',
+      number: i.number
     }))
-    
+
     if (references.length > 0) {
       throw new Error(formatReferenceError('Quote', references))
     }
-    
+
     // If no related records, proceed with deletion
     // Items will be deleted automatically due to CASCADE
     db.prepare('DELETE FROM quotes WHERE id = ?').run(id)
@@ -1016,7 +1124,7 @@ export const purchaseOrdersAdapter = {
     const db = getDb()
     const po = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(id) as any
     if (!po) return null
-    
+
     const items = db.prepare('SELECT * FROM po_items WHERE purchaseOrderId = ?').all(id) as any[]
     return {
       id: po.id,
@@ -1044,7 +1152,7 @@ export const purchaseOrdersAdapter = {
   create: (data: any): any => {
     const db = getDb()
     const now = new Date().toISOString()
-    
+
     // Insert purchase order
     const poStmt = db.prepare(`
       INSERT INTO purchase_orders (id, number, date, vendorId, subtotal, tax, amount, currency, status, notes, createdAt)
@@ -1063,7 +1171,7 @@ export const purchaseOrdersAdapter = {
       data.notes || '',
       now
     )
-    
+
     // Insert items
     if (data.items && data.items.length > 0) {
       const itemStmt = db.prepare(`
@@ -1085,13 +1193,13 @@ export const purchaseOrdersAdapter = {
       })
       insertItems(data.items)
     }
-    
+
     return purchaseOrdersAdapter.getById(data.id)
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
-    
+
     // Update purchase order
     const poStmt = db.prepare(`
       UPDATE purchase_orders 
@@ -1111,7 +1219,7 @@ export const purchaseOrdersAdapter = {
       data.notes || '',
       id
     )
-    
+
     // Delete existing items and insert new ones
     db.prepare('DELETE FROM po_items WHERE purchaseOrderId = ?').run(id)
     if (data.items && data.items.length > 0) {
@@ -1134,26 +1242,26 @@ export const purchaseOrdersAdapter = {
       })
       insertItems(data.items)
     }
-    
+
     return purchaseOrdersAdapter.getById(id)
   },
 
   delete: (id: string): void => {
     const db = getDb()
-    
+
     // Check for related invoices
     const invoices = db.prepare('SELECT number FROM invoices WHERE purchaseOrderId = ?').all(id) as any[]
-    
+
     // Build references array
-    const references = invoices.map(i => ({ 
-      type: 'Invoice', 
-      number: i.number 
+    const references = invoices.map(i => ({
+      type: 'Invoice',
+      number: i.number
     }))
-    
+
     if (references.length > 0) {
       throw new Error(formatReferenceError('Purchase Order', references))
     }
-    
+
     // If no related records, proceed with deletion
     // Items will be deleted automatically due to CASCADE
     db.prepare('DELETE FROM purchase_orders WHERE id = ?').run(id)
@@ -1199,7 +1307,7 @@ export const invoicesAdapter = {
     const db = getDb()
     const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id) as any
     if (!invoice) return null
-    
+
     const items = db.prepare('SELECT * FROM invoice_items WHERE invoiceId = ?').all(id) as any[]
     return {
       id: invoice.id,
@@ -1231,28 +1339,28 @@ export const invoicesAdapter = {
   create: (data: any): any => {
     const db = getDb()
     const now = new Date().toISOString()
-    
+
     // Validate required fields
     if (!data.number || data.number.trim() === '') {
       throw new Error('Invoice number is required')
     }
-    
+
     // Check uniqueness of invoice number
     const existingInvoice = db.prepare('SELECT id FROM invoices WHERE number = ?').get(data.number) as any
     if (existingInvoice) {
       throw new Error(`Invoice number "${data.number}" already exists`)
     }
-    
+
     if (!data.customerId || data.customerId.trim() === '') {
       throw new Error('Customer is required for invoice')
     }
-    
+
     // Validate foreign keys exist in database
     const customer = db.prepare('SELECT id FROM customers WHERE id = ?').get(data.customerId) as any
     if (!customer) {
       throw new Error(`Customer with ID "${data.customerId}" does not exist`)
     }
-    
+
     // Validate optional foreign keys if provided
     if (data.vendorId && data.vendorId.trim() !== '') {
       const vendor = db.prepare('SELECT id FROM vendors WHERE id = ?').get(data.vendorId) as any
@@ -1260,21 +1368,21 @@ export const invoicesAdapter = {
         throw new Error(`Vendor with ID "${data.vendorId}" does not exist`)
       }
     }
-    
+
     if (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') {
       const po = db.prepare('SELECT id FROM purchase_orders WHERE id = ?').get(data.purchaseOrderId) as any
       if (!po) {
         throw new Error(`Purchase Order with ID "${data.purchaseOrderId}" does not exist`)
       }
     }
-    
+
     if (data.quoteId && data.quoteId.trim() !== '') {
       const quote = db.prepare('SELECT id FROM quotes WHERE id = ?').get(data.quoteId) as any
       if (!quote) {
         throw new Error(`Quote with ID "${data.quoteId}" does not exist`)
       }
     }
-    
+
     // Insert invoice
     // Use NULL instead of empty strings for optional foreign keys to satisfy FK constraints
     const invoiceStmt = db.prepare(`
@@ -1282,7 +1390,7 @@ export const invoicesAdapter = {
                             subtotal, tax, total, amountReceived, status, notes, createdAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
-    
+
     try {
       invoiceStmt.run(
         data.id,
@@ -1311,7 +1419,7 @@ export const invoicesAdapter = {
         purchaseOrderId: data.purchaseOrderId,
         quoteId: data.quoteId
       })
-      
+
       // Provide more specific error message for foreign key constraint failures
       const errorMsg = error.message || String(error)
       if (errorMsg.includes('FOREIGN KEY') || errorMsg.includes('constraint failed')) {
@@ -1319,7 +1427,7 @@ export const invoicesAdapter = {
       }
       throw error
     }
-    
+
     // Insert items
     if (data.items && data.items.length > 0) {
       const itemStmt = db.prepare(`
@@ -1349,40 +1457,40 @@ export const invoicesAdapter = {
         throw error
       }
     }
-    
+
     return invoicesAdapter.getById(data.id)
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
-    
+
     // Check if invoice exists first
     const existing = invoicesAdapter.getById(id)
     if (!existing) {
       return null // Invoice doesn't exist
     }
-    
+
     // Validate required fields
     if (!data.number || data.number.trim() === '') {
       throw new Error('Invoice number is required')
     }
-    
+
     // Check uniqueness of invoice number (excluding current invoice)
     const existingInvoice = db.prepare('SELECT id FROM invoices WHERE number = ? AND id != ?').get(data.number, id) as any
     if (existingInvoice) {
       throw new Error(`Invoice number "${data.number}" already exists`)
     }
-    
+
     if (!data.customerId || data.customerId.trim() === '') {
       throw new Error('Customer is required for invoice')
     }
-    
+
     // Validate foreign keys exist in database
     const customer = db.prepare('SELECT id FROM customers WHERE id = ?').get(data.customerId) as any
     if (!customer) {
       throw new Error(`Customer with ID "${data.customerId}" does not exist`)
     }
-    
+
     // Validate optional foreign keys if provided
     if (data.vendorId && data.vendorId.trim() !== '') {
       const vendor = db.prepare('SELECT id FROM vendors WHERE id = ?').get(data.vendorId) as any
@@ -1390,21 +1498,21 @@ export const invoicesAdapter = {
         throw new Error(`Vendor with ID "${data.vendorId}" does not exist`)
       }
     }
-    
+
     if (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') {
       const po = db.prepare('SELECT id FROM purchase_orders WHERE id = ?').get(data.purchaseOrderId) as any
       if (!po) {
         throw new Error(`Purchase Order with ID "${data.purchaseOrderId}" does not exist`)
       }
     }
-    
+
     if (data.quoteId && data.quoteId.trim() !== '') {
       const quote = db.prepare('SELECT id FROM quotes WHERE id = ?').get(data.quoteId) as any
       if (!quote) {
         throw new Error(`Quote with ID "${data.quoteId}" does not exist`)
       }
     }
-    
+
     // Update invoice
     // Use NULL instead of empty strings for optional foreign keys to satisfy FK constraints
     const invoiceStmt = db.prepare(`
@@ -1413,7 +1521,7 @@ export const invoicesAdapter = {
           subtotal = ?, tax = ?, total = ?, amountReceived = ?, status = ?, notes = ?
       WHERE id = ?
     `)
-    
+
     try {
       invoiceStmt.run(
         data.number,
@@ -1441,7 +1549,7 @@ export const invoicesAdapter = {
         purchaseOrderId: data.purchaseOrderId,
         quoteId: data.quoteId
       })
-      
+
       // Provide more specific error message for foreign key constraint failures
       const errorMsg = error.message || String(error)
       if (errorMsg.includes('FOREIGN KEY') || errorMsg.includes('constraint failed')) {
@@ -1449,7 +1557,7 @@ export const invoicesAdapter = {
       }
       throw error
     }
-    
+
     // Delete existing items and insert new ones
     db.prepare('DELETE FROM invoice_items WHERE invoiceId = ?').run(id)
     if (data.items && data.items.length > 0) {
@@ -1472,7 +1580,7 @@ export const invoicesAdapter = {
       })
       insertItems(data.items)
     }
-    
+
     return invoicesAdapter.getById(id)
   },
 

@@ -63,14 +63,14 @@ export function OverviewCard({
   invoiceHref,
 }: OverviewCardProps) {
   const accent = accentColors[borderColor]
-  
+
   const content = (
-    <div className={cn('relative rounded-xl p-[1.5px] bg-gradient-to-br h-full transition-all duration-200 hover:shadow-lg hover:scale-[1.02]', borderGradients[borderColor])}>
+    <div className={cn('relative rounded-xl p-[1.5px] bg-gradient-to-br h-full transition-all duration-200 shadow-md hover:shadow-lg hover:scale-[1.02]', borderGradients[borderColor])}>
       <div className="relative bg-white rounded-xl p-6 h-full flex flex-col">
         {/* Under Construction Watermark */}
         {showWatermark && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden rounded-xl">
-            <div 
+            <div
               className="text-4xl font-bold text-slate-200 opacity-20 select-none whitespace-nowrap"
               style={{
                 transform: 'rotate(-30deg)',
@@ -80,7 +80,7 @@ export function OverviewCard({
             </div>
           </div>
         )}
-        
+
         {/* Header Section */}
         <div className="relative z-10 mb-5">
           <div className="flex items-start justify-between mb-5">
@@ -165,7 +165,7 @@ export function OverviewCard({
           ) : (
             <div className="space-y-3.5">
               {metrics.map((metric, index) => (
-                <div key={index} className={cn('flex items-center justify-between py-2.5', 
+                <div key={index} className={cn('flex items-center justify-between py-2.5',
                   index < metrics.length - 1 && 'border-b border-slate-100'
                 )}>
                   <span className="text-sm text-slate-600 font-medium">{metric.label}</span>

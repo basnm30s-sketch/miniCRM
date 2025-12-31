@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iManage: The Dictionary</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --accent-color: #58a6ff;
+            --card-bg: #21262d;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 1rem;
+        }
+
+        dl {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        dt {
+            font-weight: bold;
+            color: var(--accent-color);
+            font-size: 1.2rem;
+        }
+
+        dd {
+            margin-left: 0;
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: 6px;
+        }
+
+        a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <a href="index.html">← Back to Journey</a>
+        <h1>The Glossary for Humans</h1>
+    </header>
+
+    <dl>
+        <dt>API (Application Programming Interface)</dt>
+        <dd>The menu. It's the list of things you can ask the server to do. If it's not on the API, you can't order it.
+        </dd>
+
+        <dt>CRUD</dt>
+        <dd>Acronym for <strong>Create, Read, Update, Delete</strong>. It's the four basic things you can do to data.
+            Like "Write on paper, Read paper, Erase and Rewrite, Burn paper".</dd>
+
+        <dt>Component</dt>
+        <dd>A LEGO brick. A button, a form, a header. You build big things by snapping these small things together.</dd>
+
+        <dt>Endpoint</dt>
+        <dd>A specific URL where an API listens for orders. ex: <code>/api/customers</code>.</dd>
+
+        <dt>Full Stack</dt>
+        <dd>Someone who can cook (Backend) and serve tables (Frontend). You are becoming one.</dd>
+
+        <dt>JSON (JavaScript Object Notation)</dt>
+        <dd>The language data speaks. It looks like this: <code>{"name": "Bond", "id": 007}</code>.</dd>
+
+        <dt>State</dt>
+        <dd>What is happening <em>right now</em>. Is the user logged in? Is the modal open? State changes over time.
+        </dd>
+    </dl>
+</body>
+
+</html>

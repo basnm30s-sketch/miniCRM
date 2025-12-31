@@ -31,11 +31,36 @@ export interface Customer {
   updatedAt?: string; // ISO8601
 }
 
+export type VehicleFuelType = 'petrol' | 'diesel' | 'electric' | 'hybrid';
+export type VehicleStatus = 'active' | 'maintenance' | 'sold' | 'retired';
+
 export interface Vehicle {
   id: string;
-  type: string; // e.g., "Pickup Truck", "Sedan", "Lorry"
+  vehicleNumber: string; // Required, unique (e.g., "DXB A-12345")
+  vehicleType?: string; // Optional link to vehicle category
+  make?: string; // Manufacturer (Toyota, Ford, etc.)
+  model?: string; // Model name
+  year?: number; // Manufacturing year
+  color?: string;
+  // Financial tracking
+  purchasePrice?: number;
+  purchaseDate?: string; // YYYY-MM-DD
+  currentValue?: number;
+  insuranceCostMonthly?: number;
+  financingCostMonthly?: number;
+  // Operational info
+  odometerReading?: number; // km
+  lastServiceDate?: string; // YYYY-MM-DD
+  nextServiceDue?: string; // YYYY-MM-DD
+  fuelType?: VehicleFuelType;
+  status?: VehicleStatus;
+  // Compliance
+  registrationExpiry?: string; // YYYY-MM-DD
+  insuranceExpiry?: string; // YYYY-MM-DD
+  // Legacy/general
   description?: string;
-  basePrice?: number; // optional
+  basePrice?: number;
+  notes?: string;
   createdAt?: string; // ISO8601
 }
 

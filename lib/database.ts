@@ -42,13 +42,13 @@ export function initDatabase(): any {
   try {
     dbPath = getDatabasePath()
     db = new Database(dbPath)
-    
+
     // Enable foreign keys
     db.pragma('foreign_keys = ON')
-    
+
     // Create tables
     createTables(db)
-    
+
     console.log(`Database initialized at: ${dbPath}`)
     return db
   } catch (error) {
@@ -105,7 +105,7 @@ function createTables(database: any): void {
   try {
     const tableInfo = database.prepare("PRAGMA table_info(admin_settings)").all() as any[]
     const columnNames = tableInfo.map((col: any) => col.name)
-    
+
     if (!columnNames.includes('showRevenueTrend')) {
       database.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 1')
     }
@@ -160,7 +160,7 @@ function createTables(database: any): void {
       createdAt TEXT
     )
   `)
-  
+
   // Migrate existing employees table to add paymentType column if it doesn't exist
   try {
     // Check if column exists by trying to query it
@@ -178,16 +178,80 @@ function createTables(database: any): void {
     }
   }
 
-  // Vehicles
+  // Vehicles - Fleet Management
   database.exec(`
     CREATE TABLE IF NOT EXISTS vehicles (
       id TEXT PRIMARY KEY,
-      type TEXT NOT NULL,
+      vehicleNumber TEXT NOT NULL UNIQUE,
+      vehicleType TEXT,
+      make TEXT,
+      model TEXT,
+      year INTEGER,
+      color TEXT,
+      purchasePrice REAL,
+      purchaseDate TEXT,
+      currentValue REAL,
+      insuranceCostMonthly REAL,
+      financingCostMonthly REAL,
+      odometerReading REAL,
+      lastServiceDate TEXT,
+      nextServiceDue TEXT,
+      fuelType TEXT,
+      status TEXT DEFAULT 'active',
+      registrationExpiry TEXT,
+      insuranceExpiry TEXT,
       description TEXT,
       basePrice REAL,
+      notes TEXT,
       createdAt TEXT
     )
   `)
+
+  // Migration: Add new vehicle columns if they don't exist (for existing databases)
+  try {
+    const vehicleTableInfo = database.prepare("PRAGMA table_info(vehicles)").all() as any[]
+    const vehicleColumnNames = vehicleTableInfo.map((col: any) => col.name)
+
+    const newVehicleColumns = [
+      { name: 'vehicleNumber', type: 'TEXT' },
+      { name: 'vehicleType', type: 'TEXT' },
+      { name: 'make', type: 'TEXT' },
+      { name: 'model', type: 'TEXT' },
+      { name: 'year', type: 'INTEGER' },
+      { name: 'color', type: 'TEXT' },
+      { name: 'purchasePrice', type: 'REAL' },
+      { name: 'purchaseDate', type: 'TEXT' },
+      { name: 'currentValue', type: 'REAL' },
+      { name: 'insuranceCostMonthly', type: 'REAL' },
+      { name: 'financingCostMonthly', type: 'REAL' },
+      { name: 'odometerReading', type: 'REAL' },
+      { name: 'lastServiceDate', type: 'TEXT' },
+      { name: 'nextServiceDue', type: 'TEXT' },
+      { name: 'fuelType', type: 'TEXT' },
+      { name: 'status', type: "TEXT DEFAULT 'active'" },
+      { name: 'registrationExpiry', type: 'TEXT' },
+      { name: 'insuranceExpiry', type: 'TEXT' },
+      { name: 'notes', type: 'TEXT' },
+    ]
+
+    for (const col of newVehicleColumns) {
+      if (!vehicleColumnNames.includes(col.name)) {
+        database.exec(`ALTER TABLE vehicles ADD COLUMN ${col.name} ${col.type}`)
+        console.log(`Added ${col.name} column to vehicles table`)
+      }
+    }
+
+    // Migrate existing 'type' data to 'vehicleNumber' if vehicleNumber is empty
+    if (vehicleColumnNames.includes('type') && vehicleColumnNames.includes('vehicleNumber')) {
+      database.exec(`
+        UPDATE vehicles 
+        SET vehicleNumber = type 
+        WHERE vehicleNumber IS NULL OR vehicleNumber = ''
+      `)
+    }
+  } catch (error: any) {
+    console.log('Vehicle migration note:', error.message)
+  }
 
   // Quotes
   database.exec(`
@@ -316,7 +380,7 @@ function createTables(database: any): void {
       FOREIGN KEY (employeeId) REFERENCES employees(id)
     )
   `)
-  
+
   // Migrate existing payslips table to add new columns if they don't exist
   const newColumns = [
     { name: 'year', type: 'INTEGER' },
@@ -326,7 +390,7 @@ function createTables(database: any): void {
     { name: 'notes', type: 'TEXT' },
     { name: 'updatedAt', type: 'TEXT' }
   ]
-  
+
   newColumns.forEach(col => {
     try {
       database.prepare(`SELECT ${col.name} FROM payslips LIMIT 1`).get()

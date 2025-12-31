@@ -67,7 +67,7 @@ export default function EmployeesPage() {
     setNewName(emp.name)
     setNewEmployeeId(emp.employeeId)
     setNewRole(emp.role || '')
-    
+
     // Determine payment type from existing data
     if (emp.paymentType) {
       setPaymentType(emp.paymentType)
@@ -81,7 +81,7 @@ export default function EmployeesPage() {
     } else {
       setPaymentType('')
     }
-    
+
     setNewHourlyRate(String(emp.hourlyRate || ''))
     setNewSalary(String(emp.salary || ''))
     setNewBankDetails(emp.bankDetails || '')
@@ -93,7 +93,7 @@ export default function EmployeesPage() {
       alert('Please select a payment type (Hourly or Monthly)')
       return
     }
-    
+
     const emp: Employee = {
       id: editingId || generateId(),
       name: newName.trim(),
@@ -173,26 +173,26 @@ export default function EmployeesPage() {
                       {renderCell(emp.employeeId)}
                       {renderCell(emp.role)}
                       {renderCell(
-                        emp.paymentType === 'hourly' 
-                          ? emp.hourlyRate 
-                          : emp.paymentType === 'monthly' 
-                          ? emp.salary 
-                          : emp.hourlyRate || emp.salary || 'N/A'
+                        emp.paymentType === 'hourly'
+                          ? emp.hourlyRate
+                          : emp.paymentType === 'monthly'
+                            ? emp.salary
+                            : emp.hourlyRate || emp.salary || 'N/A'
                       )}
                       {renderCell(
-                        emp.paymentType 
-                          ? emp.paymentType.toLowerCase() === 'hourly' 
-                            ? 'Hourly' 
-                            : emp.paymentType.toLowerCase() === 'monthly' 
-                            ? 'Monthly' 
-                            : emp.paymentType.charAt(0).toUpperCase() + emp.paymentType.slice(1).toLowerCase()
+                        emp.paymentType
+                          ? emp.paymentType.toLowerCase() === 'hourly'
+                            ? 'Hourly'
+                            : emp.paymentType.toLowerCase() === 'monthly'
+                              ? 'Monthly'
+                              : emp.paymentType.charAt(0).toUpperCase() + emp.paymentType.slice(1).toLowerCase()
                           : 'N/A'
                       )}
                       <TableCell className="text-center gap-2 flex justify-center">
-                        <button onClick={() => handleEdit(emp)} className="text-blue-600 hover:text-blue-800">
+                        <button onClick={() => handleEdit(emp)} className="text-primary hover:text-primary/90">
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(emp.id)} className="text-red-600 hover:text-red-800">
+                        <button onClick={() => handleDelete(emp.id)} className="text-destructive hover:text-destructive/90">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </TableCell>
@@ -221,7 +221,7 @@ export default function EmployeesPage() {
               <input className="w-full border px-2 py-1 rounded" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
               <input className="w-full border px-2 py-1 rounded" placeholder="Employee ID" value={newEmployeeId} onChange={(e) => setNewEmployeeId(e.target.value)} />
               <input className="w-full border px-2 py-1 rounded" placeholder="Role" value={newRole} onChange={(e) => setNewRole(e.target.value)} />
-              
+
               <div className="space-y-2">
                 <Label>Payment Type</Label>
                 <RadioGroup value={paymentType} onValueChange={(value) => setPaymentType(value as 'hourly' | 'monthly')}>
@@ -235,29 +235,29 @@ export default function EmployeesPage() {
                   </div>
                 </RadioGroup>
               </div>
-              
+
               {paymentType === 'hourly' && (
-                <input 
-                  className="w-full border px-2 py-1 rounded" 
-                  placeholder="Hourly Pay" 
-                  type="number" 
-                  step="0.01" 
-                  value={newHourlyRate} 
-                  onChange={(e) => setNewHourlyRate(e.target.value)} 
+                <input
+                  className="w-full border px-2 py-1 rounded"
+                  placeholder="Hourly Pay"
+                  type="number"
+                  step="0.01"
+                  value={newHourlyRate}
+                  onChange={(e) => setNewHourlyRate(e.target.value)}
                 />
               )}
-              
+
               {paymentType === 'monthly' && (
-                <input 
-                  className="w-full border px-2 py-1 rounded" 
-                  placeholder="Monthly Pay" 
-                  type="number" 
-                  step="0.01" 
-                  value={newSalary} 
-                  onChange={(e) => setNewSalary(e.target.value)} 
+                <input
+                  className="w-full border px-2 py-1 rounded"
+                  placeholder="Monthly Pay"
+                  type="number"
+                  step="0.01"
+                  value={newSalary}
+                  onChange={(e) => setNewSalary(e.target.value)}
                 />
               )}
-              
+
               <textarea className="w-full border px-2 py-1 rounded" placeholder="Bank Details" value={newBankDetails} onChange={(e) => setNewBankDetails(e.target.value)} />
             </div>
             <div className="mt-4 flex justify-end gap-2">

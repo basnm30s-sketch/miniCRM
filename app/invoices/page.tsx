@@ -351,7 +351,7 @@ export default function InvoicesPage() {
                               size="sm"
                               onClick={() => handleDownloadPDF(invoice)}
                               title="Save PDF"
-                              className="p-2 h-8 w-8 text-red-600 hover:text-red-700"
+                              className="p-2 h-8 w-8 text-action-pdf hover:text-action-pdf hover:bg-action-pdf/10 border-action-pdf/20"
                             >
                               <FileText className="w-4 h-4" />
                             </Button>
@@ -360,7 +360,7 @@ export default function InvoicesPage() {
                               size="sm"
                               onClick={() => handleDownloadExcel(invoice)}
                               title="Save Excel"
-                              className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
+                              className="p-2 h-8 w-8 text-action-excel hover:text-action-excel hover:bg-action-excel/10 border-action-excel/20"
                             >
                               <Sheet className="w-4 h-4" />
                             </Button>
@@ -369,7 +369,7 @@ export default function InvoicesPage() {
                               size="sm"
                               onClick={() => handleDownloadDocx(invoice)}
                               title="Save Word"
-                              className="p-2 h-8 w-8 text-purple-600 hover:text-purple-700"
+                              className="p-2 h-8 w-8 text-action-word hover:text-action-word hover:bg-action-word/10 border-action-word/20"
                             >
                               <FileType className="w-4 h-4" />
                             </Button>
@@ -426,20 +426,20 @@ export default function InvoicesPage() {
                       <th className="text-left p-2">Description</th>
                       <th className="text-right p-2">Qty</th>
                       <th className="text-right p-2">Unit Price</th>
-                      <th className="text-right p-2">Tax %</th>
+                      <th className="text-right p-2">Tax</th>
                       <th className="text-right p-2">Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {previewInvoice.items?.map((item, index) => {
                       const itemTotal = item.quantity * item.unitPrice
-                      const taxAmount = (itemTotal * (item.taxPercent || 0)) / 100
+                      const taxAmount = item.tax || 0
                       return (
                         <tr key={index} className="border-b">
                           <td className="p-2">{item.description || 'N/A'}</td>
                           <td className="p-2 text-right">{item.quantity}</td>
                           <td className="p-2 text-right">{item.unitPrice.toFixed(2)}</td>
-                          <td className="p-2 text-right">{item.taxPercent || 0}</td>
+                          <td className="p-2 text-right">{taxAmount.toFixed(2)}</td>
                           <td className="p-2 text-right">{(itemTotal + taxAmount).toFixed(2)}</td>
                         </tr>
                       )
@@ -451,8 +451,8 @@ export default function InvoicesPage() {
               <div>
                 <h3 className="font-semibold">Totals</h3>
                 <div className="mt-2 space-y-1">
-                  <div className="flex justify-between"><span>Subtotal</span><span>AED {(previewInvoice.subTotal || 0).toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span>Total Tax</span><span>AED {(previewInvoice.totalTax || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Subtotal</span><span>AED {(previewInvoice.subtotal || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Total Tax</span><span>AED {(previewInvoice.tax || 0).toFixed(2)}</span></div>
                   <div className="flex justify-between font-bold"><span>Total</span><span>AED {(previewInvoice.total || 0).toFixed(2)}</span></div>
                 </div>
               </div>

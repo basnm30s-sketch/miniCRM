@@ -152,10 +152,10 @@ export default function VendorsPage() {
                       {renderCell(vendor.email)}
                       {renderCell(vendor.phone)}
                       <TableCell className="text-center gap-2 flex justify-center">
-                        <button onClick={() => handleEdit(vendor)} className="text-blue-600 hover:text-blue-800">
+                        <button onClick={() => handleEdit(vendor)} className="text-primary hover:text-primary/90">
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(vendor.id)} className="text-red-600 hover:text-red-800">
+                        <button onClick={() => handleDelete(vendor.id)} className="text-destructive hover:text-destructive/90">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </TableCell>

@@ -29,9 +29,9 @@ interface BrandingState {
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<AdminSettings | null>(null)
-  const [branding, setBranding] = useState<BrandingState>({ 
-    logo: false, seal: false, signature: false, 
-    extensions: { logo: null, seal: null, signature: null } 
+  const [branding, setBranding] = useState<BrandingState>({
+    logo: false, seal: false, signature: false,
+    extensions: { logo: null, seal: null, signature: null }
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -46,15 +46,15 @@ export default function AdminSettingsPage() {
         if (stored) {
           const settingsWithBooleans: AdminSettings = {
             ...stored,
-            showRevenueTrend: stored.showRevenueTrend === false || stored.showRevenueTrend === 0
+            showRevenueTrend: (stored as any).showRevenueTrend === false || (stored as any).showRevenueTrend === 0
               ? false
-              : (stored.showRevenueTrend === true || stored.showRevenueTrend === 1 ? true : false),
-            showQuickActions: stored.showQuickActions === false || stored.showQuickActions === 0
+              : ((stored as any).showRevenueTrend === true || (stored as any).showRevenueTrend === 1 ? true : false),
+            showQuickActions: (stored as any).showQuickActions === false || (stored as any).showQuickActions === 0
               ? false
-              : (stored.showQuickActions === true || stored.showQuickActions === 1 ? true : false),
-            showReports: stored.showReports === false || stored.showReports === 0
+              : ((stored as any).showQuickActions === true || (stored as any).showQuickActions === 1 ? true : false),
+            showReports: (stored as any).showReports === false || (stored as any).showReports === 0
               ? false
-              : (stored.showReports === true || stored.showReports === 1 ? true : false),
+              : ((stored as any).showReports === true || (stored as any).showReports === 1 ? true : false),
           }
           setSettings(settingsWithBooleans)
         } else {
@@ -101,14 +101,14 @@ export default function AdminSettingsPage() {
     try {
       // Upload file to fixed location
       await uploadBrandingFile(file, brandingType)
-      
+
       // Refresh branding status
       const brandingStatus = await checkBrandingFiles()
       setBranding(brandingStatus)
-      
-      toast({ 
-        title: 'Upload', 
-        description: `${brandingType.charAt(0).toUpperCase() + brandingType.slice(1)} uploaded successfully` 
+
+      toast({
+        title: 'Upload',
+        description: `${brandingType.charAt(0).toUpperCase() + brandingType.slice(1)} uploaded successfully`
       })
     } catch (err: any) {
       console.error('Failed to upload image:', err)
@@ -142,7 +142,7 @@ export default function AdminSettingsPage() {
         showReports: settings.showReports === true ? true : false,
         updatedAt: new Date().toISOString(),
       }
-      
+
       await saveAdminSettings(settingsToSave)
       toast({ title: 'Saved', description: 'Settings saved successfully' })
     } catch (err) {
@@ -282,7 +282,7 @@ export default function AdminSettingsPage() {
               disabled={uploading === 'logo'}
               className="mb-2"
             />
-            {uploading === 'logo' && <p className="text-sm text-blue-600">Uploading...</p>}
+            {uploading === 'logo' && <p className="text-sm text-primary">Uploading...</p>}
             {branding.logo && logoUrl && (
               <div className="mt-2">
                 <img
@@ -291,7 +291,7 @@ export default function AdminSettingsPage() {
                   style={{ maxHeight: '80px', maxWidth: '200px' }}
                   className="border rounded p-2"
                 />
-                <p className="text-sm text-green-600 mt-1">✓ Logo uploaded</p>
+                <p className="text-sm text-action-excel mt-1">✓ Logo uploaded</p>
               </div>
             )}
             {!branding.logo && (
@@ -311,7 +311,7 @@ export default function AdminSettingsPage() {
               disabled={uploading === 'seal'}
               className="mb-2"
             />
-            {uploading === 'seal' && <p className="text-sm text-blue-600">Uploading...</p>}
+            {uploading === 'seal' && <p className="text-sm text-primary">Uploading...</p>}
             {branding.seal && sealUrl && (
               <div className="mt-2">
                 <img
@@ -320,7 +320,7 @@ export default function AdminSettingsPage() {
                   style={{ maxHeight: '100px', maxWidth: '100px' }}
                   className="border rounded p-2"
                 />
-                <p className="text-sm text-green-600 mt-1">✓ Seal uploaded</p>
+                <p className="text-sm text-action-excel mt-1">✓ Seal uploaded</p>
               </div>
             )}
             {!branding.seal && (

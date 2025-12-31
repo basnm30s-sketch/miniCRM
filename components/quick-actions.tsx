@@ -50,13 +50,13 @@ interface QuickActionsProps {
 
 export function QuickActions({ actions }: QuickActionsProps) {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-6">
+    <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-md">
       <h3 className="text-lg font-bold text-slate-900 mb-4">Quick Actions</h3>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {actions.map((action, index) => {
           const Icon = action.icon
           const colors = colorClasses[action.color]
-          
+
           return (
             <Link
               key={index}
