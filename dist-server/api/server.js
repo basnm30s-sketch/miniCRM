@@ -10,6 +10,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const database_1 = require("../lib/database");
 // Import routes
 const customers_1 = __importDefault(require("./routes/customers"));
@@ -91,6 +92,20 @@ app.get('/api/health', (req, res) => {
 app.get('/{*splat}', (req, res, next) => {
     // Skip if it's an API route (already handled above)
     if (req.path.startsWith('/api/')) {
+        return next();
+    }
+    // Skip if it's a static asset (has file extension)
+    // This prevents serving index.html for JS, CSS, images, etc.
+    const staticExtensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.json', '.map', '.webp'];
+    const hasExtension = staticExtensions.some(ext => req.path.toLowerCase().endsWith(ext));
+    if (hasExtension) {
+        // Let Express static middleware handle it, or return 404 if not found
+        return next();
+    }
+    // Check if the requested file exists as a static file
+    const requestedFile = path_1.default.join(frontendPath, req.path);
+    if (fs_1.default.existsSync(requestedFile) && fs_1.default.statSync(requestedFile).isFile()) {
+        // File exists, let static middleware serve it
         return next();
     }
     // Serve index.html for all other routes (SPA catch-all)

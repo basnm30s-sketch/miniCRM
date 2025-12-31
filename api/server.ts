@@ -6,6 +6,7 @@
 import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import path from 'path'
+import fs from 'fs'
 import { initDatabase } from '../lib/database'
 
 // Import routes
@@ -91,6 +92,23 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.get('/{*splat}', (req: Request, res: Response, next: NextFunction) => {
   // Skip if it's an API route (already handled above)
   if (req.path.startsWith('/api/')) {
+    return next()
+  }
+  
+  // Skip if it's a static asset (has file extension)
+  // This prevents serving index.html for JS, CSS, images, etc.
+  const staticExtensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.json', '.map', '.webp']
+  const hasExtension = staticExtensions.some(ext => req.path.toLowerCase().endsWith(ext))
+  
+  if (hasExtension) {
+    // Let Express static middleware handle it, or return 404 if not found
+    return next()
+  }
+  
+  // Check if the requested file exists as a static file
+  const requestedFile = path.join(frontendPath, req.path)
+  if (fs.existsSync(requestedFile) && fs.statSync(requestedFile).isFile()) {
+    // File exists, let static middleware serve it
     return next()
   }
   
