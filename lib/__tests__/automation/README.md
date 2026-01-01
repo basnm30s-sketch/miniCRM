@@ -37,6 +37,38 @@ Tests are co-located with the code they test, inside `__tests__` directories:
 - `GET /quotes/:id`: Verified single item retrieval and 404 handling.
 - `POST /quotes`: Verified creation logic.
 
+### Module 14: Vehicle Transactions API
+**Status:** ✅ Completed
+**File:** `api/__tests__/vehicle-transactions.test.ts`
+**Coverage:**
+- `GET /vehicle-transactions`: Verified list retrieval with filtering (by vehicleId, by vehicleId and month).
+- `GET /vehicle-transactions/:id`: Verified single transaction retrieval and 404 handling.
+- `POST /vehicle-transactions`: Verified creation with validation (vehicle existence, positive amounts, date constraints, employee existence).
+- `PUT /vehicle-transactions/:id`: Verified update logic with validation.
+- `DELETE /vehicle-transactions/:id`: Verified deletion logic.
+
+### Module 15: Expense Categories API
+**Status:** ✅ Completed
+**File:** `api/__tests__/expense-categories.test.ts`
+**Coverage:**
+- `GET /expense-categories`: Verified list retrieval.
+- `GET /expense-categories/:id`: Verified single category retrieval and 404 handling.
+- `POST /expense-categories`: Verified creation with validation (name required, unique constraint).
+- `PUT /expense-categories/:id`: Verified update logic with unique constraint validation.
+- `DELETE /expense-categories/:id`: Verified deletion with reference checking.
+
+### Module 8: Vehicles API (Extended)
+**Status:** ✅ Completed
+**File:** `api/__tests__/vehicles.test.ts` (Extended)
+**Coverage:**
+- `GET /vehicles/:id/profitability`: Verified profitability data retrieval, structure validation, month normalization (YYYY-MM format), and error handling.
+
+### Module 16: Vehicle Finances Dashboard Metrics
+**Status:** ✅ Completed
+**File:** `api/__tests__/vehicle-finances.test.ts`
+**Coverage:**
+- `getDashboardMetrics()`: Verified dashboard metrics structure, overall metrics calculation, vehicle-based metrics, customer-based metrics, category-based metrics, operational metrics, time-based metrics, empty data handling, and error handling.
+
 ## How to Run Tests
 Run the following command in the terminal:
 ```bash

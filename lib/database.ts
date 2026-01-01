@@ -408,12 +408,77 @@ function createTables(database: any): void {
     }
   })
 
+  // Expense Categories
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS expense_categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      isCustom INTEGER DEFAULT 0,
+      createdAt TEXT
+    )
+  `)
+
+  // Initialize predefined expense categories if they don't exist
+  try {
+    const existingCategories = database.prepare('SELECT COUNT(*) as count FROM expense_categories').get() as any
+    if (existingCategories.count === 0) {
+      const predefinedCategories = [
+        { id: 'cat_purchase', name: 'Purchase', isCustom: 0 },
+        { id: 'cat_maintenance', name: 'Maintenance', isCustom: 0 },
+        { id: 'cat_insurance', name: 'Insurance', isCustom: 0 },
+        { id: 'cat_driver_salary', name: 'Driver Salary', isCustom: 0 },
+        { id: 'cat_fuel', name: 'Fuel', isCustom: 0 },
+        { id: 'cat_registration', name: 'Registration', isCustom: 0 },
+        { id: 'cat_other', name: 'Other', isCustom: 0 },
+      ]
+      const insertCategory = database.prepare(`
+        INSERT INTO expense_categories (id, name, isCustom, createdAt)
+        VALUES (?, ?, ?, ?)
+      `)
+      const now = new Date().toISOString()
+      for (const cat of predefinedCategories) {
+        try {
+          insertCategory.run(cat.id, cat.name, cat.isCustom, now)
+        } catch (e) {
+          // Ignore if already exists
+        }
+      }
+    }
+  } catch (error: any) {
+    console.log('Expense categories initialization note:', error.message)
+  }
+
+  // Vehicle Transactions
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS vehicle_transactions (
+      id TEXT PRIMARY KEY,
+      vehicleId TEXT NOT NULL,
+      transactionType TEXT NOT NULL CHECK(transactionType IN ('expense', 'revenue')),
+      category TEXT,
+      amount REAL NOT NULL CHECK(amount > 0),
+      date TEXT NOT NULL,
+      month TEXT NOT NULL,
+      description TEXT,
+      employeeId TEXT,
+      invoiceId TEXT,
+      createdAt TEXT,
+      updatedAt TEXT,
+      FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE CASCADE,
+      FOREIGN KEY (employeeId) REFERENCES employees(id),
+      FOREIGN KEY (invoiceId) REFERENCES invoices(id)
+    )
+  `)
+
   // Create indexes for better performance
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customerId);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
     CREATE INDEX IF NOT EXISTS idx_purchase_orders_vendor ON purchase_orders(vendorId);
     CREATE INDEX IF NOT EXISTS idx_purchase_orders_status ON purchase_orders(status);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_vehicle ON vehicle_transactions(vehicleId);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_date ON vehicle_transactions(date);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_month ON vehicle_transactions(month);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_type ON vehicle_transactions(transactionType);
   `)
 }
 

@@ -26,8 +26,13 @@ async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T
         // If response is not JSON, use status text
         errorMessage = response.statusText || errorMessage
       }
-      console.error(`API Request failed: ${options?.method || 'GET'} ${url} - ${errorMessage}`)
-      throw new Error(errorMessage)
+      // Don't log 404 errors as they're expected in some cases (checking if resource exists)
+      if (response.status !== 404) {
+        console.error(`API Request failed: ${options?.method || 'GET'} ${url} - ${errorMessage}`)
+      }
+      const error = new Error(errorMessage) as any
+      error.status = response.status
+      throw error
     }
 
     if (response.status === 204) {
@@ -38,7 +43,10 @@ async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T
   } catch (error: any) {
     // Re-throw with more context
     if (error.message && !error.message.includes('Network error')) {
-      console.error(`API Request error for ${url}:`, error.message)
+      // Don't log 404 errors as they're expected in some cases
+      if (error.status !== 404) {
+        console.error(`API Request error for ${url}:`, error.message)
+      }
       throw error
     }
     throw new Error(`Network error: ${error.message || 'Failed to connect to server'}`)
@@ -918,6 +926,157 @@ export async function updatePayslipStatus(id: string, status: string): Promise<v
     })
   } catch (error) {
     console.error('Failed to update payslip status:', error)
+    throw error
+  }
+}
+
+// ==================== VEHICLE TRANSACTIONS ====================
+export async function getAllVehicleTransactions(vehicleId?: string, month?: string): Promise<any[]> {
+  try {
+    let url = '/vehicle-transactions'
+    const params = new URLSearchParams()
+    if (vehicleId) params.append('vehicleId', vehicleId)
+    if (month) params.append('month', month)
+    if (params.toString()) {
+      url += `?${params.toString()}`
+    }
+    return await apiRequest<any[]>(url) || []
+  } catch (error) {
+    console.error('Failed to get vehicle transactions:', error)
+    return []
+  }
+}
+
+export async function getVehicleTransactionById(id: string): Promise<any | null> {
+  try {
+    return await apiRequest<any>(`/vehicle-transactions/${id}`)
+  } catch (error: any) {
+    // Handle 404 as expected - transaction doesn't exist
+    if (error?.status === 404 || 
+        error?.message?.includes('404') || 
+        error?.message?.toLowerCase().includes('not found')) {
+      return null
+    }
+    console.error('Failed to get vehicle transaction:', error)
+    throw error
+  }
+}
+
+export async function saveVehicleTransaction(transaction: any): Promise<void> {
+  try {
+    // If transaction has an ID, check if it exists to decide between update and create
+    if (transaction.id) {
+      const existing = await getVehicleTransactionById(transaction.id)
+      if (existing) {
+        // Update existing transaction
+        await apiRequest(`/vehicle-transactions/${transaction.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(transaction),
+        })
+        return
+      }
+      // If ID exists but transaction doesn't, create it with that ID
+    }
+    // Create new transaction - POST returns the created transaction
+    await apiRequest<any>('/vehicle-transactions', {
+      method: 'POST',
+      body: JSON.stringify(transaction),
+    })
+    return
+  } catch (error: any) {
+    console.error('Failed to save vehicle transaction:', error)
+    throw error
+  }
+}
+
+export async function deleteVehicleTransaction(id: string): Promise<void> {
+  try {
+    await apiRequest(`/vehicle-transactions/${id}`, {
+      method: 'DELETE',
+    })
+  } catch (error) {
+    console.error('Failed to delete vehicle transaction:', error)
+    throw error
+  }
+}
+
+export async function getVehicleProfitability(vehicleId: string): Promise<any> {
+  try {
+    return await apiRequest<any>(`/vehicles/${vehicleId}/profitability`)
+  } catch (error) {
+    console.error('Failed to get vehicle profitability:', error)
+    throw error
+  }
+}
+
+export async function getVehicleFinanceDashboard(): Promise<any> {
+  try {
+    return await apiRequest<any>('/vehicle-finances/dashboard')
+  } catch (error: any) {
+    // Don't throw for 404, return null instead
+    if (error?.status === 404 || error?.message?.includes('404') || error?.message?.toLowerCase().includes('not found')) {
+      console.warn('Dashboard endpoint not found, returning empty data')
+      return null
+    }
+    console.error('Failed to get vehicle finance dashboard:', error)
+    throw error
+  }
+}
+
+// ==================== EXPENSE CATEGORIES ====================
+export async function getAllExpenseCategories(): Promise<any[]> {
+  try {
+    return await apiRequest<any[]>('/expense-categories') || []
+  } catch (error) {
+    console.error('Failed to get expense categories:', error)
+    return []
+  }
+}
+
+export async function getExpenseCategoryById(id: string): Promise<any | null> {
+  try {
+    return await apiRequest<any>(`/expense-categories/${id}`)
+  } catch (error: any) {
+    // Handle 404 as expected - category doesn't exist
+    if (error?.status === 404 || 
+        error?.message?.includes('404') || 
+        error?.message?.toLowerCase().includes('not found')) {
+      return null
+    }
+    console.error('Failed to get expense category:', error)
+    throw error
+  }
+}
+
+export async function saveExpenseCategory(category: any): Promise<void> {
+  try {
+    if (category.id) {
+      const existing = await getExpenseCategoryById(category.id)
+      if (existing) {
+        await apiRequest(`/expense-categories/${category.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(category),
+        })
+        return
+      }
+    }
+    await apiRequest('/expense-categories', {
+      method: 'POST',
+      body: JSON.stringify(category),
+    })
+  } catch (error: any) {
+    console.error('Failed to save expense category:', error)
+    throw error
+  }
+}
+
+export async function deleteExpenseCategory(id: string): Promise<void> {
+  try {
+    await apiRequest(`/expense-categories/${id}`, {
+      method: 'DELETE',
+    })
+  } catch (error) {
+    console.error('Failed to delete expense category:', error)
     throw error
   }
 }

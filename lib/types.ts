@@ -192,3 +192,46 @@ export interface SalaryCalculation {
   deductions: number;
   netPay: number;
 }
+
+export type VehicleTransactionType = 'expense' | 'revenue';
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  isCustom: boolean;
+  createdAt?: string;
+}
+
+export interface VehicleTransaction {
+  id: string;
+  vehicleId: string;
+  transactionType: VehicleTransactionType;
+  category?: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  month: string; // YYYY-MM
+  description?: string;
+  employeeId?: string;
+  invoiceId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface VehicleProfitability {
+  vehicleId: string;
+  month: string; // YYYY-MM
+  totalRevenue: number;
+  totalExpenses: number;
+  profit: number; // revenue - expenses
+  transactionCount: number;
+}
+
+export interface VehicleProfitabilitySummary {
+  vehicleId: string;
+  currentMonth: VehicleProfitability | null;
+  lastMonth: VehicleProfitability | null;
+  allTimeRevenue: number;
+  allTimeExpenses: number;
+  allTimeProfit: number;
+  months: VehicleProfitability[];
+}

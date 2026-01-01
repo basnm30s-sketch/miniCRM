@@ -21,6 +21,9 @@ import {
   ChevronRight,
   Database,
   Wallet,
+  TrendingUp,
+  DollarSign,
+  Tag,
 } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
@@ -60,6 +63,14 @@ const masterNavigationItems = [
   },
 ]
 
+const financesNavigationItems = [
+  {
+    label: 'Expense Categories',
+    href: '/finances/expense-categories',
+    icon: Tag,
+  },
+]
+
 const allOtherNavigationItems = [
   {
     label: 'Reports',
@@ -78,6 +89,13 @@ export function Sidebar() {
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
   const [mastersOpen, setMastersOpen] = useState(() => {
     return masterNavigationItems.some(
+      (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+    ) || financesNavigationItems.some(
+      (item) => pathname === item.href || pathname.startsWith(item.href + '/')
+    )
+  })
+  const [financesOpen, setFinancesOpen] = useState(() => {
+    return financesNavigationItems.some(
       (item) => pathname === item.href || pathname.startsWith(item.href + '/')
     )
   })
@@ -152,7 +170,9 @@ export function Sidebar() {
     return pathname === href || pathname.startsWith(href + '/')
   }
 
-  const isAnyMasterActive = masterNavigationItems.some((item) => isActive(item.href))
+  const isAnyMasterActive = masterNavigationItems.some((item) => isActive(item.href)) || 
+    financesNavigationItems.some((item) => isActive(item.href))
+  const isAnyFinancesActive = financesNavigationItems.some((item) => isActive(item.href))
   const isAnyDocGeneratorActive = docGeneratorItems.some((item) => isActive(item.href))
   const isHomeActive = pathname === '/'
 
@@ -191,6 +211,19 @@ export function Sidebar() {
         >
           <Home className="w-5 h-5" />
           <span>Home</span>
+        </Link>
+
+        {/* Vehicle Finances - Standalone */}
+        <Link
+          href="/vehicle-finances"
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
+            isActive('/vehicle-finances')
+              ? 'bg-blue-600 text-white'
+              : 'text-blue-100 hover:bg-blue-900/50'
+          }`}
+        >
+          <TrendingUp className="w-5 h-5" />
+          <span>Vehicle Finances</span>
         </Link>
 
         {/* Doc Generator Section - Collapsible */}
@@ -274,6 +307,48 @@ export function Sidebar() {
                 </Link>
               )
             })}
+            
+            {/* Finances Submenu - Nested under Masters */}
+            <Collapsible open={financesOpen} onOpenChange={setFinancesOpen}>
+              <CollapsibleTrigger
+                className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${
+                  isAnyFinancesActive
+                    ? 'bg-blue-600 text-white hover:bg-blue-500'
+                    : 'text-blue-100 hover:bg-blue-900/50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <DollarSign className="w-4 h-4" />
+                  <span>Finances</span>
+                </div>
+                {financesOpen ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-1 space-y-1 pl-4">
+                {financesNavigationItems.map((item) => {
+                  const Icon = item.icon
+                  const active = isActive(item.href)
+                  
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm ${
+                        active
+                          ? 'bg-blue-600 text-white'
+                          : 'text-blue-100 hover:bg-blue-900/50'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </CollapsibleContent>
+            </Collapsible>
           </CollapsibleContent>
         </Collapsible>
 

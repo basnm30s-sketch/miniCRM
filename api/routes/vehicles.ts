@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { vehiclesAdapter, formatReferenceError } from '../adapters/sqlite'
+import { vehiclesAdapter, vehicleTransactionsAdapter, formatReferenceError } from '../adapters/sqlite'
 import { getDatabase } from '../../lib/database'
 
 const router = Router()
@@ -20,6 +20,19 @@ router.get('/:id', (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Vehicle not found' })
     }
     res.json(vehicle)
+  } catch (error: any) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+router.get('/:id/profitability', (req: Request, res: Response) => {
+  try {
+    const vehicle = vehiclesAdapter.getById(req.params.id)
+    if (!vehicle) {
+      return res.status(404).json({ error: 'Vehicle not found' })
+    }
+    const profitability = vehicleTransactionsAdapter.getProfitabilityByVehicle(req.params.id)
+    res.json(profitability)
   } catch (error: any) {
     res.status(500).json({ error: error.message })
   }

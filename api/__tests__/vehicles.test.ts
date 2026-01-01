@@ -11,6 +11,9 @@ jest.mock('../adapters/sqlite', () => ({
         update: jest.fn(),
         delete: jest.fn(),
     },
+    vehicleTransactionsAdapter: {
+        getProfitabilityByVehicle: jest.fn(),
+    },
     formatReferenceError: jest.fn((entity, refs) => `Cannot delete ${entity} as it is referenced`),
 }))
 
@@ -22,7 +25,7 @@ jest.mock('../../lib/database', () => ({
     getDatabase: jest.fn(() => mockDb),
 }))
 
-import { vehiclesAdapter } from '../adapters/sqlite'
+import { vehiclesAdapter, vehicleTransactionsAdapter } from '../adapters/sqlite'
 
 const app = express()
 app.use(express.json())
@@ -186,6 +189,153 @@ describe('Vehicles API', () => {
 
             expect(res.status).toBe(500)
             expect(res.body).toEqual({ error: 'General error' })
+        })
+    })
+
+    // GET /api/vehicles/:id/profitability
+    describe('GET /:id/profitability', () => {
+        it('should return profitability data for vehicle', async () => {
+            const mockVehicle = { id: '1', vehicleNumber: 'ABC-123' }
+            const mockProfitability = {
+                vehicleId: '1',
+                currentMonth: {
+                    vehicleId: '1',
+                    month: '2026-01',
+                    totalRevenue: 10000,
+                    totalExpenses: 5000,
+                    profit: 5000,
+                    transactionCount: 5,
+                },
+                lastMonth: {
+                    vehicleId: '1',
+                    month: '2025-12',
+                    totalRevenue: 9500,
+                    totalExpenses: 4800,
+                    profit: 4700,
+                    transactionCount: 4,
+                },
+                allTimeRevenue: 120000,
+                allTimeExpenses: 60000,
+                allTimeProfit: 60000,
+                months: [
+                    { vehicleId: '1', month: '2025-02', totalRevenue: 8000, totalExpenses: 4000, profit: 4000, transactionCount: 3 },
+                    { vehicleId: '1', month: '2025-03', totalRevenue: 8500, totalExpenses: 4200, profit: 4300, transactionCount: 3 },
+                    // ... 10 more months
+                ],
+            }
+            ; (vehiclesAdapter.getById as jest.Mock).mockReturnValue(mockVehicle)
+            ; (vehicleTransactionsAdapter.getProfitabilityByVehicle as jest.Mock).mockReturnValue(mockProfitability)
+
+            const res = await request(app).get('/api/vehicles/1/profitability')
+
+            expect(res.status).toBe(200)
+            expect(res.body).toEqual(mockProfitability)
+            expect(vehiclesAdapter.getById).toHaveBeenCalledWith('1')
+            expect(vehicleTransactionsAdapter.getProfitabilityByVehicle).toHaveBeenCalledWith('1')
+        })
+
+        it('should return 404 if vehicle not found', async () => {
+            ; (vehiclesAdapter.getById as jest.Mock).mockReturnValue(null)
+
+            const res = await request(app).get('/api/vehicles/999/profitability')
+
+            expect(res.status).toBe(404)
+            expect(res.body).toEqual({ error: 'Vehicle not found' })
+            expect(vehicleTransactionsAdapter.getProfitabilityByVehicle).not.toHaveBeenCalled()
+        })
+
+        it('should verify profitability structure', async () => {
+            const mockVehicle = { id: '1', vehicleNumber: 'ABC-123' }
+            const mockProfitability = {
+                vehicleId: '1',
+                currentMonth: {
+                    vehicleId: '1',
+                    month: '2026-01',
+                    totalRevenue: 10000,
+                    totalExpenses: 5000,
+                    profit: 5000,
+                    transactionCount: 5,
+                },
+                lastMonth: {
+                    vehicleId: '1',
+                    month: '2025-12',
+                    totalRevenue: 9500,
+                    totalExpenses: 4800,
+                    profit: 4700,
+                    transactionCount: 4,
+                },
+                allTimeRevenue: 120000,
+                allTimeExpenses: 60000,
+                allTimeProfit: 60000,
+                months: Array(12).fill(null).map((_, i) => ({
+                    vehicleId: '1',
+                    month: `2025-${String(i + 1).padStart(2, '0')}`,
+                    totalRevenue: 10000,
+                    totalExpenses: 5000,
+                    profit: 5000,
+                    transactionCount: 5,
+                })),
+            }
+            ; (vehiclesAdapter.getById as jest.Mock).mockReturnValue(mockVehicle)
+            ; (vehicleTransactionsAdapter.getProfitabilityByVehicle as jest.Mock).mockReturnValue(mockProfitability)
+
+            const res = await request(app).get('/api/vehicles/1/profitability')
+
+            expect(res.status).toBe(200)
+            expect(res.body).toHaveProperty('currentMonth')
+            expect(res.body).toHaveProperty('lastMonth')
+            expect(res.body).toHaveProperty('allTimeRevenue')
+            expect(res.body).toHaveProperty('allTimeExpenses')
+            expect(res.body).toHaveProperty('allTimeProfit')
+            expect(res.body).toHaveProperty('months')
+            expect(Array.isArray(res.body.months)).toBe(true)
+            expect(res.body.months.length).toBe(12)
+            expect(res.body.allTimeProfit).toBe(res.body.allTimeRevenue - res.body.allTimeExpenses)
+        })
+
+        it('should verify month normalization (YYYY-MM format)', async () => {
+            const mockVehicle = { id: '1', vehicleNumber: 'ABC-123' }
+            const mockProfitability = {
+                vehicleId: '1',
+                currentMonth: { vehicleId: '1', month: '2026-01', totalRevenue: 0, totalExpenses: 0, profit: 0, transactionCount: 0 },
+                lastMonth: { vehicleId: '1', month: '2025-12', totalRevenue: 0, totalExpenses: 0, profit: 0, transactionCount: 0 },
+                allTimeRevenue: 0,
+                allTimeExpenses: 0,
+                allTimeProfit: 0,
+                months: Array(12).fill(null).map((_, i) => ({
+                    vehicleId: '1',
+                    month: `2025-${String(i + 1).padStart(2, '0')}`,
+                    totalRevenue: 0,
+                    totalExpenses: 0,
+                    profit: 0,
+                    transactionCount: 0,
+                })),
+            }
+            ; (vehiclesAdapter.getById as jest.Mock).mockReturnValue(mockVehicle)
+            ; (vehicleTransactionsAdapter.getProfitabilityByVehicle as jest.Mock).mockReturnValue(mockProfitability)
+
+            const res = await request(app).get('/api/vehicles/1/profitability')
+
+            expect(res.status).toBe(200)
+            // Verify all months are in YYYY-MM format
+            res.body.months.forEach((month: any) => {
+                expect(month.month).toMatch(/^\d{4}-\d{2}$/)
+            })
+            expect(res.body.currentMonth.month).toMatch(/^\d{4}-\d{2}$/)
+            expect(res.body.lastMonth.month).toMatch(/^\d{4}-\d{2}$/)
+        })
+
+        it('should handle errors', async () => {
+            const mockVehicle = { id: '1', vehicleNumber: 'ABC-123' }
+            ; (vehiclesAdapter.getById as jest.Mock).mockReturnValue(mockVehicle)
+            ; (vehicleTransactionsAdapter.getProfitabilityByVehicle as jest.Mock).mockImplementation(() => {
+                throw new Error('Database error')
+            })
+
+            const res = await request(app).get('/api/vehicles/1/profitability')
+
+            expect(res.status).toBe(500)
+            expect(res.body).toEqual({ error: 'Database error' })
         })
     })
 })

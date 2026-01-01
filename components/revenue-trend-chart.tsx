@@ -84,21 +84,6 @@ export function RevenueTrendChart({ data, netProfit, profitMargin }: RevenueTren
       </div>
 
       <div className="relative">
-        {/* Watermark */}
-        <div 
-          className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
-          style={{ 
-            transform: 'rotate(-45deg)',
-            opacity: 0.15,
-            fontSize: '48px',
-            fontWeight: 'bold',
-            color: '#64748b',
-            userSelect: 'none'
-          }}
-        >
-          UNDER CONSTRUCTION!
-        </div>
-        
         <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={dataWithProfit} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>

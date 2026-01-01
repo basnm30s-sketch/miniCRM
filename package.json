@@ -22,7 +22,8 @@
     "electron:build-linux": "npm run build:all && electron-builder --linux",
     "build:static": "next build",
     "test": "jest",
-    "prebuild": "node scripts/test-runner.js"
+    "prebuild": "node scripts/test-runner.js",
+    "demo:populate": "tsx scripts/populate-demo-data.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -139,6 +139,11 @@ This document lists all the automation test cases implemented in the project.
 | | `check references` | Fails if Vehicle is used in any Quote. | **Data Integrity:** Prevents deleting assets used in active quotes. |
 | | `return 409 generic error if FK fails but no refs found` | Returns 409 if FK fails but no refs found (rare case). | **Data Integrity:** Handling edge case in reference checking. |
 | | `handle general errors` | Verifies 500 response for general errors. | **Fleet Management:** Graceful error handling for DB failures. |
+| **GET /vehicles/:id/profitability** | `return profitability data for vehicle` | Verifies profitability data retrieval for a vehicle. | **Vehicle Finances:** Loading profitability data. |
+| | `return 404 if vehicle not found` | Verifies 404 if vehicle does not exist. | **Vehicle Finances:** Handling invalid vehicle IDs. |
+| | `verify profitability structure` | Verifies profitability response structure (currentMonth, lastMonth, allTimeRevenue, etc.). | **Vehicle Finances:** Ensuring correct data structure for frontend. |
+| | `verify month normalization (YYYY-MM format)` | Verifies all months are in YYYY-MM format. | **Vehicle Finances:** Ensuring consistent month formatting for chart display. |
+| | `handle errors` | Verifies 500 response on DB error. | **Vehicle Finances:** Graceful error handling for DB failures. |
 
 ## Module 9: Employees API
 **File:** `api/__tests__/employees.test.ts`
@@ -214,3 +219,66 @@ This document lists all the automation test cases implemented in the project.
 | **DOCX Renderer** | `Quote Blob` | Verifies Word generation for Quotes. | **Quote Export:** Downloading Quote as Word. |
 | | `Invoice Blob` | Verifies Word generation for Invoices. | **Invoice Export:** Downloading Invoice as Word. |
 | **PDF Renderer** | `ClientSidePDFRenderer is DOM-dependent and skipped` | Placeholder for PDF renderer (skipped in unit tests). | **Quote/Invoice Export:** PDF generation requires DOM (skipped). |
+
+## Module 14: Vehicle Transactions API
+**File:** `api/__tests__/vehicle-transactions.test.ts`
+
+| Test Group | Test Case | Description | Functional Explanation (Impact Area) |
+| :--- | :--- | :--- | :--- |
+| **GET /vehicle-transactions** | `return all transactions` | Verifies retrieval of all transactions. | **Vehicle Finances:** Loading transaction list. |
+| | `filter by vehicleId query parameter` | Verifies filtering by vehicleId. | **Vehicle Finances:** Filtering transactions by vehicle. |
+| | `filter by vehicleId and month query parameters` | Verifies filtering by vehicleId and month. | **Vehicle Finances:** Filtering transactions by vehicle and month. |
+| | `handle errors` | Verifies 500 response on DB error. | **Vehicle Finances:** Graceful error handling for DB failures. |
+| **GET /vehicle-transactions/:id** | `return transaction by id` | Verifies retrieval of single transaction. | **Vehicle Finances:** Loading specific transaction data. |
+| | `return 404 if transaction not found` | Verifies 404 if transaction not found. | **Vehicle Finances:** Handling invalid transaction IDs. |
+| | `handle errors` | Verifies 500 response on DB error. | **Vehicle Finances:** Graceful error handling for DB failures. |
+| **POST /vehicle-transactions** | `create a new transaction` | Verifies creation logic. | **Vehicle Finances:** Creating a new transaction. |
+| | `return 400 if vehicle does not exist` | Fails if vehicle does not exist. | **Vehicle Finances:** Data integrity for linked vehicle. |
+| | `return 400 if amount is not positive` | Fails if amount is not positive. | **Vehicle Finances:** Form validation enforcement. |
+| | `return 400 if date is in the future` | Fails if transaction date is in the future. | **Vehicle Finances:** Preventing future-dated transactions. |
+| | `return 400 if date is more than 12 months in the past` | Fails if transaction date is more than 12 months in the past. | **Vehicle Finances:** Limiting backdating to 12 months. |
+| | `return 400 if employee does not exist` | Fails if employee does not exist. | **Vehicle Finances:** Data integrity for linked employee. |
+| | `handle general errors` | Verifies 500 response for unexpected errors. | **Vehicle Finances:** Handling unexpected errors during creation. |
+| **PUT /vehicle-transactions/:id** | `update a transaction` | Verifies update logic. | **Vehicle Finances:** Saving changes to a transaction. |
+| | `return 404 if transaction not found` | Verifies 404 if updating non-existent transaction. | **Vehicle Finances:** Handling concurrent deletions/invalid IDs. |
+| | `return 400 for validation errors` | Verifies 400 response for validation errors. | **Vehicle Finances:** Form validation enforcement on update. |
+| | `handle general errors` | Verifies 500 response for general errors. | **Vehicle Finances:** Graceful error handling for DB failures. |
+| **DELETE /vehicle-transactions/:id** | `delete a transaction` | Verifies deletion logic. | **Vehicle Finances:** Removing a transaction. |
+| | `handle errors` | Verifies 500 response on DB error. | **Vehicle Finances:** Graceful error handling for DB failures. |
+
+## Module 15: Expense Categories API
+**File:** `api/__tests__/expense-categories.test.ts`
+
+| Test Group | Test Case | Description | Functional Explanation (Impact Area) |
+| :--- | :--- | :--- | :--- |
+| **GET /expense-categories** | `return all categories` | Verifies retrieval of all categories. | **Vehicle Finances:** Loading expense category list. |
+| | `handle errors` | Verifies 500 response on DB error. | **Vehicle Finances:** Graceful error handling for DB failures. |
+| **GET /expense-categories/:id** | `return category by id` | Verifies retrieval of single category. | **Vehicle Finances:** Loading specific category data. |
+| | `return 404 if category not found` | Verifies 404 if category not found. | **Vehicle Finances:** Handling invalid category IDs. |
+| | `handle errors` | Verifies 500 response on DB error. | **Vehicle Finances:** Graceful error handling for DB failures. |
+| **POST /expense-categories** | `create a new category` | Verifies creation logic. | **Vehicle Finances:** Creating a custom expense category. |
+| | `return 400 if name is required` | Fails if category name is missing. | **Vehicle Finances:** Form validation enforcement. |
+| | `return 400 for UNIQUE constraint violation` | Fails if category name already exists. | **Vehicle Finances:** Preventing duplicate category names. |
+| | `handle general errors` | Verifies 500 response for unexpected errors. | **Vehicle Finances:** Handling unexpected errors during creation. |
+| **PUT /expense-categories/:id** | `update a category` | Verifies update logic. | **Vehicle Finances:** Saving changes to a category. |
+| | `return 404 if category not found` | Verifies 404 if updating non-existent category. | **Vehicle Finances:** Handling concurrent deletions/invalid IDs. |
+| | `return 400 for UNIQUE constraint violation` | Fails if updated category name already exists. | **Vehicle Finances:** Preventing duplicate category names on update. |
+| | `handle general errors` | Verifies 500 response for general errors. | **Vehicle Finances:** Graceful error handling for DB failures. |
+| **DELETE /expense-categories/:id** | `delete a category` | Verifies deletion logic. | **Vehicle Finances:** Removing a category. |
+| | `return 409 if category is referenced` | Fails if category is used in transactions. | **Data Integrity:** Prevents deleting categories with transaction history. |
+| | `handle general errors` | Verifies 500 response for general errors. | **Vehicle Finances:** Graceful error handling for DB failures. |
+
+## Module 16: Vehicle Finances Dashboard Metrics
+**File:** `api/__tests__/vehicle-finances.test.ts`
+
+| Test Group | Test Case | Description | Functional Explanation (Impact Area) |
+| :--- | :--- | :--- | :--- |
+| **getDashboardMetrics()** | `return dashboard metrics structure` | Verifies dashboard metrics structure (overall, timeBased, vehicleBased, customerBased, categoryBased, operational). | **Vehicle Finances Dashboard:** Ensuring correct data structure for frontend. |
+| | `calculate overall metrics correctly` | Verifies calculation of total revenue, expenses, net profit, and profit margin. | **Vehicle Finances Dashboard:** Displaying overall financial summary. |
+| | `calculate vehicle-based metrics` | Verifies calculation of vehicle metrics (total vehicles, revenue, expenses, profit, top/bottom performers). | **Vehicle Finances Dashboard:** Displaying vehicle performance metrics. |
+| | `calculate customer-based metrics` | Verifies calculation of customer metrics (total unique customers, top customers by revenue, average revenue per customer). | **Vehicle Finances Dashboard:** Displaying customer performance metrics. |
+| | `calculate category-based metrics` | Verifies calculation of category metrics (revenue by category, expenses by category, top expense category). | **Vehicle Finances Dashboard:** Displaying category breakdown metrics. |
+| | `calculate operational metrics` | Verifies calculation of operational metrics (revenue per vehicle per month, expense ratio, most active vehicle, avg transactions per vehicle). | **Vehicle Finances Dashboard:** Displaying operational efficiency metrics. |
+| | `handle empty data gracefully` | Verifies metrics return zero values when no data exists. | **Vehicle Finances Dashboard:** Handling empty state gracefully. |
+| | `calculate time-based metrics` | Verifies calculation of time-based metrics (current month, last month, monthly trend for 12 months). | **Vehicle Finances Dashboard:** Displaying time-based trends. |
+| | `handle errors gracefully` | Verifies 500 response on DB error. | **Vehicle Finances Dashboard:** Graceful error handling for DB failures. |

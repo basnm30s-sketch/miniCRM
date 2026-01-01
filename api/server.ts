@@ -20,6 +20,8 @@ import invoicesRouter from './routes/invoices'
 import adminRouter from './routes/admin'
 import uploadsRouter from './routes/uploads'
 import payslipsRouter from './routes/payslips'
+import vehicleTransactionsRouter from './routes/vehicle-transactions'
+import expenseCategoriesRouter from './routes/expense-categories'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -76,7 +78,11 @@ app.use('/api/invoices', invoicesRouter)
 app.use('/api/admin', adminRouter)
 app.use('/api/uploads', uploadsRouter)
 app.use('/api/payslips', payslipsRouter)
+app.use('/api/vehicle-transactions', vehicleTransactionsRouter)
+app.use('/api/expense-categories', expenseCategoriesRouter)
 console.log('Payslips routes registered at /api/payslips')
+console.log('Vehicle transactions routes registered at /api/vehicle-transactions')
+console.log('Expense categories routes registered at /api/expense-categories')
 
 // Health check endpoint
 app.get('/api/health', (req: Request, res: Response) => {

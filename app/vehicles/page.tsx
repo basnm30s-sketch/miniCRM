@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Plus, Edit2, Trash2, Car, AlertCircle } from 'lucide-react'
-import { getAllVehicles, saveVehicle, deleteVehicle, generateId } from '@/lib/storage'
+import { Plus, Edit2, Trash2, Car, AlertCircle, TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
+import { getAllVehicles, saveVehicle, deleteVehicle, generateId, getVehicleProfitability, getAllVehicleTransactions, saveVehicleTransaction } from '@/lib/storage'
 import type { Vehicle, VehicleFuelType, VehicleStatus } from '@/lib/types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import Link from 'next/link'
 
 // Form field state
 interface VehicleForm {
@@ -75,6 +76,7 @@ export default function VehiclesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<VehicleForm>(emptyForm)
   const [error, setError] = useState<string | null>(null)
+  const [profitabilityData, setProfitabilityData] = useState<Record<string, any>>({})
   const [expandedSections, setExpandedSections] = useState({
     identification: true,
     financial: false,
@@ -86,6 +88,12 @@ export default function VehiclesPage() {
     loadVehicles()
   }, [])
 
+  useEffect(() => {
+    if (vehicles.length > 0) {
+      loadProfitabilityData()
+    }
+  }, [vehicles])
+
   const loadVehicles = async () => {
     try {
       const allVehicles = await getAllVehicles()
@@ -95,6 +103,19 @@ export default function VehiclesPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadProfitabilityData = async () => {
+    const data: Record<string, any> = {}
+    for (const vehicle of vehicles) {
+      try {
+        const profitability = await getVehicleProfitability(vehicle.id)
+        data[vehicle.id] = profitability
+      } catch (error) {
+        console.error(`Error loading profitability for vehicle ${vehicle.id}:`, error)
+      }
+    }
+    setProfitabilityData(data)
   }
 
   if (loading) {
@@ -156,8 +177,9 @@ export default function VehiclesPage() {
       return
     }
 
+    const vehicleId = editingId || generateId()
     const vehicle: Vehicle = {
-      id: editingId || generateId(),
+      id: vehicleId,
       vehicleNumber: form.vehicleNumber.trim(),
       vehicleType: form.vehicleType.trim() || undefined,
       make: form.make.trim() || undefined,
@@ -184,6 +206,43 @@ export default function VehiclesPage() {
 
     try {
       await saveVehicle(vehicle)
+      
+      // Optional: Auto-create expense entry for purchase price
+      if (vehicle.purchasePrice && vehicle.purchasePrice > 0 && vehicle.purchaseDate) {
+        try {
+          // Check if expense entry already exists for this purchase
+          const existingTransactions = await getAllVehicleTransactions(vehicleId)
+          const purchaseExpenseExists = existingTransactions.some(
+            t => t.transactionType === 'expense' && 
+                 t.category === 'Purchase' && 
+                 Math.abs(t.amount - vehicle.purchasePrice) < 0.01
+          )
+          
+          if (!purchaseExpenseExists) {
+            // Ask user if they want to create expense entry
+            const shouldCreate = confirm(
+              `Would you like to create an expense entry for the purchase price of ${vehicle.purchasePrice.toFixed(2)} AED?`
+            )
+            
+            if (shouldCreate) {
+              await saveVehicleTransaction({
+                id: generateId(),
+                vehicleId: vehicleId,
+                transactionType: 'expense',
+                category: 'Purchase',
+                amount: vehicle.purchasePrice,
+                date: vehicle.purchaseDate,
+                month: vehicle.purchaseDate.substring(0, 7),
+                description: `Vehicle purchase: ${vehicle.vehicleNumber}`,
+              })
+            }
+          }
+        } catch (err) {
+          // Don't fail vehicle save if expense creation fails
+          console.error('Failed to create purchase expense entry:', err)
+        }
+      }
+      
       await loadVehicles()
       closeModal()
     } catch (err: any) {
@@ -253,6 +312,7 @@ export default function VehiclesPage() {
                   <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Base Price (AED)</TableHead>
+                  <TableHead className="text-right">Current Month Profit</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -272,8 +332,36 @@ export default function VehiclesPage() {
                       <TableCell className="text-right text-slate-900 font-medium">
                         {vehicle.basePrice ? vehicle.basePrice.toFixed(2) : '—'}
                       </TableCell>
+                      <TableCell className="text-right">
+                        {profitabilityData[vehicle.id]?.currentMonth ? (
+                          <div className="flex items-center justify-end gap-1">
+                            {profitabilityData[vehicle.id].currentMonth.profit >= 0 ? (
+                              <>
+                                <TrendingUp className="w-4 h-4 text-green-600" />
+                                <span className="text-green-600 font-medium">
+                                  {profitabilityData[vehicle.id].currentMonth.profit.toFixed(2)} AED
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <TrendingDown className="w-4 h-4 text-red-600" />
+                                <span className="text-red-600 font-medium">
+                                  {Math.abs(profitabilityData[vehicle.id].currentMonth.profit).toFixed(2)} AED
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-center">
                         <div className="flex gap-2 justify-center">
+                          <Link href={`/vehicle-finances/${vehicle.id}`}>
+                            <button className="text-green-600 hover:text-green-800" title="View Profitability">
+                              <DollarSign className="w-4 h-4" />
+                            </button>
+                          </Link>
                           <button onClick={() => handleEdit(vehicle)} className="text-blue-600 hover:text-blue-800">
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -286,7 +374,7 @@ export default function VehiclesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-slate-500 py-8">
+                    <TableCell colSpan={8} className="text-center text-slate-500 py-8">
                       No vehicles in fleet yet
                     </TableCell>
                   </TableRow>

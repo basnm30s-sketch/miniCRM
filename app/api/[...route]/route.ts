@@ -14,6 +14,8 @@ import {
   invoicesAdapter,
   payslipsAdapter,
   adminAdapter,
+  vehicleTransactionsAdapter,
+  expenseCategoriesAdapter,
   formatReferenceError,
 } from '../../../api/adapters/sqlite'
 import { getDatabase } from '../../../lib/database'
@@ -47,6 +49,8 @@ const routeHandlers: Record<string, any> = {
   quotes: quotesAdapter,
   invoices: invoicesAdapter,
   payslips: payslipsAdapter,
+  'vehicle-transactions': vehicleTransactionsAdapter,
+  'expense-categories': expenseCategoriesAdapter,
 }
 
 export async function GET(
@@ -55,7 +59,13 @@ export async function GET(
 ) {
   try {
     const { route: routeParam } = await params
-    const route = routeParam || []
+    // Filter out empty strings (from trailing slashes)
+    const route = (routeParam || []).filter(segment => segment !== '')
+    
+    // Debug logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('API Route:', route, 'URL:', request.url)
+    }
     
     // Health check
     if (route.length === 0 || (route.length === 1 && route[0] === 'health')) {
@@ -80,6 +90,112 @@ export async function GET(
       } catch (error: any) {
         console.error('Error getting payslips by month:', error)
         return NextResponse.json([])
+      }
+    }
+    
+    // Special route: /api/vehicles/:id/profitability
+    if (route[0] === 'vehicles' && route[1] && route[2] === 'profitability') {
+      try {
+        const vehicle = vehiclesAdapter.getById(route[1])
+        if (!vehicle) {
+          return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 })
+        }
+        const profitability = vehicleTransactionsAdapter.getProfitabilityByVehicle(route[1])
+        return NextResponse.json(profitability)
+      } catch (error: any) {
+        return handleError(error)
+      }
+    }
+    
+    // Special route: /api/vehicle-finances/dashboard
+    if (route[0] === 'vehicle-finances' && route[1] === 'dashboard') {
+      try {
+        const dashboardMetrics = vehicleTransactionsAdapter.getDashboardMetrics()
+        return NextResponse.json(dashboardMetrics)
+      } catch (error: any) {
+        console.error('Error getting dashboard metrics:', error)
+        // Return empty dashboard structure instead of error
+        return NextResponse.json({
+          overall: {
+            totalRevenue: 0,
+            totalExpenses: 0,
+            netProfit: 0,
+            profitMargin: 0,
+            avgRevenuePerVehicle: 0,
+            avgProfitPerVehicle: 0,
+            totalTransactions: 0,
+            avgTransactionValue: 0,
+          },
+          timeBased: {
+            currentMonth: { revenue: 0, expenses: 0, profit: 0 },
+            lastMonth: { revenue: 0, expenses: 0, profit: 0 },
+            momGrowth: { revenue: 0, expenses: 0, profit: 0 },
+            ytd: { revenue: 0, expenses: 0, profit: 0 },
+            monthlyTrend: [],
+          },
+          vehicleBased: {
+            totalActive: 0,
+            profitable: 0,
+            lossMaking: 0,
+            noData: 0,
+            topByRevenue: [],
+            topByProfit: [],
+            bottomByProfit: [],
+          },
+          customerBased: {
+            totalUnique: 0,
+            topByRevenue: [],
+            avgRevenuePerCustomer: 0,
+          },
+          categoryBased: {
+            revenueByCategory: {},
+            expensesByCategory: {},
+            topExpenseCategory: 'N/A',
+          },
+          operational: {
+            revenuePerVehiclePerMonth: 0,
+            expenseRatio: 0,
+            mostActiveVehicle: { vehicleId: '', vehicleNumber: 'N/A', transactionCount: 0 },
+            avgTransactionsPerVehicle: 0,
+          },
+        })
+      }
+    }
+    
+    // Special route: /api/vehicle-transactions with query params or ID
+    if (route[0] === 'vehicle-transactions') {
+      const id = route[1]
+      
+      // If there's an ID, handle it as a single transaction request
+      if (id) {
+        try {
+          const transaction = vehicleTransactionsAdapter.getById(id)
+          if (!transaction) {
+            return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+          }
+          return NextResponse.json(transaction)
+        } catch (error: any) {
+          return handleError(error)
+        }
+      }
+      
+      // Otherwise, handle query params for filtering
+      const searchParams = request.nextUrl.searchParams
+      const vehicleId = searchParams.get('vehicleId')
+      const month = searchParams.get('month')
+      
+      try {
+        let transactions
+        if (vehicleId && month) {
+          transactions = vehicleTransactionsAdapter.getByVehicleIdAndMonth(vehicleId, month)
+        } else if (vehicleId) {
+          transactions = vehicleTransactionsAdapter.getByVehicleId(vehicleId)
+        } else {
+          transactions = vehicleTransactionsAdapter.getAll()
+        }
+        return NextResponse.json(transactions || [])
+      } catch (error: any) {
+        return handleError(error)
       }
     }
     
@@ -134,6 +250,26 @@ export async function POST(
       return NextResponse.json(settings, { status: 201 })
     }
     
+    // Special route: /api/vehicle-transactions
+    if (route[0] === 'vehicle-transactions') {
+      try {
+        const transaction = vehicleTransactionsAdapter.create(body)
+        return NextResponse.json(transaction, { status: 201 })
+      } catch (error: any) {
+        return handleError(error)
+      }
+    }
+    
+    // Special route: /api/expense-categories
+    if (route[0] === 'expense-categories') {
+      try {
+        const category = expenseCategoriesAdapter.create(body)
+        return NextResponse.json(category, { status: 201 })
+      } catch (error: any) {
+        return handleError(error)
+      }
+    }
+    
     // Resource routes: /api/{resource}
     const resource = route[0]
     
@@ -181,6 +317,32 @@ export async function PUT(
       return NextResponse.json(settings)
     }
     
+    // Special route: /api/vehicle-transactions/:id
+    if (route[0] === 'vehicle-transactions' && route[1]) {
+      try {
+        const transaction = vehicleTransactionsAdapter.update(route[1], body)
+        if (!transaction) {
+          return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+        }
+        return NextResponse.json(transaction)
+      } catch (error: any) {
+        return handleError(error)
+      }
+    }
+    
+    // Special route: /api/expense-categories/:id
+    if (route[0] === 'expense-categories' && route[1]) {
+      try {
+        const category = expenseCategoriesAdapter.update(route[1], body)
+        if (!category) {
+          return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+        }
+        return NextResponse.json(category)
+      } catch (error: any) {
+        return handleError(error)
+      }
+    }
+    
     // Resource routes: /api/{resource}/{id}
     const resource = route[0]
     const id = route[1]
@@ -209,6 +371,26 @@ export async function DELETE(
   try {
     const { route: routeParam } = await params
     const route = routeParam || []
+    
+    // Special route: /api/vehicle-transactions/:id
+    if (route[0] === 'vehicle-transactions' && route[1]) {
+      try {
+        vehicleTransactionsAdapter.delete(route[1])
+        return new NextResponse(null, { status: 204 })
+      } catch (error: any) {
+        return handleError(error)
+      }
+    }
+    
+    // Special route: /api/expense-categories/:id
+    if (route[0] === 'expense-categories' && route[1]) {
+      try {
+        expenseCategoriesAdapter.delete(route[1])
+        return new NextResponse(null, { status: 204 })
+      } catch (error: any) {
+        return handleError(error)
+      }
+    }
     
     // Resource routes: /api/{resource}/{id}
     const resource = route[0]

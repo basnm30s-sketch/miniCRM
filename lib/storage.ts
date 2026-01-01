@@ -345,3 +345,45 @@ export async function initializeSampleData(): Promise<void> {
     }
   }
 }
+
+// --- Vehicle Transactions ---
+export async function getAllVehicleTransactions(vehicleId?: string, month?: string): Promise<any[]> {
+  return apiClient.getAllVehicleTransactions(vehicleId, month)
+}
+
+export async function getVehicleTransactionById(id: string): Promise<any | null> {
+  return apiClient.getVehicleTransactionById(id)
+}
+
+export async function saveVehicleTransaction(transaction: any): Promise<void> {
+  await apiClient.saveVehicleTransaction(transaction)
+}
+
+export async function deleteVehicleTransaction(id: string): Promise<void> {
+  await apiClient.deleteVehicleTransaction(id)
+}
+
+export async function getVehicleProfitability(vehicleId: string): Promise<any> {
+  return apiClient.getVehicleProfitability(vehicleId)
+}
+
+export async function getVehicleFinanceDashboard(): Promise<any> {
+  return apiClient.getVehicleFinanceDashboard()
+}
+
+// --- Expense Categories ---
+export async function getAllExpenseCategories(): Promise<any[]> {
+  return apiClient.getAllExpenseCategories()
+}
+
+export async function getExpenseCategoryById(id: string): Promise<any | null> {
+  return apiClient.getExpenseCategoryById(id)
+}
+
+export async function saveExpenseCategory(category: any): Promise<void> {
+  await apiClient.saveExpenseCategory(category)
+}
+
+export async function deleteExpenseCategory(id: string): Promise<void> {
+  await apiClient.deleteExpenseCategory(id)
+}

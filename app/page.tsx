@@ -31,6 +31,8 @@ import {
   getAllPayslips,
   getAllCustomers,
   getAdminSettings,
+  getAllVehicleTransactions,
+  getAllVehicles,
 } from '@/lib/storage'
 import type { Quote, Payslip, AdminSettings, Customer } from '@/lib/types'
 import type { Invoice } from '@/lib/storage'
@@ -132,13 +134,15 @@ export default function Home() {
   useEffect(() => {
     const loadMetrics = async () => {
       try {
-        const [quotes, invoices, employees, payslips, customers, settings] = await Promise.all([
+        const [quotes, invoices, employees, payslips, customers, settings, vehicleTransactions, vehicles] = await Promise.all([
           getAllQuotes(),
           getAllInvoices(),
           getAllEmployees(),
           getAllPayslips(),
           getAllCustomers(),
           getAdminSettings(),
+          getAllVehicleTransactions(),
+          getAllVehicles(),
         ])
 
         await loadSettings()
@@ -195,13 +199,25 @@ export default function Home() {
         const totalInvoicesAllTime = invoices.length
 
         // Calculate total revenue from all invoices
-        const totalRevenue = invoices.reduce((sum: number, invoice: Invoice) => {
+        const invoiceRevenue = invoices.reduce((sum: number, invoice: Invoice) => {
           return sum + (invoice.total || 0)
         }, 0)
 
-        // Calculate total expenses (placeholder - will be from vehicle expenses module later)
-        // Use 60% of revenue to ensure positive profit margin
-        const totalExpenses = totalRevenue > 0 ? Math.round(totalRevenue * 0.6) : 0
+        // Calculate vehicle revenue and expenses from transactions
+        const vehicleRevenue = (vehicleTransactions || [])
+          .filter(t => t.transactionType === 'revenue')
+          .reduce((sum, t) => sum + (t.amount || 0), 0)
+        
+        const vehicleExpenses = (vehicleTransactions || [])
+          .filter(t => t.transactionType === 'expense')
+          .reduce((sum, t) => sum + (t.amount || 0), 0)
+
+        // Total revenue = invoice revenue + vehicle revenue
+        const totalRevenue = invoiceRevenue + vehicleRevenue
+        
+        // Total expenses = vehicle expenses (invoices are revenue, not expenses)
+        const totalExpenses = vehicleExpenses
+        
         const netProfit = totalRevenue - totalExpenses
 
         // Calculate total quote value
@@ -587,10 +603,10 @@ export default function Home() {
                     : '0%',
                 },
               ]}
+              href="/vehicle-finances"
               borderColor="purple"
               iconBgColor="bg-purple-50"
               iconColor="text-purple-600"
-              showWatermark={true}
             />
           </div>
 
