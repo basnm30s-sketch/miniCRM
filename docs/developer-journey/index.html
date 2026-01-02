@@ -199,6 +199,177 @@
         .delete {
             color: #f85149;
         }
+
+        /* Data Flow Tutorial Styles */
+        .step-container {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .step-container::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--accent-color), #238636);
+        }
+
+        .step-card {
+            background: var(--card-bg);
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            margin: 1rem 0;
+            padding: 1.5rem;
+            position: relative;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .step-card::before {
+            content: attr(data-step);
+            position: absolute;
+            left: -40px;
+            top: 1.5rem;
+            width: 30px;
+            height: 30px;
+            background: var(--accent-color);
+            color: black;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .step-card:hover {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px rgba(88, 166, 255, 0.2);
+        }
+
+        .step-card.active {
+            border-color: var(--accent-color);
+        }
+
+        .step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .step-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .step-layer {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            background: rgba(88, 166, 255, 0.2);
+            color: var(--accent-color);
+        }
+
+        .step-file {
+            font-size: 0.85rem;
+            color: #8b949e;
+            margin: 0.5rem 0;
+        }
+
+        .step-body {
+            display: none;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #30363d;
+        }
+
+        .step-card.active .step-body {
+            display: block;
+        }
+
+        .step-toggle {
+            font-size: 1.2rem;
+            transition: transform 0.2s;
+        }
+
+        .step-card.active .step-toggle {
+            transform: rotate(90deg);
+        }
+
+        .takeaway-box {
+            background: rgba(35, 134, 54, 0.15);
+            border-left: 4px solid #238636;
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin-top: 1.5rem;
+        }
+
+        .takeaway-box h4 {
+            margin: 0 0 0.5rem 0;
+            color: #238636;
+        }
+
+        /* Flow Tile Selector Styles */
+        .flow-tiles {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .flow-tile {
+            background: var(--card-bg);
+            border: 2px solid #30363d;
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .flow-tile:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-2px);
+        }
+
+        .flow-tile.active {
+            border-color: var(--accent-color);
+            background: rgba(88, 166, 255, 0.1);
+        }
+
+        .flow-tile-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .flow-tile-title {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .flow-tile-pattern {
+            font-size: 0.7rem;
+            color: #8b949e;
+            margin-top: 0.25rem;
+        }
+
+        .flow-content {
+            margin-top: 2rem;
+        }
+
+        .flow-description {
+            background: rgba(88, 166, 255, 0.1);
+            border-left: 4px solid var(--accent-color);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 0 8px 8px 0;
+        }
     </style>
 </head>
 
@@ -214,6 +385,7 @@
         <a href="#components">Frontend Components</a>
         <a href="#journey">Developer Journey</a>
         <h2>Appendices</h2>
+        <a href="data-flows.html">🔀 Data Flow Tutorial</a>
         <a href="glossary.html">📖 Glossary</a>
         <a href="exercises.html">🏋️ Exercises</a>
     </nav>
@@ -577,7 +749,8 @@
         </div>
 
         <hr style="margin: 3rem 0; border-color: #30363d;">
-        <p>📖 <a href="glossary.html">Glossary</a> | 🏋️ <a href="exercises.html">Exercises</a></p>
+        <p>📖 <a href="glossary.html">Glossary</a> | 🏋️ <a href="exercises.html">Exercises</a> | 🔀 <a
+                href="data-flows.html">Data Flow Tutorial</a></p>
     </main>
 
     <script>

@@ -27,7 +27,7 @@ function getDatabasePath(): string {
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true })
   }
-  return path.join(dbDir, 'imanage.db')
+  return path.join(dbDir, process.env.DB_FILENAME || 'imanage.db')
 }
 
 /**

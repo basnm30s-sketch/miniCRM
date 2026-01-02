@@ -22,6 +22,8 @@
     "electron:build-linux": "npm run build:all && electron-builder --linux",
     "build:static": "next build",
     "test": "jest",
+    "test:e2e": "tsx scripts/test-e2e.ts",
+    "test:e2e:ui": "npx playwright test --ui",
     "prebuild": "node scripts/test-runner.js",
     "demo:populate": "tsx scripts/populate-demo-data.ts"
   },
@@ -86,6 +88,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",

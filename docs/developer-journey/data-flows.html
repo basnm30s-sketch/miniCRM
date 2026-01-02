@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iManage: Data Flow Tutorial</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --accent-color: #58a6ff;
+            --code-bg: #161b22;
+            --card-bg: #21262d;
+            --sidebar-bg: #161b22;
+            --success: #238636;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid #30363d;
+            padding: 1.5rem;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            font-size: 1.1rem;
+            color: #8b949e;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .sidebar a {
+            display: block;
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 0.4rem 0;
+            font-size: 0.95rem;
+        }
+
+        .sidebar a:hover,
+        .sidebar a.active {
+            color: var(--accent-color);
+        }
+
+        .sidebar .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-bottom: 2rem;
+        }
+
+        /* Main Content */
+        .main {
+            margin-left: 280px;
+            padding: 2rem 3rem;
+            max-width: 1100px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 0.5rem;
+        }
+
+        code {
+            background: rgba(110, 118, 129, 0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            font-size: 85%;
+        }
+
+        pre {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+
+        .diagram-container {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+
+        /* Flow Tiles */
+        .flow-tiles {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .flow-tile {
+            background: var(--card-bg);
+            border: 2px solid #30363d;
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .flow-tile:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .flow-tile.active {
+            border-color: var(--accent-color);
+            background: rgba(88, 166, 255, 0.15);
+        }
+
+        .flow-tile-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .flow-tile-title {
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .flow-tile-pattern {
+            font-size: 0.7rem;
+            color: #8b949e;
+            margin-top: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Flow Content */
+        .flow-content {
+            margin-top: 2rem;
+        }
+
+        .flow-description {
+            background: rgba(88, 166, 255, 0.1);
+            border-left: 4px solid var(--accent-color);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 0 8px 8px 0;
+        }
+
+        /* Step Cards */
+        .step-container {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .step-container::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--accent-color), var(--success));
+        }
+
+        .step-card {
+            background: var(--card-bg);
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            margin: 1rem 0;
+            padding: 1.5rem;
+            position: relative;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .step-card::before {
+            content: attr(data-step);
+            position: absolute;
+            left: -40px;
+            top: 1.5rem;
+            width: 30px;
+            height: 30px;
+            background: var(--accent-color);
+            color: black;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .step-card:hover {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px rgba(88, 166, 255, 0.2);
+        }
+
+        .step-card.active {
+            border-color: var(--accent-color);
+        }
+
+        .step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .step-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .step-layer {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            background: rgba(88, 166, 255, 0.2);
+            color: var(--accent-color);
+        }
+
+        .step-file {
+            font-size: 0.85rem;
+            color: #8b949e;
+            margin: 0.5rem 0;
+        }
+
+        .step-body {
+            display: none;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #30363d;
+        }
+
+        .step-card.active .step-body {
+            display: block;
+        }
+
+        .step-toggle {
+            font-size: 1.2rem;
+            transition: transform 0.2s;
+        }
+
+        .step-card.active .step-toggle {
+            transform: rotate(90deg);
+        }
+
+        /* Takeaway Box */
+        .takeaway-box {
+            background: rgba(35, 134, 54, 0.15);
+            border-left: 4px solid var(--success);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin-top: 2rem;
+        }
+
+        .takeaway-box h4 {
+            margin: 0 0 0.5rem 0;
+            color: var(--success);
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="sidebar">
+        <div class="logo">📘 iManage Docs</div>
+        <h2>Navigation</h2>
+        <a href="index.html">← Back to Docs</a>
+        <h2>Data Flows</h2>
+        <a href="#" class="flow-link active" data-flow="create">➕ Create Customer</a>
+        <a href="#" class="flow-link" data-flow="dashboard">📊 Dashboard Stats</a>
+        <a href="#" class="flow-link" data-flow="pdf">📄 Generate PDF</a>
+        <a href="#" class="flow-link" data-flow="delete">🗑️ Delete (Blocked)</a>
+        <a href="#" class="flow-link" data-flow="update">✏️ Edit Vehicle</a>
+        <a href="#" class="flow-link" data-flow="upload">📁 Upload Logo</a>
+        <h2>Appendices</h2>
+        <a href="glossary.html">📖 Glossary</a>
+        <a href="exercises.html">🏋️ Exercises</a>
+    </nav>
+
+    <main class="main">
+        <h1>🔀 Data Flow Tutorial</h1>
+        <p>Select an example from the tiles or sidebar to see how data flows through the application. Each demonstrates
+            a different pattern.</p>
+
+        <div class="flow-tiles">
+            <div class="flow-tile active" data-flow="create">
+                <div class="flow-tile-icon">➕</div>
+                <div class="flow-tile-title">Create Customer</div>
+                <div class="flow-tile-pattern">CREATE</div>
+            </div>
+            <div class="flow-tile" data-flow="dashboard">
+                <div class="flow-tile-icon">📊</div>
+                <div class="flow-tile-title">Dashboard Stats</div>
+                <div class="flow-tile-pattern">READ + AGGREGATE</div>
+            </div>
+            <div class="flow-tile" data-flow="pdf">
+                <div class="flow-tile-icon">📄</div>
+                <div class="flow-tile-title">Generate PDF</div>
+                <div class="flow-tile-pattern">TRANSFORM</div>
+            </div>
+            <div class="flow-tile" data-flow="delete">
+                <div class="flow-tile-icon">🗑️</div>
+                <div class="flow-tile-title">Delete (Blocked)</div>
+                <div class="flow-tile-pattern">DELETE + FK CHECK</div>
+            </div>
+            <div class="flow-tile" data-flow="update">
+                <div class="flow-tile-icon">✏️</div>
+                <div class="flow-tile-title">Edit Vehicle</div>
+                <div class="flow-tile-pattern">UPDATE</div>
+            </div>
+            <div class="flow-tile" data-flow="upload">
+                <div class="flow-tile-icon">📁</div>
+                <div class="flow-tile-title">Upload Logo</div>
+                <div class="flow-tile-pattern">FILE UPLOAD</div>
+            </div>
+        </div>
+
+        <div id="flowContent" class="flow-content">
+            <!-- Dynamic content injected by JavaScript -->
+        </div>
+
+        <div class="takeaway-box">
+            <h4>🎯 Key Takeaways</h4>
+            <ul>
+                <li><strong>Separation of Concerns:</strong> Each layer has ONE job.</li>
+                <li><strong>Only the Adapter touches SQL.</strong> This makes switching databases easier.</li>
+                <li><strong>Errors bubble up.</strong> try/catch at every layer controls what happens if things break.
+                </li>
+                <li><strong>Data transforms at each boundary.</strong> JSON → Request → SQL → Response → State.</li>
+            </ul>
+        </div>
+    </main>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+
+        // ========== FLOW DATA ==========
+        const flows = {
+            create: {
+                title: 'Create Customer',
+                description: 'The classic CREATE operation. User fills a form, data travels through all layers to the database and back.',
+                diagram: `sequenceDiagram
+    participant U as 🧑 User
+    participant UI as 📱 React Form
+    participant AC as 🔗 API Client
+    participant RT as 🛣️ Route Handler
+    participant AD as 🗄️ Adapter
+    participant DB as 💾 SQLite
+    U->>UI: Fills form, clicks Save
+    UI->>AC: saveCustomer(data)
+    AC->>RT: POST /api/customers
+    RT->>AD: customersAdapter.create()
+    AD->>DB: INSERT INTO customers...
+    DB-->>AD: Row inserted
+    AD-->>RT: Return new customer
+    RT-->>AC: 201 Created + JSON
+    AC-->>UI: Promise resolves
+    UI-->>U: Toast: "Customer Saved"`,
+                steps: [
+                    {
+                        title: 'User Fills the Form', layer: 'UI Layer', file: 'app/customers/page.tsx', content: `<p>React captures each keystroke into <strong>state variables</strong>:</p><pre><code>const [newName, setNewName] = useState('')
+const [newEmail, setNewEmail] = useState('')
+
+&lt;input value={newName} onChange={(e) => setNewName(e.target.value)} /&gt;</code></pre>` },
+                    {
+                        title: 'Submit Triggers API Call', layer: 'Frontend → Network', file: 'lib/api-client.ts', content: `<p>The <code>saveCustomer()</code> function uses <code>fetch()</code>:</p><pre><code>await apiRequest('/customers', {
+  method: 'POST',
+  body: JSON.stringify(customer),
+})</code></pre>` },
+                    {
+                        title: 'Express Route Receives Request', layer: 'Backend Entry', file: 'api/routes/customers.ts', content: `<p>Express parses JSON and delegates to the adapter:</p><pre><code>router.post('/', (req, res) => {
+  const customer = customersAdapter.create(req.body)
+  res.status(201).json(customer)
+})</code></pre>` },
+                    {
+                        title: 'Adapter Executes SQL', layer: 'Data Access Layer', file: 'api/adapters/sqlite.ts', content: `<p>Only the adapter speaks SQL:</p><pre><code>create: (data) => {
+  db.prepare('INSERT INTO customers...').run(data)
+  return customersAdapter.getById(data.id)
+}</code></pre>` },
+                    {
+                        title: 'Database Stores Data', layer: 'Storage', file: 'data/imanage.db', content: `<p>SQLite writes the row to disk:</p><pre><code>CREATE TABLE customers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT, phone TEXT
+)</code></pre>` },
+                    { title: 'Response Bubbles Back', layer: 'All Layers', file: '(reverse journey)', content: `<p>Data flows back: Adapter → Route → API Client → React → Toast notification.</p>` }
+                ]
+            },
+            dashboard: {
+                title: 'Dashboard Stats Loading',
+                description: 'A READ operation that aggregates data from multiple sources on page load.',
+                diagram: `sequenceDiagram
+    participant U as 🧑 User
+    participant UI as 📱 Dashboard
+    participant LS as 💾 localStorage
+    U->>UI: Opens Dashboard page
+    UI->>LS: JSON.parse(localStorage.invoices)
+    LS-->>UI: Invoices array
+    UI->>LS: JSON.parse(localStorage.rentals)
+    LS-->>UI: Rentals array
+    UI->>UI: Calculate totals
+    UI-->>U: Display stat cards`,
+                steps: [
+                    {
+                        title: 'Component Mounts', layer: 'UI Layer', file: 'components/dashboard.tsx', content: `<p>React's <code>useEffect</code> runs on mount:</p><pre><code>useEffect(() => {
+  const invoices = JSON.parse(localStorage.getItem("invoices") || "[]")
+  const rentals = JSON.parse(localStorage.getItem("rentals") || "[]")
+  // ... calculate stats
+}, [])</code></pre>` },
+                    {
+                        title: 'localStorage Accessed', layer: 'Browser Storage', file: '(browser)', content: `<p>Data is read from the browser's localStorage—no network request needed!</p><pre><code>localStorage.getItem("invoices")
+localStorage.getItem("rentals")
+localStorage.getItem("monthlyBills")</code></pre>` },
+                    {
+                        title: 'Aggregation Logic', layer: 'UI Layer', file: 'components/dashboard.tsx', content: `<p>JavaScript reduces arrays to totals:</p><pre><code>const totalRevenue = invoices.reduce(
+  (sum, inv) => sum + (inv.amount || 0), 0
+)
+const activeRentals = rentals.filter(
+  r => r.status === "active"
+).length</code></pre>` },
+                    {
+                        title: 'State Updated, UI Renders', layer: 'UI Layer', file: 'components/dashboard.tsx', content: `<p>React re-renders with the new stats:</p><pre><code>setStats({
+  totalInvoices: invoices.length,
+  totalRevenue,
+  activeRentals,
+  monthlyRevenue
+})</code></pre>` }
+                ]
+            },
+            pdf: {
+                title: 'Generate Invoice PDF',
+                description: 'A TRANSFORM operation: data flows through HTML template → Canvas → PDF Blob → Download.',
+                diagram: `sequenceDiagram
+    participant U as 🧑 User
+    participant UI as 📱 Invoice Page
+    participant PR as 📄 PDF Renderer
+    participant HC as 🎨 html2canvas
+    participant JP as 📑 jsPDF
+    U->>UI: Clicks "Download PDF"
+    UI->>PR: pdfRenderer.renderInvoiceToPdf()
+    PR->>PR: Build HTML from template
+    PR->>HC: html2canvas(container)
+    HC-->>PR: Canvas image
+    PR->>JP: new jsPDF()
+    PR->>JP: pdf.addImage(canvas)
+    JP-->>PR: PDF Blob
+    PR->>U: Trigger download`,
+                steps: [
+                    {
+                        title: 'User Clicks Download', layer: 'UI Layer', file: 'app/invoices/page.tsx', content: `<p>Button triggers the PDF generation:</p><pre><code>const handleDownload = async () => {
+  const blob = await pdfRenderer.renderInvoiceToPdf(invoice, settings)
+  pdfRenderer.downloadPdf(blob, "invoice.pdf")
+}</code></pre>` },
+                    {
+                        title: 'Build HTML Template', layer: 'Transform Layer', file: 'lib/pdf.ts', content: `<p>A hidden HTML container is populated with invoice data:</p><pre><code>buildInvoiceHtml(invoice, settings, customerName) {
+  return \`&lt;div class="invoice-container"&gt;
+    &lt;h1&gt;\${settings.companyName}&lt;/h1&gt;
+    &lt;table&gt;...line items...&lt;/table&gt;
+  &lt;/div&gt;\`
+}</code></pre>` },
+                    {
+                        title: 'HTML to Canvas', layer: 'Transform Layer', file: 'lib/pdf.ts (html2canvas)', content: `<p>html2canvas screenshots the DOM element:</p><pre><code>const canvas = await html2canvas(container, {
+  scale: 2,
+  useCORS: true
+})</code></pre>` },
+                    {
+                        title: 'Canvas to PDF', layer: 'Transform Layer', file: 'lib/pdf.ts (jsPDF)', content: `<p>jsPDF creates a PDF from the canvas image:</p><pre><code>const pdf = new jsPDF('p', 'mm', 'a4')
+pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0)
+return pdf.output('blob')</code></pre>` },
+                    {
+                        title: 'Trigger Browser Download', layer: 'UI Layer', file: 'lib/pdf.ts', content: `<p>Create a temporary link and click it:</p><pre><code>downloadPdf(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+}</code></pre>` }
+                ]
+            },
+            delete: {
+                title: 'Delete Customer (Blocked)',
+                description: 'A DELETE operation that fails due to foreign key constraints. Shows error handling.',
+                diagram: `sequenceDiagram
+    participant U as 🧑 User
+    participant UI as 📱 Customer Page
+    participant AC as 🔗 API Client
+    participant RT as 🛣️ Route Handler
+    participant AD as 🗄️ Adapter
+    participant DB as 💾 SQLite
+    U->>UI: Clicks Delete on "Acme Corp"
+    UI->>AC: deleteCustomer(id)
+    AC->>RT: DELETE /api/customers/:id
+    RT->>AD: customersAdapter.delete(id)
+    AD->>DB: Check quotes table
+    DB-->>AD: 3 quotes reference this customer
+    AD-->>RT: throw Error("Cannot delete...")
+    RT-->>AC: 409 Conflict + error message
+    AC-->>UI: Promise rejects
+    UI-->>U: Error toast with quote numbers`,
+                steps: [
+                    {
+                        title: 'User Clicks Delete', layer: 'UI Layer', file: 'app/customers/page.tsx', content: `<p>Confirmation dialog, then API call:</p><pre><code>const handleDelete = async (id) => {
+  if (confirm('Delete this customer?')) {
+    await deleteCustomer(id)
+  }
+}</code></pre>` },
+                    {
+                        title: 'API Client Sends DELETE', layer: 'Frontend → Network', file: 'lib/api-client.ts', content: `<p>Simple DELETE request:</p><pre><code>await apiRequest(\`/customers/\${id}\`, {
+  method: 'DELETE'
+})</code></pre>` },
+                    {
+                        title: 'Adapter Checks References', layer: 'Data Access Layer', file: 'api/adapters/sqlite.ts', content: `<p>Before deleting, check foreign keys:</p><pre><code>delete: (id) => {
+  const quotes = db.prepare(
+    'SELECT number FROM quotes WHERE customerId = ?'
+  ).all(id)
+  
+  if (quotes.length > 0) {
+    throw new Error('Cannot delete Customer...')
+  }
+}</code></pre>` },
+                    {
+                        title: 'Route Returns 409 Conflict', layer: 'Backend Entry', file: 'api/routes/customers.ts', content: `<p>Error is caught and formatted:</p><pre><code>} catch (error) {
+  if (error.message.includes('Cannot delete')) {
+    res.status(409).json({ error: error.message })
+  } else {
+    res.status(500).json({ error: error.message })
+  }
+}</code></pre>` },
+                    {
+                        title: 'UI Shows Error Toast', layer: 'UI Layer', file: 'app/customers/page.tsx', content: `<p>User sees exactly which documents block deletion:</p><pre><code>} catch (err) {
+  toast.error(err.message)
+  // "Cannot delete Customer as it is referenced in:
+  //  - Quote AAT-20251201-0001
+  //  - Quote AAT-20251205-0003"
+}</code></pre>` }
+                ]
+            },
+            update: {
+                title: 'Edit Vehicle',
+                description: 'An UPDATE operation: load existing data, modify, and save changes.',
+                diagram: `sequenceDiagram
+    participant U as 🧑 User
+    participant UI as 📱 Vehicle Form
+    participant AC as 🔗 API Client
+    participant RT as 🛣️ Route Handler
+    participant AD as 🗄️ Adapter
+    participant DB as 💾 SQLite
+    U->>UI: Clicks Edit on vehicle
+    UI->>UI: Populate form with existing data
+    U->>UI: Changes fields, clicks Save
+    UI->>AC: saveVehicle(vehicle)
+    AC->>RT: PUT /api/vehicles/:id
+    RT->>AD: vehiclesAdapter.update(id, data)
+    AD->>DB: UPDATE vehicles SET...
+    DB-->>AD: OK
+    AD-->>RT: Return updated vehicle
+    RT-->>AC: 200 OK + JSON
+    AC-->>UI: Promise resolves
+    UI-->>U: Toast: "Vehicle Updated"`,
+                steps: [
+                    {
+                        title: 'User Clicks Edit', layer: 'UI Layer', file: 'app/vehicles/page.tsx', content: `<p>Form is pre-populated with current values:</p><pre><code>const handleEdit = (vehicle) => {
+  setEditingId(vehicle.id)
+  setVehicleNumber(vehicle.vehicleNumber)
+  setMake(vehicle.make)
+  setModel(vehicle.model)
+  // ... other fields
+}</code></pre>` },
+                    {
+                        title: 'User Modifies and Saves', layer: 'UI Layer', file: 'app/vehicles/page.tsx', content: `<p>Same handler, but ID already exists:</p><pre><code>const handleSave = async () => {
+  await saveVehicle({
+    id: editingId,  // existing ID triggers PUT
+    vehicleNumber, make, model, ...
+  })
+}</code></pre>` },
+                    {
+                        title: 'API Client Chooses PUT', layer: 'Frontend → Network', file: 'lib/api-client.ts', content: `<p>Client checks if vehicle exists, then PUTs:</p><pre><code>if (existingVehicle) {
+  await apiRequest(\`/vehicles/\${vehicle.id}\`, {
+    method: 'PUT',
+    body: JSON.stringify(vehicle)
+  })
+}</code></pre>` },
+                    {
+                        title: 'Adapter Runs UPDATE', layer: 'Data Access Layer', file: 'api/adapters/sqlite.ts', content: `<p>SQL UPDATE statement:</p><pre><code>update: (id, data) => {
+  db.prepare(\`
+    UPDATE vehicles SET 
+    vehicleNumber = ?, make = ?, model = ?
+    WHERE id = ?
+  \`).run(data.vehicleNumber, data.make, data.model, id)
+}</code></pre>` }
+                ]
+            },
+            upload: {
+                title: 'Upload Company Logo',
+                description: 'A FILE UPLOAD operation using FormData, multer, and file system storage.',
+                diagram: `sequenceDiagram
+    participant U as 🧑 User
+    participant UI as 📱 Settings Page
+    participant FD as 📦 FormData
+    participant RT as 🛣️ Upload Route
+    participant ML as 📂 Multer
+    participant FS as 💾 File System
+    U->>UI: Selects logo.png
+    UI->>FD: new FormData()
+    FD->>FD: append('file', logo.png)
+    UI->>RT: POST /api/uploads (multipart)
+    RT->>ML: multer parses file
+    ML->>FS: Save to data/branding/logo.png
+    FS-->>ML: File saved
+    ML-->>RT: req.file available
+    RT-->>UI: 200 OK
+    UI-->>U: Logo preview updated`,
+                steps: [
+                    {
+                        title: 'User Selects File', layer: 'UI Layer', file: 'app/settings/page.tsx', content: `<p>File input triggers upload:</p><pre><code>&lt;input type="file" accept="image/*" 
+  onChange={(e) => handleLogoUpload(e.target.files[0])}
+/&gt;</code></pre>` },
+                    {
+                        title: 'Create FormData', layer: 'UI Layer', file: 'lib/api-client.ts', content: `<p>Files must be sent as FormData, not JSON:</p><pre><code>const formData = new FormData()
+formData.append('file', file)
+formData.append('type', 'branding')
+formData.append('brandingType', 'logo')</code></pre>` },
+                    {
+                        title: 'Send Multipart Request', layer: 'Frontend → Network', file: 'lib/api-client.ts', content: `<p>No Content-Type header—browser sets it with boundary:</p><pre><code>const response = await fetch('/api/uploads', {
+  method: 'POST',
+  body: formData  // NOT JSON.stringify!
+})</code></pre>` },
+                    {
+                        title: 'Multer Parses File', layer: 'Backend Middleware', file: 'api/routes/uploads.ts', content: `<p>Multer middleware extracts the file:</p><pre><code>const upload = multer({ dest: 'data/uploads/' })
+
+router.post('/', upload.single('file'), (req, res) => {
+  // req.file contains the uploaded file info
+  const { originalname, path } = req.file
+})</code></pre>` },
+                    {
+                        title: 'File Saved to Disk', layer: 'Storage', file: 'data/branding/logo.png', content: `<p>The file is moved to its final location:</p><pre><code>fs.renameSync(
+  req.file.path,
+  'data/branding/logo.png'
+)
+res.json({ success: true })</code></pre>` }
+                ]
+            }
+        };
+
+        // ========== RENDER FLOW CONTENT ==========
+        function renderFlow(flowKey) {
+            const flow = flows[flowKey];
+            const container = document.getElementById('flowContent');
+
+            let stepsHtml = '';
+            flow.steps.forEach((step, i) => {
+                stepsHtml += `
+                    <div class="step-card" data-step="${i + 1}">
+                        <div class="step-header">
+                            <h3 class="step-title">${step.title}</h3>
+                            <span class="step-toggle">▶</span>
+                        </div>
+                        <div class="step-layer">${step.layer}</div>
+                        <div class="step-file">📁 ${step.file}</div>
+                        <div class="step-body">${step.content}</div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="flow-description">
+                    <strong>${flow.title}:</strong> ${flow.description}
+                </div>
+                <div class="diagram-container">
+                    <div class="mermaid">${flow.diagram}</div>
+                </div>
+                <p>Click each step to see the code:</p>
+                <div class="step-container">${stepsHtml}</div>
+            `;
+
+            // Re-init Mermaid for new diagram
+            mermaid.init(undefined, container.querySelectorAll('.mermaid'));
+
+            // Re-attach step card listeners
+            container.querySelectorAll('.step-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    card.classList.toggle('active');
+                });
+            });
+        }
+
+        // ========== TILE & SIDEBAR CLICK HANDLERS ==========
+        function selectFlow(flowKey) {
+            // Update tiles
+            document.querySelectorAll('.flow-tile').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.flow-tile[data-flow="${flowKey}"]`)?.classList.add('active');
+
+            // Update sidebar links
+            document.querySelectorAll('.flow-link').forEach(l => l.classList.remove('active'));
+            document.querySelector(`.flow-link[data-flow="${flowKey}"]`)?.classList.add('active');
+
+            // Render content
+            renderFlow(flowKey);
+        }
+
+        document.querySelectorAll('.flow-tile').forEach(tile => {
+            tile.addEventListener('click', () => selectFlow(tile.dataset.flow));
+        });
+
+        document.querySelectorAll('.flow-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                selectFlow(link.dataset.flow);
+            });
+        });
+
+        // ========== INITIAL RENDER ==========
+        renderFlow('create');
+    </script>
+</body>
+
+</html>
