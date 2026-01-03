@@ -218,7 +218,7 @@ export default function CreateQuotePage() {
         if (field === 'vehicleTypeId' && value) {
           const vehicle = vehicles.find((v) => v.id === value)
           if (vehicle) {
-            updated.vehicleTypeLabel = vehicle.type
+            updated.vehicleTypeLabel = vehicle.vehicleType || ''
           }
         }
 
@@ -699,7 +699,7 @@ export default function CreateQuotePage() {
                             <SelectContent>
                               {vehicles.map((vehicle) => (
                                 <SelectItem key={vehicle.id} value={vehicle.id}>
-                                  {vehicle.type}
+                                  {vehicle.vehicleNumber}
                                 </SelectItem>
                               ))}
                             </SelectContent>

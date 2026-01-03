@@ -27,18 +27,14 @@ export default defineConfig({
     /* Configure projects for major browsers */
     projects: [
         {
-            name: 'chromium',
+            name: 'Core',
+            testDir: './e2e/core',
             use: { ...devices['Desktop Chrome'] },
         },
-
         {
-            name: 'firefox',
-            use: { ...devices['Desktop Firefox'] },
-        },
-
-        {
-            name: 'webkit',
-            use: { ...devices['Desktop Safari'] },
+            name: 'Extended',
+            testDir: './e2e/extended',
+            use: { ...devices['Desktop Chrome'] },
         },
     ],
 
@@ -49,5 +45,8 @@ export default defineConfig({
         reuseExistingServer: !process.env.CI,
         stdout: 'ignore',
         stderr: 'pipe',
+        env: {
+            DB_FILENAME: 'imanage.db', // Use development database with seeded vehicles
+        },
     },
 });

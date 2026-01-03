@@ -309,11 +309,11 @@ export async function initializeSampleData(): Promise<void> {
   const vehicles = await getAllVehicles()
   if (vehicles.length === 0) {
     const sampleVehicles: Vehicle[] = [
-      { id: generateId(), type: 'Pickup Truck', description: 'Standard pickup truck', basePrice: 500 },
-      { id: generateId(), type: 'Sedan', description: 'Sedan car', basePrice: 300 },
-      { id: generateId(), type: 'SUV', description: 'Sport Utility Vehicle', basePrice: 400 },
-      { id: generateId(), type: 'Lorry', description: 'Heavy duty truck', basePrice: 800 },
-      { id: generateId(), type: 'Van', description: 'Commercial van', basePrice: 600 },
+      { id: generateId(), vehicleNumber: 'PKT-001', vehicleType: 'Pickup Truck', description: 'Standard pickup truck', basePrice: 500 },
+      { id: generateId(), vehicleNumber: 'SED-001', vehicleType: 'Sedan', description: 'Sedan car', basePrice: 300 },
+      { id: generateId(), vehicleNumber: 'SUV-001', vehicleType: 'SUV', description: 'Sport Utility Vehicle', basePrice: 400 },
+      { id: generateId(), vehicleNumber: 'LOR-001', vehicleType: 'Lorry', description: 'Heavy duty truck', basePrice: 800 },
+      { id: generateId(), vehicleNumber: 'VAN-001', vehicleType: 'Van', description: 'Commercial van', basePrice: 600 },
     ]
     for (const vehicle of sampleVehicles) {
       await saveVehicle(vehicle)

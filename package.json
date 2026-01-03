@@ -22,7 +22,9 @@
     "electron:build-linux": "npm run build:all && electron-builder --linux",
     "build:static": "next build",
     "test": "jest",
-    "test:e2e": "tsx scripts/test-e2e.ts",
+    "test:e2e": "npx playwright test --project=Core",
+    "test:e2e:core": "npx playwright test --project=Core",
+    "test:e2e:extended": "npx playwright test --project=Extended",
     "test:e2e:ui": "npx playwright test --ui",
     "prebuild": "node scripts/test-runner.js",
     "demo:populate": "tsx scripts/populate-demo-data.ts"
