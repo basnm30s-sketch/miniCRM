@@ -132,10 +132,12 @@ class ClientSideDOCXRenderer {
     }
     async renderQuoteToDocx(quote, adminSettings) {
         const children = [];
+        // Load branding URLs from fixed file locations
+        const brandingUrls = await (0, api_client_1.loadBrandingUrls)();
         // Load images with type detection
-        const logoData = await this.loadImageAsBuffer(adminSettings.logoUrl);
-        const sealData = await this.loadImageAsBuffer(adminSettings.sealUrl);
-        const signatureData = await this.loadImageAsBuffer(adminSettings.signatureUrl);
+        const logoData = await this.loadImageAsBuffer(brandingUrls.logoUrl);
+        const sealData = await this.loadImageAsBuffer(brandingUrls.sealUrl);
+        const signatureData = await this.loadImageAsBuffer(brandingUrls.signatureUrl);
         // Logo - centered at top
         if (logoData) {
             children.push(new docx_1.Paragraph({
@@ -144,8 +146,8 @@ class ClientSideDOCXRenderer {
                         type: logoData.type,
                         data: logoData.buffer,
                         transformation: {
-                            width: 200,
-                            height: 60,
+                            width: 250,
+                            height: 80,
                         },
                     }),
                 ],
@@ -457,49 +459,6 @@ class ClientSideDOCXRenderer {
             children: [
                 new docx_1.TableCell({
                     children: [new docx_1.Paragraph({ text: '' })],
-                    width: { size: 30, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-                new docx_1.TableCell({
-                    children: [new docx_1.Paragraph({ text: '' })],
-                    width: { size: 10, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-                new docx_1.TableCell({
-                    children: [new docx_1.Paragraph({ text: '' })],
-                    width: { size: 12, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-                new docx_1.TableCell({
-                    children: [new docx_1.Paragraph({ text: '' })],
-                    width: { size: 10, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-                new docx_1.TableCell({
-                    children: [
-                        new docx_1.Paragraph({
-                            children: [new docx_1.TextRun({ text: 'Subtotal:' })],
-                            alignment: docx_1.AlignmentType.RIGHT,
-                        }),
-                    ],
-                    width: { size: 12, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-                new docx_1.TableCell({
-                    children: [
-                        new docx_1.Paragraph({
-                            children: [new docx_1.TextRun({ text: quote.subTotal.toFixed(2) })],
-                            alignment: docx_1.AlignmentType.RIGHT,
-                        }),
-                    ],
-                    width: { size: 12, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-            ],
-        }), new docx_1.TableRow({
-            children: [
-                new docx_1.TableCell({
-                    children: [new docx_1.Paragraph({ text: '' })],
                     margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
                 }),
                 new docx_1.TableCell({
@@ -656,8 +615,8 @@ class ClientSideDOCXRenderer {
                                                 type: signatureData.type,
                                                 data: signatureData.buffer,
                                                 transformation: {
-                                                    width: 150,
-                                                    height: 60,
+                                                    width: 180,
+                                                    height: 80,
                                                 },
                                             }),
                                         ],
@@ -685,8 +644,8 @@ class ClientSideDOCXRenderer {
                                                 type: sealData.type,
                                                 data: sealData.buffer,
                                                 transformation: {
-                                                    width: 120,
-                                                    height: 80,
+                                                    width: 150,
+                                                    height: 100,
                                                 },
                                             }),
                                         ],
@@ -740,10 +699,12 @@ class ClientSideDOCXRenderer {
     }
     async renderInvoiceToDocx(invoice, adminSettings, customerName) {
         const children = [];
+        // Load branding URLs from fixed file locations
+        const brandingUrls = await (0, api_client_1.loadBrandingUrls)();
         // Load images with type detection
-        const logoData = await this.loadImageAsBuffer(adminSettings.logoUrl);
-        const sealData = await this.loadImageAsBuffer(adminSettings.sealUrl);
-        const signatureData = await this.loadImageAsBuffer(adminSettings.signatureUrl);
+        const logoData = await this.loadImageAsBuffer(brandingUrls.logoUrl);
+        const sealData = await this.loadImageAsBuffer(brandingUrls.sealUrl);
+        const signatureData = await this.loadImageAsBuffer(brandingUrls.signatureUrl);
         // Logo - centered at top
         if (logoData) {
             children.push(new docx_1.Paragraph({
@@ -752,8 +713,8 @@ class ClientSideDOCXRenderer {
                         type: logoData.type,
                         data: logoData.buffer,
                         transformation: {
-                            width: 200,
-                            height: 60,
+                            width: 250,
+                            height: 80,
                         },
                     }),
                 ],
@@ -997,39 +958,6 @@ class ClientSideDOCXRenderer {
             children: [
                 new docx_1.TableCell({
                     children: [new docx_1.Paragraph({ text: '' })],
-                    width: { size: 30, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-                new docx_1.TableCell({
-                    children: [new docx_1.Paragraph({ text: '' })],
-                    width: { size: 10, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-                new docx_1.TableCell({
-                    children: [
-                        new docx_1.Paragraph({
-                            children: [new docx_1.TextRun({ text: 'Subtotal:' })],
-                            alignment: docx_1.AlignmentType.RIGHT,
-                        }),
-                    ],
-                    width: { size: 12, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-                new docx_1.TableCell({
-                    children: [
-                        new docx_1.Paragraph({
-                            children: [new docx_1.TextRun({ text: invoice.subtotal.toFixed(2) })],
-                            alignment: docx_1.AlignmentType.RIGHT,
-                        }),
-                    ],
-                    width: { size: 12, type: docx_1.WidthType.PERCENTAGE },
-                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
-                }),
-            ],
-        }), new docx_1.TableRow({
-            children: [
-                new docx_1.TableCell({
-                    children: [new docx_1.Paragraph({ text: '' })],
                     margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
                 }),
                 new docx_1.TableCell({
@@ -1209,8 +1137,8 @@ class ClientSideDOCXRenderer {
                                                 type: signatureData.type,
                                                 data: signatureData.buffer,
                                                 transformation: {
-                                                    width: 150,
-                                                    height: 60,
+                                                    width: 180,
+                                                    height: 80,
                                                 },
                                             }),
                                         ],
@@ -1238,8 +1166,8 @@ class ClientSideDOCXRenderer {
                                                 type: sealData.type,
                                                 data: sealData.buffer,
                                                 transformation: {
-                                                    width: 120,
-                                                    height: 80,
+                                                    width: 150,
+                                                    height: 100,
                                                 },
                                             }),
                                         ],

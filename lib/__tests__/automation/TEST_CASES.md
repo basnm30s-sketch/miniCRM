@@ -141,7 +141,7 @@ This document lists all the automation test cases implemented in the project.
 | | `handle general errors` | Verifies 500 response for general errors. | **Fleet Management:** Graceful error handling for DB failures. |
 | **GET /vehicles/:id/profitability** | `return profitability data for vehicle` | Verifies profitability data retrieval for a vehicle. | **Vehicle Finances:** Loading profitability data. |
 | | `return 404 if vehicle not found` | Verifies 404 if vehicle does not exist. | **Vehicle Finances:** Handling invalid vehicle IDs. |
-| | `verify profitability structure` | Verifies profitability response structure (currentMonth, lastMonth, allTimeRevenue, etc.). | **Vehicle Finances:** Ensuring correct data structure for frontend. |
+| | `verify profitability structure` | Verifies- [x] Stabilize Quotes Component Tests (Flaky dropdowns & redirect urgency)tMonth, lastMonth, allTimeRevenue, etc.). | **Vehicle Finances:** Ensuring correct data structure for frontend. |
 | | `verify month normalization (YYYY-MM format)` | Verifies all months are in YYYY-MM format. | **Vehicle Finances:** Ensuring consistent month formatting for chart display. |
 | | `handle errors` | Verifies 500 response on DB error. | **Vehicle Finances:** Graceful error handling for DB failures. |
 

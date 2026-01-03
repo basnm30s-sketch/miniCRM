@@ -699,7 +699,7 @@ export default function CreateQuotePage() {
                             <SelectContent>
                               {vehicles.map((vehicle) => (
                                 <SelectItem key={vehicle.id} value={vehicle.id}>
-                                  {vehicle.vehicleNumber}
+                                  {vehicle.vehicleNumber || vehicle.type || 'Unknown Vehicle'}
                                 </SelectItem>
                               ))}
                             </SelectContent>

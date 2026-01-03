@@ -34,6 +34,10 @@ exports.getAllInvoices = getAllInvoices;
 exports.getInvoiceById = getInvoiceById;
 exports.saveInvoice = saveInvoice;
 exports.deleteInvoice = deleteInvoice;
+exports.checkBrandingFiles = checkBrandingFiles;
+exports.getBrandingUrl = getBrandingUrl;
+exports.loadBrandingUrls = loadBrandingUrls;
+exports.uploadBrandingFile = uploadBrandingFile;
 exports.uploadFile = uploadFile;
 exports.getFileUrl = getFileUrl;
 exports.getAllPayslips = getAllPayslips;
@@ -42,6 +46,16 @@ exports.getPayslipsByMonth = getPayslipsByMonth;
 exports.savePayslip = savePayslip;
 exports.deletePayslip = deletePayslip;
 exports.updatePayslipStatus = updatePayslipStatus;
+exports.getAllVehicleTransactions = getAllVehicleTransactions;
+exports.getVehicleTransactionById = getVehicleTransactionById;
+exports.saveVehicleTransaction = saveVehicleTransaction;
+exports.deleteVehicleTransaction = deleteVehicleTransaction;
+exports.getVehicleProfitability = getVehicleProfitability;
+exports.getVehicleFinanceDashboard = getVehicleFinanceDashboard;
+exports.getAllExpenseCategories = getAllExpenseCategories;
+exports.getExpenseCategoryById = getExpenseCategoryById;
+exports.saveExpenseCategory = saveExpenseCategory;
+exports.deleteExpenseCategory = deleteExpenseCategory;
 // Use relative paths for Vercel/Next.js API routes, or explicit URL for Express server
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://localhost:3001/api');
 async function apiRequest(endpoint, options) {
@@ -64,8 +78,13 @@ async function apiRequest(endpoint, options) {
                 // If response is not JSON, use status text
                 errorMessage = response.statusText || errorMessage;
             }
-            console.error(`API Request failed: ${options?.method || 'GET'} ${url} - ${errorMessage}`);
-            throw new Error(errorMessage);
+            // Don't log 404 errors as they're expected in some cases (checking if resource exists)
+            if (response.status !== 404) {
+                console.error(`API Request failed: ${options?.method || 'GET'} ${url} - ${errorMessage}`);
+            }
+            const error = new Error(errorMessage);
+            error.status = response.status;
+            throw error;
         }
         if (response.status === 204) {
             return undefined;
@@ -75,7 +94,10 @@ async function apiRequest(endpoint, options) {
     catch (error) {
         // Re-throw with more context
         if (error.message && !error.message.includes('Network error')) {
-            console.error(`API Request error for ${url}:`, error.message);
+            // Don't log 404 errors as they're expected in some cases
+            if (error.status !== 404) {
+                console.error(`API Request error for ${url}:`, error.message);
+            }
             throw error;
         }
         throw new Error(`Network error: ${error.message || 'Failed to connect to server'}`);
@@ -695,101 +717,95 @@ async function deleteInvoice(id) {
     }
 }
 // ==================== FILE UPLOADS ====================
-async function uploadFile(file, type, brandingType) {
+// ==================== BRANDING FILES (SIMPLIFIED) ====================
+/**
+ * Check which branding files exist
+ */
+async function checkBrandingFiles() {
     try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', type);
-        if (type === 'branding' && brandingType) {
-            formData.append('brandingType', brandingType);
-        }
-        const response = await fetch(`${API_BASE_URL}/uploads`, {
-            method: 'POST',
-            body: formData,
-        });
-        // Read response as text first to avoid multiple reads
-        let responseText = '';
-        try {
-            responseText = await response.text();
-        }
-        catch (e) {
-            // If we can't read the response, just use status
-            if (!response.ok) {
-                throw new Error(response.statusText || `Upload failed with status ${response.status}`);
-            }
-            throw new Error('Failed to read response from server');
-        }
-        // Check response status
+        const response = await fetch(`${API_BASE_URL}/uploads/branding/check`);
         if (!response.ok) {
-            // Handle error response - don't try to parse as JSON if it's not valid JSON
-            let errorMessage = response.statusText || `Upload failed with status ${response.status}`;
-            if (responseText && responseText.trim().length > 0) {
-                const trimmed = responseText.trim();
-                // Only try to parse if it looks like valid JSON (starts with { or [)
-                // Avoid parsing if it starts with - or other invalid JSON characters
-                if ((trimmed.startsWith('{') || trimmed.startsWith('[')) &&
-                    !trimmed.startsWith('-') && trimmed.length > 1) {
-                    try {
-                        const errorData = JSON.parse(responseText);
-                        errorMessage = errorData.error || errorData.message || errorMessage;
-                    }
-                    catch (parseError) {
-                        // JSON parsing failed - use the text as error message
-                        errorMessage = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed;
-                    }
-                }
-                else {
-                    // Not JSON format, use as plain text error (but limit length)
-                    errorMessage = trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed;
-                }
-            }
-            throw new Error(errorMessage);
+            console.error('Failed to check branding files:', response.statusText);
+            return { logo: false, seal: false, signature: false, extensions: { logo: null, seal: null, signature: null } };
         }
-        // For successful responses, parse as JSON
-        if (!responseText || responseText.trim().length === 0) {
-            throw new Error('Empty response from server');
-        }
-        const trimmed = responseText.trim();
-        // Log the actual response for debugging
-        console.log('Upload response text:', trimmed.substring(0, 200));
-        // Validate it looks like JSON
-        if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-            console.error('Response is not JSON format:', trimmed);
-            throw new Error(`Invalid response format. Expected JSON, got: ${trimmed.substring(0, 50)}`);
-        }
-        let result;
-        try {
-            result = JSON.parse(responseText);
-        }
-        catch (parseError) {
-            console.error('JSON parse error. Response was:', trimmed.substring(0, 200));
-            console.error('Parse error details:', parseError);
-            // Don't try to access error.message if it might throw
-            const errorMsg = parseError && typeof parseError === 'object' && 'message' in parseError
-                ? parseError.message
-                : 'Invalid JSON format';
-            throw new Error(`Failed to parse JSON response: ${errorMsg}. Response: ${trimmed.substring(0, 100)}`);
-        }
-        if (!result || typeof result !== 'object' || !result.path) {
-            throw new Error('Invalid response from server: missing path');
-        }
-        return result.path;
+        return await response.json();
     }
     catch (error) {
-        // Log the full error for debugging
-        console.error('Upload error details:', {
-            message: error?.message,
-            name: error?.name,
-            stack: error?.stack?.substring(0, 200)
-        });
-        // If it's already a proper Error with message, re-throw it
-        if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-            throw error;
+        console.error('Error checking branding files:', error);
+        return { logo: false, seal: false, signature: false, extensions: { logo: null, seal: null, signature: null } };
+    }
+}
+/**
+ * Get branding image URL (fixed location)
+ */
+function getBrandingUrl(type, extension) {
+    if (!extension)
+        return null;
+    return `${API_BASE_URL}/uploads/branding/${type}.${extension}`;
+}
+/**
+ * Load branding URLs for document generation
+ * Returns URLs for all branding images that exist
+ */
+async function loadBrandingUrls() {
+    const branding = await checkBrandingFiles();
+    return {
+        logoUrl: getBrandingUrl('logo', branding.extensions.logo),
+        sealUrl: getBrandingUrl('seal', branding.extensions.seal),
+        signatureUrl: getBrandingUrl('signature', branding.extensions.signature),
+    };
+}
+/**
+ * Upload branding file (logo, seal, or signature)
+ * Files are saved to fixed locations - no path returned
+ */
+async function uploadBrandingFile(file, brandingType) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'branding');
+    formData.append('brandingType', brandingType);
+    const response = await fetch(`${API_BASE_URL}/uploads`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) {
+        let errorMessage = `Upload failed with status ${response.status}`;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
         }
-        // Otherwise create a new error
-        const errorMessage = error?.message || String(error) || 'Failed to upload file';
+        catch {
+            // Ignore JSON parse errors
+        }
         throw new Error(errorMessage);
     }
+    // Success - no need to parse response, files are at fixed locations
+}
+// ==================== REGULAR FILE UPLOADS ====================
+async function uploadFile(file, type) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+    const response = await fetch(`${API_BASE_URL}/uploads`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) {
+        let errorMessage = `Upload failed with status ${response.status}`;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+        }
+        catch {
+            // Ignore JSON parse errors
+        }
+        throw new Error(errorMessage);
+    }
+    const result = await response.json();
+    if (!result || !result.path) {
+        throw new Error('Invalid response from server: missing path');
+    }
+    return result.path;
 }
 function getFileUrl(relativePath) {
     if (!relativePath)
@@ -926,6 +942,159 @@ async function updatePayslipStatus(id, status) {
     }
     catch (error) {
         console.error('Failed to update payslip status:', error);
+        throw error;
+    }
+}
+// ==================== VEHICLE TRANSACTIONS ====================
+async function getAllVehicleTransactions(vehicleId, month) {
+    try {
+        let url = '/vehicle-transactions';
+        const params = new URLSearchParams();
+        if (vehicleId)
+            params.append('vehicleId', vehicleId);
+        if (month)
+            params.append('month', month);
+        if (params.toString()) {
+            url += `?${params.toString()}`;
+        }
+        return await apiRequest(url) || [];
+    }
+    catch (error) {
+        console.error('Failed to get vehicle transactions:', error);
+        return [];
+    }
+}
+async function getVehicleTransactionById(id) {
+    try {
+        return await apiRequest(`/vehicle-transactions/${id}`);
+    }
+    catch (error) {
+        // Handle 404 as expected - transaction doesn't exist
+        if (error?.status === 404 ||
+            error?.message?.includes('404') ||
+            error?.message?.toLowerCase().includes('not found')) {
+            return null;
+        }
+        console.error('Failed to get vehicle transaction:', error);
+        throw error;
+    }
+}
+async function saveVehicleTransaction(transaction) {
+    try {
+        // If transaction has an ID, check if it exists to decide between update and create
+        if (transaction.id) {
+            const existing = await getVehicleTransactionById(transaction.id);
+            if (existing) {
+                // Update existing transaction
+                await apiRequest(`/vehicle-transactions/${transaction.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(transaction),
+                });
+                return;
+            }
+            // If ID exists but transaction doesn't, create it with that ID
+        }
+        // Create new transaction - POST returns the created transaction
+        await apiRequest('/vehicle-transactions', {
+            method: 'POST',
+            body: JSON.stringify(transaction),
+        });
+        return;
+    }
+    catch (error) {
+        console.error('Failed to save vehicle transaction:', error);
+        throw error;
+    }
+}
+async function deleteVehicleTransaction(id) {
+    try {
+        await apiRequest(`/vehicle-transactions/${id}`, {
+            method: 'DELETE',
+        });
+    }
+    catch (error) {
+        console.error('Failed to delete vehicle transaction:', error);
+        throw error;
+    }
+}
+async function getVehicleProfitability(vehicleId) {
+    try {
+        return await apiRequest(`/vehicles/${vehicleId}/profitability`);
+    }
+    catch (error) {
+        console.error('Failed to get vehicle profitability:', error);
+        throw error;
+    }
+}
+async function getVehicleFinanceDashboard() {
+    try {
+        return await apiRequest('/vehicle-finances/dashboard');
+    }
+    catch (error) {
+        // Don't throw for 404, return null instead
+        if (error?.status === 404 || error?.message?.includes('404') || error?.message?.toLowerCase().includes('not found')) {
+            console.warn('Dashboard endpoint not found, returning empty data');
+            return null;
+        }
+        console.error('Failed to get vehicle finance dashboard:', error);
+        throw error;
+    }
+}
+// ==================== EXPENSE CATEGORIES ====================
+async function getAllExpenseCategories() {
+    try {
+        return await apiRequest('/expense-categories') || [];
+    }
+    catch (error) {
+        console.error('Failed to get expense categories:', error);
+        return [];
+    }
+}
+async function getExpenseCategoryById(id) {
+    try {
+        return await apiRequest(`/expense-categories/${id}`);
+    }
+    catch (error) {
+        // Handle 404 as expected - category doesn't exist
+        if (error?.status === 404 ||
+            error?.message?.includes('404') ||
+            error?.message?.toLowerCase().includes('not found')) {
+            return null;
+        }
+        console.error('Failed to get expense category:', error);
+        throw error;
+    }
+}
+async function saveExpenseCategory(category) {
+    try {
+        if (category.id) {
+            const existing = await getExpenseCategoryById(category.id);
+            if (existing) {
+                await apiRequest(`/expense-categories/${category.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(category),
+                });
+                return;
+            }
+        }
+        await apiRequest('/expense-categories', {
+            method: 'POST',
+            body: JSON.stringify(category),
+        });
+    }
+    catch (error) {
+        console.error('Failed to save expense category:', error);
+        throw error;
+    }
+}
+async function deleteExpenseCategory(id) {
+    try {
+        await apiRequest(`/expense-categories/${id}`, {
+            method: 'DELETE',
+        });
+    }
+    catch (error) {
+        console.error('Failed to delete expense category:', error);
         throw error;
     }
 }

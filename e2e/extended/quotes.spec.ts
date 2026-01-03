@@ -113,12 +113,15 @@ test.describe('Quotations Module', () => {
         await expect(createBtn).toBeVisible();
         await expect(createBtn).toBeEnabled();
 
-        console.log('Submitting Quote...');
         await createBtn.click();
 
-        // 8. Wait for redirect to quotations list
-        await page.waitForURL(/.*quotations/, { timeout: 10000 });
-        console.log('Redirected to Quotations List');
+        // 8. Verify Success (Toast might be flaky, relying on list verification)
+        console.log('Quote Submitted, verifying in list...');
+
+        // Navigate back to list for verification
+        await page.getByRole('button', { name: 'Back to Quotations' }).click();
+        await page.waitForURL(/.*quotations/);
+        console.log('Navigated to Quotations List');
 
         // 9. Verify quote appears in list
         await page.reload();

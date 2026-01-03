@@ -4,7 +4,7 @@
  * Provides CRUD operations for all entities using SQLite database
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.invoicesAdapter = exports.purchaseOrdersAdapter = exports.quotesAdapter = exports.adminAdapter = exports.vehiclesAdapter = exports.payslipsAdapter = exports.employeesAdapter = exports.vendorsAdapter = exports.customersAdapter = void 0;
+exports.vehicleTransactionsAdapter = exports.expenseCategoriesAdapter = exports.invoicesAdapter = exports.purchaseOrdersAdapter = exports.quotesAdapter = exports.adminAdapter = exports.vehiclesAdapter = exports.payslipsAdapter = exports.employeesAdapter = exports.vendorsAdapter = exports.customersAdapter = void 0;
 exports.formatReferenceError = formatReferenceError;
 const database_1 = require("../../lib/database");
 // Helper to get database instance
@@ -389,9 +389,27 @@ exports.vehiclesAdapter = {
         const rows = db.prepare('SELECT * FROM vehicles ORDER BY createdAt DESC').all();
         return rows.map(row => ({
             id: row.id,
-            type: row.type,
+            vehicleNumber: row.vehicleNumber || row.type || '', // Fallback to type for migration
+            vehicleType: row.vehicleType || '',
+            make: row.make || '',
+            model: row.model || '',
+            year: row.year || undefined,
+            color: row.color || '',
+            purchasePrice: row.purchasePrice || undefined,
+            purchaseDate: row.purchaseDate || '',
+            currentValue: row.currentValue || undefined,
+            insuranceCostMonthly: row.insuranceCostMonthly || undefined,
+            financingCostMonthly: row.financingCostMonthly || undefined,
+            odometerReading: row.odometerReading || undefined,
+            lastServiceDate: row.lastServiceDate || '',
+            nextServiceDue: row.nextServiceDue || '',
+            fuelType: row.fuelType || undefined,
+            status: row.status || 'active',
+            registrationExpiry: row.registrationExpiry || '',
+            insuranceExpiry: row.insuranceExpiry || '',
             description: row.description || '',
             basePrice: row.basePrice || 0,
+            notes: row.notes || '',
             createdAt: row.createdAt,
         }));
     },
@@ -402,30 +420,78 @@ exports.vehiclesAdapter = {
             return null;
         return {
             id: row.id,
-            type: row.type,
+            vehicleNumber: row.vehicleNumber || row.type || '',
+            vehicleType: row.vehicleType || '',
+            make: row.make || '',
+            model: row.model || '',
+            year: row.year || undefined,
+            color: row.color || '',
+            purchasePrice: row.purchasePrice || undefined,
+            purchaseDate: row.purchaseDate || '',
+            currentValue: row.currentValue || undefined,
+            insuranceCostMonthly: row.insuranceCostMonthly || undefined,
+            financingCostMonthly: row.financingCostMonthly || undefined,
+            odometerReading: row.odometerReading || undefined,
+            lastServiceDate: row.lastServiceDate || '',
+            nextServiceDue: row.nextServiceDue || '',
+            fuelType: row.fuelType || undefined,
+            status: row.status || 'active',
+            registrationExpiry: row.registrationExpiry || '',
+            insuranceExpiry: row.insuranceExpiry || '',
             description: row.description || '',
             basePrice: row.basePrice || 0,
+            notes: row.notes || '',
             createdAt: row.createdAt,
         };
     },
     create: (data) => {
         const db = getDb();
         const now = new Date().toISOString();
+        // Validate vehicle number is provided
+        if (!data.vehicleNumber || data.vehicleNumber.trim() === '') {
+            throw new Error('Vehicle Number is required');
+        }
+        // Check uniqueness of vehicle number
+        const existing = db.prepare('SELECT id FROM vehicles WHERE vehicleNumber = ?').get(data.vehicleNumber.trim());
+        if (existing) {
+            throw new Error(`Vehicle Number "${data.vehicleNumber}" already exists`);
+        }
+        // Note: 'type' column included for backward compatibility with existing databases
         const stmt = db.prepare(`
-      INSERT INTO vehicles (id, type, description, basePrice, createdAt)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO vehicles (
+        id, vehicleNumber, vehicleType, make, model, year, color,
+        purchasePrice, purchaseDate, currentValue, insuranceCostMonthly, financingCostMonthly,
+        odometerReading, lastServiceDate, nextServiceDue, fuelType, status,
+        registrationExpiry, insuranceExpiry, description, basePrice, notes, type, createdAt
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-        stmt.run(data.id, data.type, data.description || '', data.basePrice || 0, now);
+        stmt.run(data.id, data.vehicleNumber.trim(), data.vehicleType || '', data.make || '', data.model || '', data.year || null, data.color || '', data.purchasePrice || null, data.purchaseDate || '', data.currentValue || null, data.insuranceCostMonthly || null, data.financingCostMonthly || null, data.odometerReading || null, data.lastServiceDate || '', data.nextServiceDue || '', data.fuelType || null, data.status || 'active', data.registrationExpiry || '', data.insuranceExpiry || '', data.description || '', data.basePrice || 0, data.notes || '', data.vehicleNumber.trim(), // Legacy 'type' column - copy vehicleNumber for compat
+        now);
         return exports.vehiclesAdapter.getById(data.id);
     },
     update: (id, data) => {
         const db = getDb();
+        // Validate vehicle number is provided
+        if (!data.vehicleNumber || data.vehicleNumber.trim() === '') {
+            throw new Error('Vehicle Number is required');
+        }
+        // Check uniqueness of vehicle number (excluding current vehicle)
+        const existing = db.prepare('SELECT id FROM vehicles WHERE vehicleNumber = ? AND id != ?').get(data.vehicleNumber.trim(), id);
+        if (existing) {
+            throw new Error(`Vehicle Number "${data.vehicleNumber}" already exists`);
+        }
+        // Note: 'type' column included for backward compatibility with existing databases
         const stmt = db.prepare(`
       UPDATE vehicles 
-      SET type = ?, description = ?, basePrice = ?
+      SET vehicleNumber = ?, vehicleType = ?, make = ?, model = ?, year = ?, color = ?,
+          purchasePrice = ?, purchaseDate = ?, currentValue = ?, insuranceCostMonthly = ?, financingCostMonthly = ?,
+          odometerReading = ?, lastServiceDate = ?, nextServiceDue = ?, fuelType = ?, status = ?,
+          registrationExpiry = ?, insuranceExpiry = ?, description = ?, basePrice = ?, notes = ?, type = ?
       WHERE id = ?
     `);
-        stmt.run(data.type, data.description || '', data.basePrice || 0, id);
+        stmt.run(data.vehicleNumber.trim(), data.vehicleType || '', data.make || '', data.model || '', data.year || null, data.color || '', data.purchasePrice || null, data.purchaseDate || '', data.currentValue || null, data.insuranceCostMonthly || null, data.financingCostMonthly || null, data.odometerReading || null, data.lastServiceDate || '', data.nextServiceDue || '', data.fuelType || null, data.status || 'active', data.registrationExpiry || '', data.insuranceExpiry || '', data.description || '', data.basePrice || 0, data.notes || '', data.vehicleNumber.trim(), // Legacy 'type' column - copy vehicleNumber for compat
+        id);
         return exports.vehiclesAdapter.getById(id);
     },
     delete: (id) => {
@@ -458,10 +524,10 @@ exports.adminAdapter = {
             const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all();
             const columnNames = tableInfo.map((col) => col.name);
             if (!columnNames.includes('showRevenueTrend')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 1');
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0');
             }
             if (!columnNames.includes('showQuickActions')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 1');
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 0');
             }
         }
         catch (error) {
@@ -470,23 +536,23 @@ exports.adminAdapter = {
         const row = db.prepare('SELECT * FROM admin_settings LIMIT 1').get();
         if (!row)
             return null;
-        // Convert integer (0/1) to boolean, default to true if undefined
-        // Explicitly check: 0 -> false, 1 -> true, null/undefined -> true
+        // Convert integer (0/1) to boolean, default to false if undefined
+        // Explicitly check: 0 -> false, 1 -> true, null/undefined -> false
         const showRevenueTrend = (row.showRevenueTrend === 0)
             ? false
             : (row.showRevenueTrend === 1)
                 ? true
-                : true; // default to true if null/undefined
+                : false; // default to false if null/undefined
         const showQuickActions = (row.showQuickActions === 0)
             ? false
             : (row.showQuickActions === 1)
                 ? true
-                : true; // default to true if null/undefined
+                : false; // default to false if null/undefined
         const showReports = (row.showReports === 0)
             ? false
             : (row.showReports === 1)
                 ? true
-                : true; // default to true if null/undefined
+                : false; // default to false if null/undefined
         return {
             id: row.id,
             companyName: row.companyName || '',
@@ -512,13 +578,13 @@ exports.adminAdapter = {
             const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all();
             const columnNames = tableInfo.map((col) => col.name);
             if (!columnNames.includes('showRevenueTrend')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 1');
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0');
             }
             if (!columnNames.includes('showQuickActions')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 1');
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 0');
             }
             if (!columnNames.includes('showReports')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showReports INTEGER DEFAULT 1');
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showReports INTEGER DEFAULT 0');
             }
         }
         catch (error) {
@@ -528,10 +594,10 @@ exports.adminAdapter = {
         // Get existing record (but don't use its boolean values - use the data being saved)
         const existing = db.prepare('SELECT id FROM admin_settings LIMIT 1').get();
         // Convert boolean to integer (SQLite doesn't have native boolean)
-        // Explicitly handle: false -> 0, true -> 1, undefined/null -> 1 (default)
-        const showRevenueTrend = (data.showRevenueTrend === false) ? 0 : 1;
-        const showQuickActions = (data.showQuickActions === false) ? 0 : 1;
-        const showReports = (data.showReports === false) ? 0 : 1;
+        // Explicitly handle: false -> 0, true -> 1, undefined/null -> 0 (default)
+        const showRevenueTrend = (data.showRevenueTrend === true) ? 1 : 0;
+        const showQuickActions = (data.showQuickActions === true) ? 1 : 0;
+        const showReports = (data.showReports === true) ? 1 : 0;
         console.log('Adapter save - converting:', {
             showRevenueTrend: { input: data.showRevenueTrend, output: showRevenueTrend },
             showQuickActions: { input: data.showQuickActions, output: showQuickActions },
@@ -1111,5 +1177,648 @@ exports.invoicesAdapter = {
         const db = getDb();
         // Items will be deleted automatically due to CASCADE
         db.prepare('DELETE FROM invoices WHERE id = ?').run(id);
+    },
+};
+// ==================== EXPENSE CATEGORIES ====================
+exports.expenseCategoriesAdapter = {
+    getAll: () => {
+        const db = getDb();
+        const rows = db.prepare('SELECT * FROM expense_categories ORDER BY isCustom ASC, name ASC').all();
+        return rows.map(row => ({
+            id: row.id,
+            name: row.name,
+            isCustom: row.isCustom === 1,
+            createdAt: row.createdAt,
+        }));
+    },
+    getById: (id) => {
+        const db = getDb();
+        const row = db.prepare('SELECT * FROM expense_categories WHERE id = ?').get(id);
+        if (!row)
+            return null;
+        return {
+            id: row.id,
+            name: row.name,
+            isCustom: row.isCustom === 1,
+            createdAt: row.createdAt,
+        };
+    },
+    create: (data) => {
+        const db = getDb();
+        // Validate required fields
+        if (!data.name || !data.name.trim()) {
+            throw new Error('Category name is required');
+        }
+        // Generate ID if not provided
+        const id = data.id || `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Check for duplicate name
+        const existing = db.prepare('SELECT id FROM expense_categories WHERE LOWER(name) = LOWER(?)').get(data.name.trim());
+        if (existing) {
+            throw new Error('Category with this name already exists');
+        }
+        const now = new Date().toISOString();
+        const stmt = db.prepare(`
+      INSERT INTO expense_categories (id, name, isCustom, createdAt)
+      VALUES (?, ?, ?, ?)
+    `);
+        try {
+            stmt.run(id, data.name.trim(), data.isCustom ? 1 : 0, now);
+        }
+        catch (error) {
+            if (error.message && error.message.includes('UNIQUE constraint')) {
+                throw new Error('Category with this ID or name already exists');
+            }
+            throw error;
+        }
+        return exports.expenseCategoriesAdapter.getById(id);
+    },
+    update: (id, data) => {
+        const db = getDb();
+        const stmt = db.prepare(`
+      UPDATE expense_categories 
+      SET name = ?, isCustom = ?
+      WHERE id = ?
+    `);
+        stmt.run(data.name, data.isCustom ? 1 : 0, id);
+        return exports.expenseCategoriesAdapter.getById(id);
+    },
+    delete: (id) => {
+        const db = getDb();
+        // Check if category is predefined
+        const category = db.prepare('SELECT isCustom FROM expense_categories WHERE id = ?').get(id);
+        if (category && category.isCustom === 0) {
+            throw new Error('Cannot delete predefined expense category');
+        }
+        // Check if category is used in transactions
+        const transactions = db.prepare('SELECT COUNT(*) as count FROM vehicle_transactions WHERE category = (SELECT name FROM expense_categories WHERE id = ?)').get(id);
+        if (transactions && transactions.count > 0) {
+            throw new Error('Cannot delete expense category that is used in transactions');
+        }
+        db.prepare('DELETE FROM expense_categories WHERE id = ?').run(id);
+    },
+};
+// ==================== VEHICLE TRANSACTIONS ====================
+exports.vehicleTransactionsAdapter = {
+    getAll: () => {
+        const db = getDb();
+        const rows = db.prepare('SELECT * FROM vehicle_transactions ORDER BY date DESC, createdAt DESC').all();
+        return rows.map(row => ({
+            id: row.id,
+            vehicleId: row.vehicleId,
+            transactionType: row.transactionType,
+            category: row.category || undefined,
+            amount: row.amount,
+            date: row.date,
+            month: row.month,
+            description: row.description || undefined,
+            employeeId: row.employeeId || undefined,
+            invoiceId: row.invoiceId || undefined,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+        }));
+    },
+    getById: (id) => {
+        const db = getDb();
+        const row = db.prepare('SELECT * FROM vehicle_transactions WHERE id = ?').get(id);
+        if (!row)
+            return null;
+        return {
+            id: row.id,
+            vehicleId: row.vehicleId,
+            transactionType: row.transactionType,
+            category: row.category || undefined,
+            amount: row.amount,
+            date: row.date,
+            month: row.month,
+            description: row.description || undefined,
+            employeeId: row.employeeId || undefined,
+            invoiceId: row.invoiceId || undefined,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+        };
+    },
+    getByVehicleId: (vehicleId) => {
+        const db = getDb();
+        const rows = db.prepare('SELECT * FROM vehicle_transactions WHERE vehicleId = ? ORDER BY date DESC, createdAt DESC').all(vehicleId);
+        return rows.map(row => ({
+            id: row.id,
+            vehicleId: row.vehicleId,
+            transactionType: row.transactionType,
+            category: row.category || undefined,
+            amount: row.amount,
+            date: row.date,
+            month: row.month,
+            description: row.description || undefined,
+            employeeId: row.employeeId || undefined,
+            invoiceId: row.invoiceId || undefined,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+        }));
+    },
+    getByVehicleIdAndMonth: (vehicleId, month) => {
+        const db = getDb();
+        const rows = db.prepare('SELECT * FROM vehicle_transactions WHERE vehicleId = ? AND month = ? ORDER BY date DESC, createdAt DESC').all(vehicleId, month);
+        return rows.map(row => ({
+            id: row.id,
+            vehicleId: row.vehicleId,
+            transactionType: row.transactionType,
+            category: row.category || undefined,
+            amount: row.amount,
+            date: row.date,
+            month: row.month,
+            description: row.description || undefined,
+            employeeId: row.employeeId || undefined,
+            invoiceId: row.invoiceId || undefined,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+        }));
+    },
+    getProfitabilityByVehicle: (vehicleId) => {
+        const db = getDb();
+        const transactions = exports.vehicleTransactionsAdapter.getByVehicleId(vehicleId);
+        // Debug logging
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`[getProfitabilityByVehicle] Vehicle ID: ${vehicleId}, Transactions: ${transactions.length}`);
+            if (transactions.length > 0) {
+                console.log('[getProfitabilityByVehicle] Sample transactions:', transactions.slice(0, 5).map(t => ({
+                    id: t.id,
+                    month: t.month,
+                    normalizedMonth: t.month ? (t.month.includes('-') && t.month.split('-')[1].length === 1 ? `${t.month.split('-')[0]}-${t.month.split('-')[1].padStart(2, '0')}` : t.month) : 'N/A',
+                    type: t.transactionType,
+                    amount: t.amount,
+                    date: t.date
+                })));
+                // Show unique months in transactions
+                const uniqueMonths = [...new Set(transactions.map(t => t.month).filter(Boolean))];
+                console.log('[getProfitabilityByVehicle] Unique months in transactions:', uniqueMonths.sort());
+            }
+        }
+        // Group by month
+        const monthlyData = {};
+        // Normalize month format to YYYY-MM
+        const normalizeMonth = (month, date) => {
+            if (month) {
+                // Normalize month format (e.g., "2025-1" -> "2025-01")
+                const parts = month.split('-');
+                if (parts.length === 2) {
+                    const year = parts[0];
+                    const monthNum = parts[1].padStart(2, '0');
+                    return `${year}-${monthNum}`;
+                }
+                return month;
+            }
+            if (date) {
+                // Extract month from date (YYYY-MM-DD -> YYYY-MM)
+                return date.substring(0, 7);
+            }
+            return '';
+        };
+        transactions.forEach(tx => {
+            // Ensure month is in YYYY-MM format
+            const monthKey = normalizeMonth(tx.month, tx.date);
+            if (!monthKey) {
+                console.warn(`[getProfitabilityByVehicle] Transaction ${tx.id} has no month or date`);
+                return;
+            }
+            if (!monthlyData[monthKey]) {
+                monthlyData[monthKey] = { revenue: 0, expenses: 0, count: 0 };
+            }
+            if (tx.transactionType === 'revenue') {
+                monthlyData[monthKey].revenue += tx.amount;
+            }
+            else {
+                monthlyData[monthKey].expenses += tx.amount;
+            }
+            monthlyData[monthKey].count++;
+        });
+        // Debug logging
+        if (process.env.NODE_ENV === 'development') {
+            console.log('[getProfitabilityByVehicle] Monthly data:', monthlyData);
+            console.log('[getProfitabilityByVehicle] Monthly data keys:', Object.keys(monthlyData));
+        }
+        // Convert to array and calculate profit
+        // monthlyData keys are already normalized, so we can use them directly
+        const months = Object.keys(monthlyData).sort();
+        const profitability = months.map(month => ({
+            vehicleId,
+            month, // Already normalized from monthlyData keys
+            totalRevenue: monthlyData[month].revenue,
+            totalExpenses: monthlyData[month].expenses,
+            profit: monthlyData[month].revenue - monthlyData[month].expenses,
+            transactionCount: monthlyData[month].count,
+        }));
+        // Debug logging
+        if (process.env.NODE_ENV === 'development') {
+            console.log('[getProfitabilityByVehicle] Profitability array:', profitability.map(p => ({
+                month: p.month,
+                revenue: p.totalRevenue,
+                expenses: p.totalExpenses,
+                profit: p.profit
+            })));
+        }
+        // Calculate all-time totals
+        const allTimeRevenue = transactions.filter(t => t.transactionType === 'revenue').reduce((sum, t) => sum + t.amount, 0);
+        const allTimeExpenses = transactions.filter(t => t.transactionType === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        // Get current month and last month
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonthNum = now.getMonth() + 1;
+        const currentMonth = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`;
+        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+        // Ensure we have data for current month and last month (even if zeros)
+        const currentMonthData = profitability.find(p => p.month === currentMonth) || {
+            vehicleId,
+            month: currentMonth,
+            totalRevenue: 0,
+            totalExpenses: 0,
+            profit: 0,
+            transactionCount: 0,
+        };
+        const lastMonthData = profitability.find(p => p.month === lastMonth) || {
+            vehicleId,
+            month: lastMonth,
+            totalRevenue: 0,
+            totalExpenses: 0,
+            profit: 0,
+            transactionCount: 0,
+        };
+        // Generate last 12 months from current month (rolling 12 months)
+        const allMonths = [];
+        for (let i = 11; i >= 0; i--) {
+            const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const year = monthDate.getFullYear();
+            const month = monthDate.getMonth() + 1;
+            allMonths.push(`${year}-${String(month).padStart(2, '0')}`);
+        }
+        // Normalize month for matching (ensure YYYY-MM format)
+        const normalizeMonthForMatch = (monthStr) => {
+            const parts = monthStr.split('-');
+            if (parts.length === 2) {
+                const year = parts[0];
+                const monthNum = parts[1].padStart(2, '0');
+                return `${year}-${monthNum}`;
+            }
+            return monthStr;
+        };
+        // Create a complete months array with all 12 months
+        const completeMonths = allMonths.map(month => {
+            // Normalize both the target month and profitability months for matching
+            const normalizedTargetMonth = normalizeMonthForMatch(month);
+            const existing = profitability.find(p => {
+                const normalizedPMonth = normalizeMonthForMatch(p.month);
+                return normalizedPMonth === normalizedTargetMonth;
+            });
+            const result = existing || {
+                vehicleId,
+                month: normalizedTargetMonth,
+                totalRevenue: 0,
+                totalExpenses: 0,
+                profit: 0,
+                transactionCount: 0,
+            };
+            // Debug logging for matching
+            if (process.env.NODE_ENV === 'development' && existing) {
+                console.log(`[getProfitabilityByVehicle] Matched month ${normalizedTargetMonth}:`, {
+                    revenue: existing.totalRevenue,
+                    expenses: existing.totalExpenses,
+                    profit: existing.profit
+                });
+            }
+            return result;
+        });
+        // Debug logging
+        if (process.env.NODE_ENV === 'development') {
+            console.log('[getProfitabilityByVehicle] Complete months:', completeMonths.map(m => ({
+                month: m.month,
+                revenue: m.totalRevenue,
+                expenses: m.totalExpenses,
+                profit: m.profit
+            })));
+        }
+        return {
+            vehicleId,
+            currentMonth: currentMonthData,
+            lastMonth: lastMonthData,
+            allTimeRevenue,
+            allTimeExpenses,
+            allTimeProfit: allTimeRevenue - allTimeExpenses,
+            months: completeMonths,
+        };
+    },
+    getDashboardMetrics: () => {
+        const db = getDb();
+        const allTransactions = exports.vehicleTransactionsAdapter.getAll();
+        const allVehicles = exports.vehiclesAdapter.getAll();
+        // Overall metrics
+        const totalRevenue = allTransactions
+            .filter(t => t.transactionType === 'revenue')
+            .reduce((sum, t) => sum + t.amount, 0);
+        const totalExpenses = allTransactions
+            .filter(t => t.transactionType === 'expense')
+            .reduce((sum, t) => sum + t.amount, 0);
+        const netProfit = totalRevenue - totalExpenses;
+        const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+        const vehiclesWithData = allVehicles.filter(v => {
+            const vehicleTransactions = allTransactions.filter(t => t.vehicleId === v.id);
+            return vehicleTransactions.length > 0;
+        });
+        const avgRevenuePerVehicle = vehiclesWithData.length > 0 ? totalRevenue / vehiclesWithData.length : 0;
+        const avgProfitPerVehicle = vehiclesWithData.length > 0 ? netProfit / vehiclesWithData.length : 0;
+        const totalTransactions = allTransactions.length;
+        const avgTransactionValue = totalTransactions > 0 ? (totalRevenue + totalExpenses) / totalTransactions : 0;
+        // Time-based metrics
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+        const currentMonthTransactions = allTransactions.filter(t => t.month === currentMonth);
+        const currentMonthRevenue = currentMonthTransactions.filter(t => t.transactionType === 'revenue').reduce((sum, t) => sum + t.amount, 0);
+        const currentMonthExpenses = currentMonthTransactions.filter(t => t.transactionType === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        const currentMonthProfit = currentMonthRevenue - currentMonthExpenses;
+        const lastMonthTransactions = allTransactions.filter(t => t.month === lastMonth);
+        const lastMonthRevenue = lastMonthTransactions.filter(t => t.transactionType === 'revenue').reduce((sum, t) => sum + t.amount, 0);
+        const lastMonthExpenses = lastMonthTransactions.filter(t => t.transactionType === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        const lastMonthProfit = lastMonthRevenue - lastMonthExpenses;
+        const momRevenueGrowth = lastMonthRevenue > 0 ? ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+        const momExpensesGrowth = lastMonthExpenses > 0 ? ((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100 : 0;
+        const momProfitGrowth = lastMonthProfit !== 0 ? ((currentMonthProfit - lastMonthProfit) / Math.abs(lastMonthProfit)) * 100 : 0;
+        // Year-to-date (current year)
+        const currentYear = now.getFullYear();
+        const ytdTransactions = allTransactions.filter(t => {
+            const txYear = parseInt(t.month.split('-')[0]);
+            return txYear === currentYear;
+        });
+        const ytdRevenue = ytdTransactions.filter(t => t.transactionType === 'revenue').reduce((sum, t) => sum + t.amount, 0);
+        const ytdExpenses = ytdTransactions.filter(t => t.transactionType === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        const ytdProfit = ytdRevenue - ytdExpenses;
+        // Monthly trend (last 12 months)
+        const monthlyTrend = [];
+        for (let i = 11; i >= 0; i--) {
+            const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
+            const monthTransactions = allTransactions.filter(t => t.month === monthStr);
+            const monthRevenue = monthTransactions.filter(t => t.transactionType === 'revenue').reduce((sum, t) => sum + t.amount, 0);
+            const monthExpenses = monthTransactions.filter(t => t.transactionType === 'expense').reduce((sum, t) => sum + t.amount, 0);
+            monthlyTrend.push({
+                month: monthStr,
+                revenue: monthRevenue,
+                expenses: monthExpenses,
+                profit: monthRevenue - monthExpenses,
+            });
+        }
+        // Vehicle-based metrics
+        const vehicleMetrics = {};
+        allVehicles.forEach(vehicle => {
+            const vehicleTransactions = allTransactions.filter(t => t.vehicleId === vehicle.id);
+            const revenue = vehicleTransactions.filter(t => t.transactionType === 'revenue').reduce((sum, t) => sum + t.amount, 0);
+            const expenses = vehicleTransactions.filter(t => t.transactionType === 'expense').reduce((sum, t) => sum + t.amount, 0);
+            vehicleMetrics[vehicle.id] = {
+                revenue,
+                expenses,
+                profit: revenue - expenses,
+                transactionCount: vehicleTransactions.length,
+            };
+        });
+        const profitableVehicles = Object.values(vehicleMetrics).filter(v => v.profit > 0).length;
+        const lossMakingVehicles = Object.values(vehicleMetrics).filter(v => v.profit < 0).length;
+        const noDataVehicles = allVehicles.length - vehiclesWithData.length;
+        const topByRevenue = Object.entries(vehicleMetrics)
+            .map(([vehicleId, metrics]) => {
+            const vehicle = allVehicles.find(v => v.id === vehicleId);
+            return {
+                vehicleId,
+                vehicleNumber: vehicle?.vehicleNumber || 'Unknown',
+                revenue: metrics.revenue,
+            };
+        })
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 5);
+        const topByProfit = Object.entries(vehicleMetrics)
+            .map(([vehicleId, metrics]) => {
+            const vehicle = allVehicles.find(v => v.id === vehicleId);
+            return {
+                vehicleId,
+                vehicleNumber: vehicle?.vehicleNumber || 'Unknown',
+                profit: metrics.profit,
+            };
+        })
+            .sort((a, b) => b.profit - a.profit)
+            .slice(0, 5);
+        const bottomByProfit = Object.entries(vehicleMetrics)
+            .map(([vehicleId, metrics]) => {
+            const vehicle = allVehicles.find(v => v.id === vehicleId);
+            return {
+                vehicleId,
+                vehicleNumber: vehicle?.vehicleNumber || 'Unknown',
+                profit: metrics.profit,
+            };
+        })
+            .sort((a, b) => a.profit - b.profit)
+            .slice(0, 5);
+        // Customer-based metrics (via invoiceId)
+        const revenueTransactionsWithInvoice = allTransactions.filter(t => t.transactionType === 'revenue' && t.invoiceId);
+        const customerRevenueMap = {};
+        const invoiceIds = [...new Set(revenueTransactionsWithInvoice.map(t => t.invoiceId))];
+        invoiceIds.forEach(invoiceId => {
+            if (!invoiceId)
+                return;
+            try {
+                const invoice = exports.invoicesAdapter.getById(invoiceId);
+                if (invoice && invoice.customerId) {
+                    const customerRevenue = revenueTransactionsWithInvoice
+                        .filter(t => t.invoiceId === invoiceId)
+                        .reduce((sum, t) => sum + t.amount, 0);
+                    customerRevenueMap[invoice.customerId] = (customerRevenueMap[invoice.customerId] || 0) + customerRevenue;
+                }
+            }
+            catch (e) {
+                // Skip if invoice doesn't exist
+            }
+        });
+        const totalUniqueCustomers = Object.keys(customerRevenueMap).length;
+        const topCustomersByRevenue = Object.entries(customerRevenueMap)
+            .map(([customerId, revenue]) => {
+            const customer = exports.customersAdapter.getById(customerId);
+            return {
+                customerId,
+                customerName: customer?.name || 'Unknown',
+                revenue,
+            };
+        })
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 5);
+        const avgRevenuePerCustomer = totalUniqueCustomers > 0 ? Object.values(customerRevenueMap).reduce((sum, rev) => sum + rev, 0) / totalUniqueCustomers : 0;
+        // Category-based metrics
+        const revenueByCategory = {};
+        const expensesByCategory = {};
+        allTransactions.forEach(t => {
+            const category = t.category || (t.transactionType === 'revenue' ? 'Rental Income' : 'Other');
+            if (t.transactionType === 'revenue') {
+                revenueByCategory[category] = (revenueByCategory[category] || 0) + t.amount;
+            }
+            else {
+                expensesByCategory[category] = (expensesByCategory[category] || 0) + t.amount;
+            }
+        });
+        const topExpenseCategory = Object.entries(expensesByCategory)
+            .sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+        // Operational metrics
+        const revenuePerVehiclePerMonth = vehiclesWithData.length > 0 && monthlyTrend.length > 0
+            ? monthlyTrend.reduce((sum, m) => sum + m.revenue, 0) / (vehiclesWithData.length * monthlyTrend.length)
+            : 0;
+        const expenseRatio = totalRevenue > 0 ? (totalExpenses / totalRevenue) * 100 : 0;
+        const mostActiveVehicle = Object.entries(vehicleMetrics)
+            .map(([vehicleId, metrics]) => {
+            const vehicle = allVehicles.find(v => v.id === vehicleId);
+            return {
+                vehicleId,
+                vehicleNumber: vehicle?.vehicleNumber || 'Unknown',
+                transactionCount: metrics.transactionCount,
+            };
+        })
+            .sort((a, b) => b.transactionCount - a.transactionCount)[0] || { vehicleId: '', vehicleNumber: 'N/A', transactionCount: 0 };
+        const avgTransactionsPerVehicle = vehiclesWithData.length > 0 ? totalTransactions / vehiclesWithData.length : 0;
+        return {
+            overall: {
+                totalRevenue,
+                totalExpenses,
+                netProfit,
+                profitMargin,
+                avgRevenuePerVehicle,
+                avgProfitPerVehicle,
+                totalTransactions,
+                avgTransactionValue,
+            },
+            timeBased: {
+                currentMonth: { revenue: currentMonthRevenue, expenses: currentMonthExpenses, profit: currentMonthProfit },
+                lastMonth: { revenue: lastMonthRevenue, expenses: lastMonthExpenses, profit: lastMonthProfit },
+                momGrowth: { revenue: momRevenueGrowth, expenses: momExpensesGrowth, profit: momProfitGrowth },
+                ytd: { revenue: ytdRevenue, expenses: ytdExpenses, profit: ytdProfit },
+                monthlyTrend,
+            },
+            vehicleBased: {
+                totalActive: vehiclesWithData.length,
+                profitable: profitableVehicles,
+                lossMaking: lossMakingVehicles,
+                noData: noDataVehicles,
+                topByRevenue,
+                topByProfit,
+                bottomByProfit,
+            },
+            customerBased: {
+                totalUnique: totalUniqueCustomers,
+                topByRevenue: topCustomersByRevenue,
+                avgRevenuePerCustomer,
+            },
+            categoryBased: {
+                revenueByCategory,
+                expensesByCategory,
+                topExpenseCategory,
+            },
+            operational: {
+                revenuePerVehiclePerMonth,
+                expenseRatio,
+                mostActiveVehicle,
+                avgTransactionsPerVehicle,
+            },
+        };
+    },
+    create: (data) => {
+        const db = getDb();
+        const now = new Date().toISOString();
+        // Validate date is within 12 months and not future
+        const txDate = new Date(data.date);
+        const today = new Date();
+        today.setHours(23, 59, 59, 999); // End of today
+        const twelveMonthsAgo = new Date();
+        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+        twelveMonthsAgo.setHours(0, 0, 0, 0);
+        if (txDate > today) {
+            throw new Error('Transaction date cannot be in the future');
+        }
+        if (txDate < twelveMonthsAgo) {
+            throw new Error('Transaction date cannot be more than 12 months in the past');
+        }
+        // Validate amount is positive
+        if (!data.amount || data.amount <= 0) {
+            throw new Error('Transaction amount must be greater than 0');
+        }
+        // Validate vehicle exists
+        const vehicle = db.prepare('SELECT id FROM vehicles WHERE id = ?').get(data.vehicleId);
+        if (!vehicle) {
+            throw new Error(`Vehicle with ID "${data.vehicleId}" does not exist`);
+        }
+        // Validate employee if provided
+        if (data.employeeId) {
+            const employee = db.prepare('SELECT id FROM employees WHERE id = ?').get(data.employeeId);
+            if (!employee) {
+                throw new Error(`Employee with ID "${data.employeeId}" does not exist`);
+            }
+        }
+        // Extract month from date (YYYY-MM-DD -> YYYY-MM)
+        const month = data.date.substring(0, 7);
+        const stmt = db.prepare(`
+      INSERT INTO vehicle_transactions (id, vehicleId, transactionType, category, amount, date, month, description, employeeId, invoiceId, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+        stmt.run(data.id, data.vehicleId, data.transactionType, data.category || null, data.amount, data.date, month, data.description || null, data.employeeId || null, data.invoiceId || null, now, now);
+        return exports.vehicleTransactionsAdapter.getById(data.id);
+    },
+    update: (id, data) => {
+        const db = getDb();
+        const now = new Date().toISOString();
+        // Validate date if provided
+        if (data.date) {
+            const txDate = new Date(data.date);
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            const twelveMonthsAgo = new Date();
+            twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+            twelveMonthsAgo.setHours(0, 0, 0, 0);
+            if (txDate > today) {
+                throw new Error('Transaction date cannot be in the future');
+            }
+            if (txDate < twelveMonthsAgo) {
+                throw new Error('Transaction date cannot be more than 12 months in the past');
+            }
+        }
+        // Validate amount if provided
+        if (data.amount !== undefined && data.amount <= 0) {
+            throw new Error('Transaction amount must be greater than 0');
+        }
+        // Get existing transaction to merge updates
+        const existing = exports.vehicleTransactionsAdapter.getById(id);
+        if (!existing) {
+            throw new Error(`Transaction with ID "${id}" does not exist`);
+        }
+        // Merge data
+        const updated = {
+            ...existing,
+            ...data,
+            updatedAt: now,
+        };
+        // Recalculate month if date changed
+        if (data.date) {
+            updated.month = data.date.substring(0, 7);
+        }
+        // Validate employee if provided
+        if (updated.employeeId) {
+            const employee = db.prepare('SELECT id FROM employees WHERE id = ?').get(updated.employeeId);
+            if (!employee) {
+                throw new Error(`Employee with ID "${updated.employeeId}" does not exist`);
+            }
+        }
+        const stmt = db.prepare(`
+      UPDATE vehicle_transactions 
+      SET vehicleId = ?, transactionType = ?, category = ?, amount = ?, date = ?, month = ?, description = ?, employeeId = ?, invoiceId = ?, updatedAt = ?
+      WHERE id = ?
+    `);
+        stmt.run(updated.vehicleId, updated.transactionType, updated.category || null, updated.amount, updated.date, updated.month, updated.description || null, updated.employeeId || null, updated.invoiceId || null, updated.updatedAt, id);
+        return exports.vehicleTransactionsAdapter.getById(id);
+    },
+    delete: (id) => {
+        const db = getDb();
+        db.prepare('DELETE FROM vehicle_transactions WHERE id = ?').run(id);
     },
 };

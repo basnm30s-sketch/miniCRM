@@ -16,6 +16,7 @@ export interface AdminSettings {
   showRevenueTrend?: boolean; // Show/hide revenue trend chart on home page
   showQuickActions?: boolean; // Show/hide quick actions on home page
   showReports?: boolean; // Show/hide Reports menu in sidebar
+  showVehicleFinances?: boolean; // Show/hide Vehicle Finances menu in sidebar
   createdAt?: string; // ISO8601
   updatedAt?: string; // ISO8601
 }
@@ -62,6 +63,7 @@ export interface Vehicle {
   basePrice?: number;
   notes?: string;
   createdAt?: string; // ISO8601
+  type?: string; // Legacy support
 }
 
 export interface QuoteLineItem {

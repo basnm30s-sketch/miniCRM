@@ -1,0 +1,174 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - img "Almsar Alzaki logo" [ref=e7]
+        - generic [ref=e8]:
+          - generic [ref=e9]: Almsar Alzaki
+          - generic [ref=e10]: Car Rental Management
+      - navigation [ref=e11]:
+        - link "Home" [ref=e12] [cursor=pointer]:
+          - /url: /
+          - img [ref=e13]
+          - generic [ref=e16]: Home
+        - link "Vehicle Finances" [ref=e17] [cursor=pointer]:
+          - /url: /vehicle-finances/
+          - img [ref=e18]
+          - generic [ref=e21]: Vehicle Finances
+        - generic [ref=e22]:
+          - button "Doc Generator" [expanded] [ref=e23]:
+            - generic [ref=e24]:
+              - img [ref=e25]
+              - generic [ref=e29]: Doc Generator
+            - img [ref=e30]
+          - generic [ref=e32]:
+            - link "Quotations" [ref=e33] [cursor=pointer]:
+              - /url: /quotations/
+              - img [ref=e34]
+              - generic [ref=e37]: Quotations
+            - link "Invoices" [ref=e38] [cursor=pointer]:
+              - /url: /invoices/
+              - img [ref=e39]
+              - generic [ref=e41]: Invoices
+        - button "Masters" [ref=e43]:
+          - generic [ref=e44]:
+            - img [ref=e45]
+            - generic [ref=e49]: Masters
+          - img [ref=e50]
+        - link "Payslips" [ref=e52] [cursor=pointer]:
+          - /url: /payslips/
+          - img [ref=e53]
+          - generic [ref=e56]: Payslips
+        - link "Settings" [ref=e57] [cursor=pointer]:
+          - /url: /admin/
+          - img [ref=e58]
+          - generic [ref=e61]: Settings
+      - generic [ref=e63]:
+        - img [ref=e65]
+        - generic [ref=e69]:
+          - generic [ref=e70]: Almsar Alzaki
+          - generic [ref=e71]: almsar.uae@gmail.com
+    - main [ref=e72]:
+      - generic [ref=e73]:
+        - generic [ref=e74]:
+          - link "Back to Invoices" [ref=e75] [cursor=pointer]:
+            - /url: /invoices/
+            - button "Back to Invoices" [ref=e76]:
+              - img
+              - text: Back to Invoices
+          - heading "Create New Invoice" [level=1] [ref=e77]
+          - paragraph [ref=e78]: Fill in the details below
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - generic [ref=e83]: Invoice Details
+              - generic [ref=e84]:
+                - generic [ref=e85]:
+                  - generic [ref=e86]:
+                    - generic [ref=e87]: Invoice Number
+                    - textbox "Invoice Number" [disabled] [ref=e88]: INV-20260103-6445
+                  - generic [ref=e89]:
+                    - generic [ref=e90]: Status
+                    - combobox "Status" [ref=e91]:
+                      - option "Draft" [selected]
+                      - option "Invoice Sent"
+                      - option "Payment Received"
+                - generic [ref=e92]:
+                  - generic [ref=e93]:
+                    - generic [ref=e94]: Invoice Date
+                    - textbox "Invoice Date" [ref=e95]: 2026-01-03
+                  - generic [ref=e96]:
+                    - generic [ref=e97]: Due Date
+                    - textbox "Due Date" [ref=e98]
+                - generic [ref=e99]:
+                  - generic [ref=e100]: Amount Received (AED)
+                  - spinbutton "Amount Received (AED)" [ref=e101]: "0"
+                  - paragraph [ref=e102]: "Pending: AED 0.00"
+                - generic [ref=e103]:
+                  - generic [ref=e104]: Customer *
+                  - combobox "Customer *" [active] [ref=e105]:
+                    - option "Select Customer" [selected]
+                    - option "Invoice Test 1767449211150"
+                    - option "Invoice Test 1767427053191"
+                  - paragraph [ref=e106]: Customer must be selected
+                - generic [ref=e107]:
+                  - generic [ref=e108]: Link to Quote or Purchase Order
+                  - combobox "Link to Quote or Purchase Order" [ref=e109]:
+                    - option "None" [selected]
+            - generic [ref=e110]:
+              - generic [ref=e111]:
+                - generic [ref=e112]: Line Items
+                - button "Add Item" [ref=e113]:
+                  - img
+                  - text: Add Item
+              - generic [ref=e116]:
+                - generic [ref=e117]:
+                  - generic [ref=e118]: Description
+                  - textbox "Item description" [ref=e119]
+                - generic [ref=e120]:
+                  - generic [ref=e121]: Qty
+                  - spinbutton [ref=e122]: "1"
+                - generic [ref=e123]:
+                  - generic [ref=e124]: Unit Price
+                  - spinbutton [ref=e125]
+                - generic [ref=e126]:
+                  - generic [ref=e127]: Total
+                  - generic [ref=e128]: AED 0.00
+                - button [ref=e130]:
+                  - img
+            - generic [ref=e131]:
+              - generic [ref=e133]: Additional Information
+              - generic [ref=e135]:
+                - generic [ref=e136]: Notes or Terms
+                - textbox "Notes or Terms" [ref=e137]:
+                  - /placeholder: Additional notes, payment terms, or special instructions...
+                  - text: "1. This quotation is valid for 30 days from the date of issue. 2. Goods remain the property of the company until full payment is received. 3. Any additional costs such as tolls, fines or damages are not included unless stated. 4. Payment terms: as agreed in the contract."
+          - generic [ref=e139]:
+            - generic [ref=e141]: Summary
+            - generic [ref=e142]:
+              - generic [ref=e143]:
+                - generic [ref=e144]:
+                  - generic [ref=e145]: "Subtotal:"
+                  - generic [ref=e146]: AED 0.00
+                - generic [ref=e147]:
+                  - generic [ref=e148]: "Tax (AED):"
+                  - spinbutton "Tax (AED):" [ref=e149]
+              - generic [ref=e150]:
+                - generic [ref=e151]: "Total:"
+                - generic [ref=e152]: AED 0.00
+              - generic [ref=e153]:
+                - generic [ref=e154]:
+                  - generic [ref=e155]: "Amount Received:"
+                  - generic [ref=e156]: AED 0.00
+                - generic [ref=e157]:
+                  - generic [ref=e158]: "Pending:"
+                  - generic [ref=e159]: AED 0.00
+              - generic [ref=e160]:
+                - paragraph [ref=e161]: "Validation Errors:"
+                - list [ref=e162]:
+                  - listitem [ref=e163]: Customer must be selected
+                  - listitem [ref=e164]: At least one line item with description and price > 0 is required
+                  - listitem [ref=e165]: Invoice total must be greater than zero
+              - generic [ref=e166]:
+                - button "Save PDF" [disabled]:
+                  - img
+                  - text: Save PDF
+                - button "Save Excel" [disabled]:
+                  - img
+                  - text: Save Excel
+                - button "Save Word" [disabled]:
+                  - img
+                  - text: Save Word
+                - button "Create Invoice" [ref=e167]
+                - link "Cancel" [ref=e168] [cursor=pointer]:
+                  - /url: /invoices/
+                  - button "Cancel" [ref=e169]
+  - region "Notifications (F8)":
+    - list
+  - button "Open Next.js Dev Tools" [ref=e175] [cursor=pointer]:
+    - img [ref=e176]
+  - alert [ref=e179]
+```

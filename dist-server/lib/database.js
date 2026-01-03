@@ -64,7 +64,7 @@ function getDatabasePath() {
     if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
     }
-    return path.join(dbDir, 'imanage.db');
+    return path.join(dbDir, process.env.DB_FILENAME || 'imanage.db');
 }
 /**
  * Initialize the database connection
@@ -204,16 +204,77 @@ function createTables(database) {
             }
         }
     }
-    // Vehicles
+    // Vehicles - Fleet Management
     database.exec(`
     CREATE TABLE IF NOT EXISTS vehicles (
       id TEXT PRIMARY KEY,
-      type TEXT NOT NULL,
+      vehicleNumber TEXT NOT NULL UNIQUE,
+      vehicleType TEXT,
+      make TEXT,
+      model TEXT,
+      year INTEGER,
+      color TEXT,
+      purchasePrice REAL,
+      purchaseDate TEXT,
+      currentValue REAL,
+      insuranceCostMonthly REAL,
+      financingCostMonthly REAL,
+      odometerReading REAL,
+      lastServiceDate TEXT,
+      nextServiceDue TEXT,
+      fuelType TEXT,
+      status TEXT DEFAULT 'active',
+      registrationExpiry TEXT,
+      insuranceExpiry TEXT,
       description TEXT,
       basePrice REAL,
+      notes TEXT,
       createdAt TEXT
     )
   `);
+    // Migration: Add new vehicle columns if they don't exist (for existing databases)
+    try {
+        const vehicleTableInfo = database.prepare("PRAGMA table_info(vehicles)").all();
+        const vehicleColumnNames = vehicleTableInfo.map((col) => col.name);
+        const newVehicleColumns = [
+            { name: 'vehicleNumber', type: 'TEXT' },
+            { name: 'vehicleType', type: 'TEXT' },
+            { name: 'make', type: 'TEXT' },
+            { name: 'model', type: 'TEXT' },
+            { name: 'year', type: 'INTEGER' },
+            { name: 'color', type: 'TEXT' },
+            { name: 'purchasePrice', type: 'REAL' },
+            { name: 'purchaseDate', type: 'TEXT' },
+            { name: 'currentValue', type: 'REAL' },
+            { name: 'insuranceCostMonthly', type: 'REAL' },
+            { name: 'financingCostMonthly', type: 'REAL' },
+            { name: 'odometerReading', type: 'REAL' },
+            { name: 'lastServiceDate', type: 'TEXT' },
+            { name: 'nextServiceDue', type: 'TEXT' },
+            { name: 'fuelType', type: 'TEXT' },
+            { name: 'status', type: "TEXT DEFAULT 'active'" },
+            { name: 'registrationExpiry', type: 'TEXT' },
+            { name: 'insuranceExpiry', type: 'TEXT' },
+            { name: 'notes', type: 'TEXT' },
+        ];
+        for (const col of newVehicleColumns) {
+            if (!vehicleColumnNames.includes(col.name)) {
+                database.exec(`ALTER TABLE vehicles ADD COLUMN ${col.name} ${col.type}`);
+                console.log(`Added ${col.name} column to vehicles table`);
+            }
+        }
+        // Migrate existing 'type' data to 'vehicleNumber' if vehicleNumber is empty
+        if (vehicleColumnNames.includes('type') && vehicleColumnNames.includes('vehicleNumber')) {
+            database.exec(`
+        UPDATE vehicles 
+        SET vehicleNumber = type 
+        WHERE vehicleNumber IS NULL OR vehicleNumber = ''
+      `);
+        }
+    }
+    catch (error) {
+        console.log('Vehicle migration note:', error.message);
+    }
     // Quotes
     database.exec(`
     CREATE TABLE IF NOT EXISTS quotes (
@@ -362,12 +423,76 @@ function createTables(database) {
             }
         }
     });
+    // Expense Categories
+    database.exec(`
+    CREATE TABLE IF NOT EXISTS expense_categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      isCustom INTEGER DEFAULT 0,
+      createdAt TEXT
+    )
+  `);
+    // Initialize predefined expense categories if they don't exist
+    try {
+        const existingCategories = database.prepare('SELECT COUNT(*) as count FROM expense_categories').get();
+        if (existingCategories.count === 0) {
+            const predefinedCategories = [
+                { id: 'cat_purchase', name: 'Purchase', isCustom: 0 },
+                { id: 'cat_maintenance', name: 'Maintenance', isCustom: 0 },
+                { id: 'cat_insurance', name: 'Insurance', isCustom: 0 },
+                { id: 'cat_driver_salary', name: 'Driver Salary', isCustom: 0 },
+                { id: 'cat_fuel', name: 'Fuel', isCustom: 0 },
+                { id: 'cat_registration', name: 'Registration', isCustom: 0 },
+                { id: 'cat_other', name: 'Other', isCustom: 0 },
+            ];
+            const insertCategory = database.prepare(`
+        INSERT INTO expense_categories (id, name, isCustom, createdAt)
+        VALUES (?, ?, ?, ?)
+      `);
+            const now = new Date().toISOString();
+            for (const cat of predefinedCategories) {
+                try {
+                    insertCategory.run(cat.id, cat.name, cat.isCustom, now);
+                }
+                catch (e) {
+                    // Ignore if already exists
+                }
+            }
+        }
+    }
+    catch (error) {
+        console.log('Expense categories initialization note:', error.message);
+    }
+    // Vehicle Transactions
+    database.exec(`
+    CREATE TABLE IF NOT EXISTS vehicle_transactions (
+      id TEXT PRIMARY KEY,
+      vehicleId TEXT NOT NULL,
+      transactionType TEXT NOT NULL CHECK(transactionType IN ('expense', 'revenue')),
+      category TEXT,
+      amount REAL NOT NULL CHECK(amount > 0),
+      date TEXT NOT NULL,
+      month TEXT NOT NULL,
+      description TEXT,
+      employeeId TEXT,
+      invoiceId TEXT,
+      createdAt TEXT,
+      updatedAt TEXT,
+      FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE CASCADE,
+      FOREIGN KEY (employeeId) REFERENCES employees(id),
+      FOREIGN KEY (invoiceId) REFERENCES invoices(id)
+    )
+  `);
     // Create indexes for better performance
     database.exec(`
     CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customerId);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
     CREATE INDEX IF NOT EXISTS idx_purchase_orders_vendor ON purchase_orders(vendorId);
     CREATE INDEX IF NOT EXISTS idx_purchase_orders_status ON purchase_orders(status);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_vehicle ON vehicle_transactions(vehicleId);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_date ON vehicle_transactions(date);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_month ON vehicle_transactions(month);
+    CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_type ON vehicle_transactions(transactionType);
   `);
 }
 /**

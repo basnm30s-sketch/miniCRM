@@ -97,54 +97,66 @@ Use `npm run build` which properly resolves the `next` binary from `node_modules
 
 ---
 
-### Issue 4: better-sqlite3 Native Module Compilation
+### Issue 4: better-sqlite3 Native Module ABI Mismatch
 
 **Symptoms:**
-- Build fails during `electron-builder install-app-deps` postinstall step
-- Error: `node-gyp failed to rebuild 'better-sqlite3'`
-- Error: `Could not find any Visual Studio installation to use`
-- Error: `Could not locate the bindings file` when running the app
+- Runtime error: `The module was compiled against a different Node.js version using NODE_MODULE_VERSION 127. This version of Node.js requires NODE_MODULE_VERSION 140`
+- API requests fail with 500 Internal Server Error
+- Error occurs when `better-sqlite3` tries to load in the packaged Electron app
 
 **Root Cause:**
-The `better-sqlite3` package contains native C++ code that must be compiled for Electron's specific Node.js version. This requires:
-- Visual Studio Build Tools (Windows)
-- Python (for node-gyp)
-- Proper Node.js headers for Electron version
+The `better-sqlite3` package contains native C++ code that must be compiled for Electron's specific Node.js version. The error occurs because:
+- `better-sqlite3` was compiled for Node.js v18.x (NODE_MODULE_VERSION 127) during development
+- Electron v39.2.1 uses Node.js v20.x (NODE_MODULE_VERSION 140)
+- Native modules must match the exact Node.js ABI version they run on
+- The module is already unpacked from ASAR (correct), but compiled for the wrong Node.js version
 
-**Solutions:**
+**Solution (Automatic - Recommended):**
 
-1. **Install Visual Studio Build Tools:**
-   - Download and install "Visual Studio Build Tools" or "Visual Studio Community"
-   - Ensure "Desktop development with C++" workload is installed
-   - Install Windows 10/11 SDK
+The project is now configured to automatically handle native module rebuilding:
 
-2. **Install Python:**
-   - Python 3.x must be available in PATH
-   - Verify with: `python --version` or `py --version`
+1. **electron-builder Configuration:**
+   - `npmRebuild: true` - electron-builder automatically rebuilds native modules for Electron's Node.js version during packaging
+   - `asarUnpack: ["**/node_modules/better-sqlite3/**/*"]` - Ensures native modules are unpacked from ASAR (required - native modules cannot run from inside ASAR)
 
-3. **Rebuild Native Modules:**
+2. **Build Process:**
+   - When you run `npm run electron:build-win`, electron-builder will automatically rebuild `better-sqlite3` for Electron's Node.js version
+   - You'll see rebuild output in the console during the build process
+   - No manual rebuild steps required
+
+3. **System Requirements:**
+   - Visual Studio Build Tools (Windows) or Xcode Command Line Tools (macOS) or build-essential (Linux)
+   - Python 3.x (for node-gyp) - must be available in PATH
+   - These are only needed during the build process, not at runtime
+
+**Alternative Solution (If Automatic Rebuild Fails):**
+
+If electron-builder's automatic rebuild doesn't work in your environment:
+
+1. Install `electron-rebuild`:
    ```bash
-   npm rebuild better-sqlite3
-   ```
-   Or if that fails:
-   ```bash
-   npm install --ignore-scripts
-   npm rebuild better-sqlite3
+   npm install --save-dev electron-rebuild
    ```
 
-4. **Skip Postinstall (Temporary Workaround):**
-   ```bash
-   npm install --ignore-scripts
+2. Add rebuild script to `package.json`:
+   ```json
+   "rebuild:electron": "electron-rebuild --only better-sqlite3"
    ```
-   Then manually rebuild:
-   ```bash
-   npm rebuild better-sqlite3
+
+3. Update build scripts:
+   ```json
+   "electron:build-win": "npm run build:all && npm run rebuild:electron && electron-builder --win"
    ```
+
+4. Set `npmRebuild: false` in electron-builder config
 
 **Prevention:**
-- Ensure Visual Studio Build Tools are installed before first build
-- Document system requirements for build environment
-- Consider using prebuilt binaries if available
+- ✅ **Automatic rebuild configured** - electron-builder handles native module rebuilding automatically
+- ✅ **Version constraints** - `engines.node` field in package.json documents required Node.js version
+- ✅ **ASAR unpacking** - Explicit `asarUnpack` configuration ensures native modules are accessible
+- ✅ **Documentation** - This section documents the native module handling process
+- Ensure Visual Studio Build Tools (Windows) or equivalent build tools are installed before building
+- Use Node.js v18+ for development (native modules will be rebuilt for Electron's Node.js version automatically)
 
 ---
 

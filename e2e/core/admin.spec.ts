@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Admin Settings', () => {
-
     test('Settings Update', async ({ page }) => {
         const uniqueId = Date.now().toString();
         const newCompanyName = `E2E Test Corp ${uniqueId}`;
@@ -11,6 +10,7 @@ test.describe('Admin Settings', () => {
 
         // 1. Update Company Info
         const companyNameInput = page.getByLabel('Company Name');
+        await expect(companyNameInput).toBeVisible({ timeout: 5000 });
         await companyNameInput.fill(newCompanyName);
 
         const addressInput = page.getByLabel('Address');
@@ -19,18 +19,26 @@ test.describe('Admin Settings', () => {
         }
 
         await page.getByRole('button', { name: 'Save Settings' }).click();
+
+        // Wait for network to settle after save
         await page.waitForLoadState('networkidle');
 
-        // Verify Success (toast)
-        await expect(page.getByText('Settings saved successfully').first()).toBeVisible({ timeout: 5000 });
+        // Verify Success (toast) - FIXED: Proper assertion instead of timeout
+        const successToast = page.getByText('Settings saved successfully').first();
+        await expect(successToast).toBeVisible({ timeout: 5000 });
 
-        await page.waitForTimeout(5000); // Wait 5s for persistance
+        // Optionally wait for toast to disappear before reloading
+        await expect(successToast).not.toBeVisible({ timeout: 5000 }).catch(() => {
+            // Toast might stay visible or auto-dismiss, either is fine
+        });
 
-        // Reload and Verify Persisted
+        // Reload and Verify Persisted - FIXED: Removed hardcoded timeout
         await page.reload();
         await page.waitForLoadState('networkidle');
-        await page.waitForTimeout(1000); // UI hydration wait
-        await expect(page.getByLabel('Company Name')).toHaveValue(newCompanyName);
-    });
 
+        // Wait for the input to be visible and have the correct value
+        const reloadedInput = page.getByLabel('Company Name');
+        await expect(reloadedInput).toBeVisible({ timeout: 5000 });
+        await expect(reloadedInput).toHaveValue(newCompanyName, { timeout: 5000 });
+    });
 });

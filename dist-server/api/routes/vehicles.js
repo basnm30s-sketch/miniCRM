@@ -25,6 +25,19 @@ router.get('/:id', (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+router.get('/:id/profitability', (req, res) => {
+    try {
+        const vehicle = sqlite_1.vehiclesAdapter.getById(req.params.id);
+        if (!vehicle) {
+            return res.status(404).json({ error: 'Vehicle not found' });
+        }
+        const profitability = sqlite_1.vehicleTransactionsAdapter.getProfitabilityByVehicle(req.params.id);
+        res.json(profitability);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 router.post('/', (req, res) => {
     try {
         const vehicle = sqlite_1.vehiclesAdapter.create(req.body);

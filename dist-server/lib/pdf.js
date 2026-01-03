@@ -48,10 +48,12 @@ class ClientSidePDFRenderer {
         // Dynamic imports to avoid bundling if not used
         const html2canvas = (await Promise.resolve().then(() => __importStar(require('html2canvas')))).default;
         const jsPDF = (await Promise.resolve().then(() => __importStar(require('jspdf')))).jsPDF;
+        // Load branding URLs from fixed file locations
+        const brandingUrls = await (0, api_client_1.loadBrandingUrls)();
         // Preload images to ensure they're loaded before rendering
-        const logoUrl = (0, api_client_1.getFileUrl)(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null);
-        const sealUrl = (0, api_client_1.getFileUrl)(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null);
-        const signatureUrl = (0, api_client_1.getFileUrl)(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null);
+        const logoUrl = brandingUrls.logoUrl;
+        const sealUrl = brandingUrls.sealUrl;
+        const signatureUrl = brandingUrls.signatureUrl;
         const imagePromises = [];
         if (logoUrl) {
             imagePromises.push(this.preloadImage(logoUrl));
@@ -77,7 +79,7 @@ class ClientSidePDFRenderer {
         container.style.color = '#333333';
         container.style.margin = '0';
         // Build the quote HTML with header (logo, company info) and footer
-        const quoteHtml = this.buildQuoteHtml(quote, adminSettings);
+        const quoteHtml = this.buildQuoteHtml(quote, adminSettings, { logoUrl, sealUrl, signatureUrl });
         container.innerHTML = quoteHtml;
         document.body.appendChild(container);
         // Wait a bit for images in HTML to load
@@ -153,9 +155,11 @@ class ClientSidePDFRenderer {
         const html2canvas = (await Promise.resolve().then(() => __importStar(require('html2canvas')))).default;
         const jsPDF = (await Promise.resolve().then(() => __importStar(require('jspdf')))).jsPDF;
         // Preload images
-        const logoUrl = (0, api_client_1.getFileUrl)(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null);
-        const sealUrl = (0, api_client_1.getFileUrl)(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null);
-        const signatureUrl = (0, api_client_1.getFileUrl)(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null);
+        // Load branding URLs from fixed file locations
+        const brandingUrls = await (0, api_client_1.loadBrandingUrls)();
+        const logoUrl = brandingUrls.logoUrl;
+        const sealUrl = brandingUrls.sealUrl;
+        const signatureUrl = brandingUrls.signatureUrl;
         const imagePromises = [];
         if (logoUrl)
             imagePromises.push(this.preloadImage(logoUrl));
@@ -175,7 +179,7 @@ class ClientSidePDFRenderer {
         container.style.fontSize = '12px';
         container.style.color = '#333333';
         container.style.margin = '0';
-        const poHtml = this.buildPurchaseOrderHtml(po, adminSettings, vendorName);
+        const poHtml = this.buildPurchaseOrderHtml(po, adminSettings, vendorName, { logoUrl, sealUrl, signatureUrl });
         container.innerHTML = poHtml;
         document.body.appendChild(container);
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -212,9 +216,11 @@ class ClientSidePDFRenderer {
         const html2canvas = (await Promise.resolve().then(() => __importStar(require('html2canvas')))).default;
         const jsPDF = (await Promise.resolve().then(() => __importStar(require('jspdf')))).jsPDF;
         // Preload images
-        const logoUrl = (0, api_client_1.getFileUrl)(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null);
-        const sealUrl = (0, api_client_1.getFileUrl)(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null);
-        const signatureUrl = (0, api_client_1.getFileUrl)(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null);
+        // Load branding URLs from fixed file locations
+        const brandingUrls = await (0, api_client_1.loadBrandingUrls)();
+        const logoUrl = brandingUrls.logoUrl;
+        const sealUrl = brandingUrls.sealUrl;
+        const signatureUrl = brandingUrls.signatureUrl;
         const imagePromises = [];
         if (logoUrl)
             imagePromises.push(this.preloadImage(logoUrl));
@@ -234,7 +240,7 @@ class ClientSidePDFRenderer {
         container.style.fontSize = '12px';
         container.style.color = '#333333';
         container.style.margin = '0';
-        const invoiceHtml = this.buildInvoiceHtml(invoice, adminSettings, customerName);
+        const invoiceHtml = this.buildInvoiceHtml(invoice, adminSettings, customerName, { logoUrl, sealUrl, signatureUrl });
         container.innerHTML = invoiceHtml;
         document.body.appendChild(container);
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -267,15 +273,13 @@ class ClientSidePDFRenderer {
             document.body.removeChild(container);
         }
     }
-    buildQuoteHtml(quote, adminSettings) {
-        // Convert relative paths to absolute API URLs for images
-        const logoUrl = (0, api_client_1.getFileUrl)(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null);
-        const sealUrl = (0, api_client_1.getFileUrl)(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null);
-        const signatureUrl = (0, api_client_1.getFileUrl)(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null);
-        const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 60px; margin-right: 20px; object-fit: contain;" />` : '';
+    buildQuoteHtml(quote, adminSettings, branding) {
+        // Use branding URLs passed from caller (already loaded from fixed file locations)
+        const { logoUrl, sealUrl, signatureUrl } = branding;
+        const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
         // Seal and signature are rendered in the footer so they move dynamically with document content
-        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 80px; object-fit: contain;" />` : '';
-        const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 60px; object-fit: contain;" />` : '';
+        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 100px; object-fit: contain;" />` : '';
+        const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : '';
         const itemsHtml = quote.items
             .map((item) => `
       <tr>
@@ -295,9 +299,9 @@ class ClientSidePDFRenderer {
           <div style="display: flex; align-items: center;">
             ${logoImg}
             <div>
-              <h1 style="margin: 0; font-size: 20px;">${adminSettings.companyName}</h1>
-              <p style="margin: 5px 0; font-size: 11px;">${adminSettings.address}</p>
-              <p style="margin: 5px 0; font-size: 11px;">VAT: ${adminSettings.vatNumber}</p>
+              <h1 style="margin: 0; font-size: 22px;">${adminSettings.companyName}</h1>
+              <p style="margin: 5px 0; font-size: 13px;">${adminSettings.address}</p>
+              <p style="margin: 5px 0; font-size: 13px;">TRN: ${adminSettings.vatNumber}</p>
             </div>
           </div>
           <div style="text-align: right;">
@@ -306,10 +310,10 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Title -->
-        <h2 style="text-align: center; margin: 20px 0; font-size: 18px;">QUOTE</h2>
+        <h2 style="text-align: center; margin: 20px 0; font-size: 20px;">QUOTE</h2>
 
         <!-- Quote Meta -->
-        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 12px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;">
           <div>
             <p style="margin: 3px 0;"><strong>Quote #:</strong> ${quote.number}</p>
             <p style="margin: 3px 0;"><strong>Date:</strong> ${quote.date}</p>
@@ -321,8 +325,8 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Customer Info -->
-        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 12px;">
-          <h3 style="margin: 0 0 10px 0; font-size: 13px;">CUSTOMER</h3>
+        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px;">
+          <h3 style="margin: 0 0 10px 0; font-size: 15px;">CUSTOMER</h3>
           <p style="margin: 3px 0;"><strong>${quote.customer.name}</strong></p>
           ${quote.customer.company ? `<p style="margin: 3px 0;">${quote.customer.company}</p>` : ''}
           ${quote.customer.address ? `<p style="margin: 3px 0;">${quote.customer.address}</p>` : ''}
@@ -331,7 +335,7 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 12px; border-collapse: collapse;">
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse;">
           <thead>
             <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
               <th style="padding: 8px; text-align: left;">Description</th>
@@ -348,17 +352,13 @@ class ClientSidePDFRenderer {
         </table>
 
         <!-- Totals -->
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 12px;">
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 14px;">
           <div style="width: 300px;">
-            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ccc;">
-              <span>Subtotal:</span>
-              <span>${quote.subTotal.toFixed(2)} ${quote.currency}</span>
-            </div>
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ccc;">
               <span>Total Tax:</span>
               <span>${quote.totalTax.toFixed(2)} ${quote.currency}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-weight: bold; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-weight: bold; font-size: 16px;">
               <span>TOTAL:</span>
               <span>${quote.total.toFixed(2)} ${quote.currency}</span>
             </div>
@@ -384,7 +384,7 @@ class ClientSidePDFRenderer {
             // Replace consecutive <br><br> with <br><br> for double spacing (already handled)
             const termsHtml = formattedTerms && formattedTerms.length > 0
                 ? `
-              <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; font-size: 12px;">
+              <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; font-size: 13px;">
                 <h4 style="margin: 0 0 5px 0;">Terms and Conditions:</h4>
                 <div style="margin: 0; white-space: pre-line;">${formattedTerms}</div>
               </div>
@@ -392,7 +392,7 @@ class ClientSidePDFRenderer {
                 : '';
             const notesHtml = quote.notes
                 ? `
-        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 12px;">
+        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 13px;">
           <h4 style="margin: 0 0 5px 0;">Notes:</h4>
           <p style="margin: 0; white-space: pre-wrap;">${quote.notes}</p>
         </div>
@@ -402,9 +402,9 @@ class ClientSidePDFRenderer {
         })()}
 
         <!-- Footer with Signature and Seal (placed after items so position follows content) -->
-        <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; font-size: 11px;">
+        <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; font-size: 13px;">
           <div style="flex: 1;">
-            <p style="margin: 0 0 6px 0; font-size: 11px;">Authorized By:</p>
+            <p style="margin: 0 0 6px 0; font-size: 13px;">Authorized By:</p>
             <div style="margin-top: 6px;">${signatureImg}</div>
           </div>
           <div style="width: 240px; text-align: right;">
@@ -416,14 +416,12 @@ class ClientSidePDFRenderer {
       </div>
     `;
     }
-    buildPurchaseOrderHtml(po, adminSettings, vendorName) {
-        // Convert relative paths to absolute API URLs for images
-        const logoUrl = (0, api_client_1.getFileUrl)(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null);
-        const sealUrl = (0, api_client_1.getFileUrl)(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null);
-        const signatureUrl = (0, api_client_1.getFileUrl)(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null);
-        const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 60px; margin-right: 20px; object-fit: contain;" />` : '';
-        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 80px; object-fit: contain;" />` : '';
-        const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 60px; object-fit: contain;" />` : '';
+    buildPurchaseOrderHtml(po, adminSettings, vendorName, branding) {
+        // Use branding URLs passed from caller (already loaded from fixed file locations)
+        const { logoUrl, sealUrl, signatureUrl } = branding;
+        const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
+        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 100px; object-fit: contain;" />` : '';
+        const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : '';
         const itemsHtml = po.items
             .map((item) => `
       <tr>
@@ -442,18 +440,18 @@ class ClientSidePDFRenderer {
           <div style="display: flex; align-items: center;">
             ${logoImg}
             <div>
-              <h1 style="margin: 0; font-size: 20px;">${adminSettings.companyName}</h1>
-              <p style="margin: 5px 0; font-size: 11px;">${adminSettings.address}</p>
-              <p style="margin: 5px 0; font-size: 11px;">VAT: ${adminSettings.vatNumber}</p>
+              <h1 style="margin: 0; font-size: 22px;">${adminSettings.companyName}</h1>
+              <p style="margin: 5px 0; font-size: 13px;">${adminSettings.address}</p>
+              <p style="margin: 5px 0; font-size: 13px;">TRN: ${adminSettings.vatNumber}</p>
             </div>
           </div>
         </div>
 
         <!-- Title -->
-        <h2 style="text-align: center; margin: 20px 0; font-size: 18px;">PURCHASE ORDER</h2>
+        <h2 style="text-align: center; margin: 20px 0; font-size: 20px;">PURCHASE ORDER</h2>
 
         <!-- PO Meta -->
-        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 12px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;">
           <div>
             <p style="margin: 3px 0;"><strong>PO #:</strong> ${po.number}</p>
             <p style="margin: 3px 0;"><strong>Date:</strong> ${po.date}</p>
@@ -465,13 +463,13 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Vendor Info -->
-        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 12px;">
-          <h3 style="margin: 0 0 10px 0; font-size: 13px;">VENDOR</h3>
+        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px;">
+          <h3 style="margin: 0 0 10px 0; font-size: 15px;">VENDOR</h3>
           <p style="margin: 3px 0;"><strong>${vendorName}</strong></p>
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 12px; border-collapse: collapse;">
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse;">
           <thead>
             <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
               <th style="padding: 8px; text-align: left;">Description</th>
@@ -487,17 +485,13 @@ class ClientSidePDFRenderer {
         </table>
 
         <!-- Totals -->
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 12px;">
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 14px;">
           <div style="width: 300px;">
-            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ccc;">
-              <span>Subtotal:</span>
-              <span>${(po.subtotal || 0).toFixed(2)} ${po.currency}</span>
-            </div>
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ccc;">
               <span>Total Tax:</span>
               <span>${(po.tax || 0).toFixed(2)} ${po.currency}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-weight: bold; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-weight: bold; font-size: 16px;">
               <span>TOTAL:</span>
               <span>${(po.amount || 0).toFixed(2)} ${po.currency}</span>
             </div>
@@ -505,9 +499,9 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Footer with Signature and Seal -->
-        <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; font-size: 11px;">
+        <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; font-size: 13px;">
           <div style="flex: 1;">
-            <p style="margin: 0 0 6px 0; font-size: 11px;">Authorized By:</p>
+            <p style="margin: 0 0 6px 0; font-size: 13px;">Authorized By:</p>
             <div style="margin-top: 6px;">${signatureImg}</div>
           </div>
           <div style="width: 240px; text-align: right;">
@@ -518,14 +512,12 @@ class ClientSidePDFRenderer {
       </div>
     `;
     }
-    buildInvoiceHtml(invoice, adminSettings, customerName) {
-        // Convert relative paths to absolute API URLs for images
-        const logoUrl = (0, api_client_1.getFileUrl)(adminSettings.logoUrl) || (adminSettings.logoUrl?.startsWith('data:') ? adminSettings.logoUrl : null);
-        const sealUrl = (0, api_client_1.getFileUrl)(adminSettings.sealUrl) || (adminSettings.sealUrl?.startsWith('data:') ? adminSettings.sealUrl : null);
-        const signatureUrl = (0, api_client_1.getFileUrl)(adminSettings.signatureUrl) || (adminSettings.signatureUrl?.startsWith('data:') ? adminSettings.signatureUrl : null);
-        const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 60px; margin-right: 20px; object-fit: contain;" />` : '';
-        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 80px; object-fit: contain;" />` : '';
-        const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 60px; object-fit: contain;" />` : '';
+    buildInvoiceHtml(invoice, adminSettings, customerName, branding) {
+        // Use branding URLs passed from caller (already loaded from fixed file locations)
+        const { logoUrl, sealUrl, signatureUrl } = branding;
+        const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
+        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 100px; object-fit: contain;" />` : '';
+        const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : '';
         const itemsHtml = invoice.items
             .map((item) => `
       <tr>
@@ -543,18 +535,18 @@ class ClientSidePDFRenderer {
           <div style="display: flex; align-items: center;">
             ${logoImg}
             <div>
-              <h1 style="margin: 0; font-size: 20px;">${adminSettings.companyName}</h1>
-              <p style="margin: 5px 0; font-size: 11px;">${adminSettings.address}</p>
-              <p style="margin: 5px 0; font-size: 11px;">VAT: ${adminSettings.vatNumber}</p>
+              <h1 style="margin: 0; font-size: 22px;">${adminSettings.companyName}</h1>
+              <p style="margin: 5px 0; font-size: 13px;">${adminSettings.address}</p>
+              <p style="margin: 5px 0; font-size: 13px;">TRN: ${adminSettings.vatNumber}</p>
             </div>
           </div>
         </div>
 
         <!-- Title -->
-        <h2 style="text-align: center; margin: 20px 0; font-size: 18px;">INVOICE</h2>
+        <h2 style="text-align: center; margin: 20px 0; font-size: 20px;">INVOICE</h2>
 
         <!-- Invoice Meta -->
-        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 12px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;">
           <div>
             <p style="margin: 3px 0;"><strong>Invoice #:</strong> ${invoice.number}</p>
             <p style="margin: 3px 0;"><strong>Date:</strong> ${invoice.date}</p>
@@ -566,13 +558,13 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Customer Info -->
-        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 12px;">
-          <h3 style="margin: 0 0 10px 0; font-size: 13px;">CUSTOMER</h3>
+        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px;">
+          <h3 style="margin: 0 0 10px 0; font-size: 15px;">CUSTOMER</h3>
           <p style="margin: 3px 0;"><strong>${customerName}</strong></p>
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 12px; border-collapse: collapse;">
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse;">
           <thead>
             <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
               <th style="padding: 8px; text-align: left;">Description</th>
@@ -587,17 +579,13 @@ class ClientSidePDFRenderer {
         </table>
 
         <!-- Totals -->
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 12px;">
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 14px;">
           <div style="width: 300px;">
-            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ccc;">
-              <span>Subtotal:</span>
-              <span>${invoice.subtotal?.toFixed(2) || '0.00'}</span>
-            </div>
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ccc;">
               <span>Tax:</span>
               <span>${invoice.tax?.toFixed(2) || '0.00'}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-weight: bold; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-weight: bold; font-size: 16px;">
               <span>TOTAL:</span>
               <span>${invoice.total?.toFixed(2) || '0.00'}</span>
             </div>
@@ -606,16 +594,16 @@ class ClientSidePDFRenderer {
 
         <!-- Notes -->
         ${invoice.notes ? `
-          <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; font-size: 12px;">
+          <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; font-size: 13px;">
             <h4 style="margin: 0 0 5px 0;">Notes:</h4>
             <p style="margin: 0; white-space: pre-wrap;">${invoice.notes}</p>
           </div>
         ` : ''}
 
         <!-- Footer with Signature and Seal -->
-        <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; font-size: 11px;">
+        <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; font-size: 13px;">
           <div style="flex: 1;">
-            <p style="margin: 0 0 6px 0; font-size: 11px;">Authorized By:</p>
+            <p style="margin: 0 0 6px 0; font-size: 13px;">Authorized By:</p>
             <div style="margin-top: 6px;">${signatureImg}</div>
           </div>
           <div style="width: 240px; text-align: right;">

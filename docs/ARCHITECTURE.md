@@ -18,6 +18,7 @@ graph TB
 **Key Modules:**
 - Core: Customers, Vendors, Employees, Vehicles
 - Documents: Quotes, Purchase Orders, Invoices, Payslips
+- Financial: Vehicle Transactions, Expense Categories, Vehicle Profitability, Dashboard Metrics
 - System: Admin Settings, File Uploads, Dashboard
 
 ## Complete Application Architecture
@@ -264,6 +265,12 @@ sequenceDiagram
 - **Purchase Orders:** `api/routes/purchase-orders.ts`, `app/purchase-orders/`
 - **Invoices:** `api/routes/invoices.ts`, `app/invoices/`
 - **Payslips:** `api/routes/payslips.ts`, `app/payslips/`
+
+### Financial Modules
+- **Vehicle Transactions:** `api/routes/vehicle-transactions.ts`, `app/vehicle-finances/[vehicleId]/page.tsx`
+- **Expense Categories:** `api/routes/expense-categories.ts`, `app/finances/expense-categories/page.tsx`
+- **Vehicle Profitability:** `app/vehicle-profitability/page.tsx`
+- **Vehicle Finances Dashboard:** `app/vehicle-finances/page.tsx`, `app/api/[...route]/route.ts`
 
 ### System Modules
 - **Admin:** `api/routes/admin.ts`, `app/admin/page.tsx`

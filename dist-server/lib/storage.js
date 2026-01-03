@@ -79,6 +79,16 @@ exports.deleteInvoice = deleteInvoice;
 exports.generateInvoiceNumber = generateInvoiceNumber;
 exports.convertQuoteToInvoice = convertQuoteToInvoice;
 exports.initializeSampleData = initializeSampleData;
+exports.getAllVehicleTransactions = getAllVehicleTransactions;
+exports.getVehicleTransactionById = getVehicleTransactionById;
+exports.saveVehicleTransaction = saveVehicleTransaction;
+exports.deleteVehicleTransaction = deleteVehicleTransaction;
+exports.getVehicleProfitability = getVehicleProfitability;
+exports.getVehicleFinanceDashboard = getVehicleFinanceDashboard;
+exports.getAllExpenseCategories = getAllExpenseCategories;
+exports.getExpenseCategoryById = getExpenseCategoryById;
+exports.saveExpenseCategory = saveExpenseCategory;
+exports.deleteExpenseCategory = deleteExpenseCategory;
 const apiClient = __importStar(require("./api-client"));
 // Helper to generate unique IDs
 function generateId() {
@@ -122,9 +132,9 @@ async function initializeAdminSettings() {
         quoteNumberPattern: 'AAT-YYYYMMDD-NNNN',
         currency: 'AED',
         defaultTerms: `1. This quotation is valid for 30 days from the date of issue.\n2. Goods remain the property of the company until full payment is received.\n3. Any additional costs such as tolls, fines or damages are not included unless stated.\n4. Payment terms: as agreed in the contract.`,
-        showRevenueTrend: true,
-        showQuickActions: true,
-        showReports: true,
+        showRevenueTrend: false,
+        showQuickActions: false,
+        showReports: false,
         createdAt: new Date().toISOString(),
     };
     await saveAdminSettings(defaults);
@@ -304,11 +314,11 @@ async function initializeSampleData() {
     const vehicles = await getAllVehicles();
     if (vehicles.length === 0) {
         const sampleVehicles = [
-            { id: generateId(), type: 'Pickup Truck', description: 'Standard pickup truck', basePrice: 500 },
-            { id: generateId(), type: 'Sedan', description: 'Sedan car', basePrice: 300 },
-            { id: generateId(), type: 'SUV', description: 'Sport Utility Vehicle', basePrice: 400 },
-            { id: generateId(), type: 'Lorry', description: 'Heavy duty truck', basePrice: 800 },
-            { id: generateId(), type: 'Van', description: 'Commercial van', basePrice: 600 },
+            { id: generateId(), vehicleNumber: 'PKT-001', vehicleType: 'Pickup Truck', description: 'Standard pickup truck', basePrice: 500 },
+            { id: generateId(), vehicleNumber: 'SED-001', vehicleType: 'Sedan', description: 'Sedan car', basePrice: 300 },
+            { id: generateId(), vehicleNumber: 'SUV-001', vehicleType: 'SUV', description: 'Sport Utility Vehicle', basePrice: 400 },
+            { id: generateId(), vehicleNumber: 'LOR-001', vehicleType: 'Lorry', description: 'Heavy duty truck', basePrice: 800 },
+            { id: generateId(), vehicleNumber: 'VAN-001', vehicleType: 'Van', description: 'Commercial van', basePrice: 600 },
         ];
         for (const vehicle of sampleVehicles) {
             await saveVehicle(vehicle);
@@ -338,4 +348,36 @@ async function initializeSampleData() {
             await saveCustomer(customer);
         }
     }
+}
+// --- Vehicle Transactions ---
+async function getAllVehicleTransactions(vehicleId, month) {
+    return apiClient.getAllVehicleTransactions(vehicleId, month);
+}
+async function getVehicleTransactionById(id) {
+    return apiClient.getVehicleTransactionById(id);
+}
+async function saveVehicleTransaction(transaction) {
+    await apiClient.saveVehicleTransaction(transaction);
+}
+async function deleteVehicleTransaction(id) {
+    await apiClient.deleteVehicleTransaction(id);
+}
+async function getVehicleProfitability(vehicleId) {
+    return apiClient.getVehicleProfitability(vehicleId);
+}
+async function getVehicleFinanceDashboard() {
+    return apiClient.getVehicleFinanceDashboard();
+}
+// --- Expense Categories ---
+async function getAllExpenseCategories() {
+    return apiClient.getAllExpenseCategories();
+}
+async function getExpenseCategoryById(id) {
+    return apiClient.getExpenseCategoryById(id);
+}
+async function saveExpenseCategory(category) {
+    await apiClient.saveExpenseCategory(category);
+}
+async function deleteExpenseCategory(id) {
+    await apiClient.deleteExpenseCategory(id);
 }

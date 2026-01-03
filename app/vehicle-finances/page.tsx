@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { VehicleFinanceDashboard } from '@/components/vehicle-finance-dashboard'
 import { VehicleFinanceCard } from '@/components/vehicle-finance-card'
@@ -23,24 +23,27 @@ export default function VehicleFinancesPage() {
   const [sortBy, setSortBy] = useState('profit')
   const [loading, setLoading] = useState(true)
 
+  const isMounted = useRef(false)
+
   useEffect(() => {
-    loadData()
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
   }, [])
 
-  useEffect(() => {
-    filterAndSortVehicles()
-  }, [vehicles, searchQuery, statusFilter, profitabilityFilter, sortBy])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
-      setLoading(true)
-      
+      if (isMounted.current) setLoading(true)
+
       // Load dashboard and vehicles in parallel, but don't fail if dashboard fails
       const [dashboardResult, allVehicles] = await Promise.allSettled([
         getVehicleFinanceDashboard(),
         getAllVehicles(),
       ])
-      
+
+      if (!isMounted.current) return
+
       // Set dashboard data if successful
       if (dashboardResult.status === 'fulfilled') {
         setDashboardData(dashboardResult.value)
@@ -48,7 +51,7 @@ export default function VehicleFinancesPage() {
         console.warn('Failed to load dashboard data:', dashboardResult.reason)
         setDashboardData(null)
       }
-      
+
       // Load vehicles
       if (allVehicles.status === 'fulfilled') {
         // Load profitability for each vehicle
@@ -62,19 +65,27 @@ export default function VehicleFinancesPage() {
             }
           })
         )
-        
-        setVehicles(vehiclesWithData)
+
+        if (isMounted.current) setVehicles(vehiclesWithData)
       } else {
         console.error('Failed to load vehicles:', allVehicles.reason)
-        setVehicles([])
+        if (isMounted.current) setVehicles([])
       }
     } catch (error) {
       console.error('Failed to load data:', error)
-      setVehicles([])
+      if (isMounted.current) setVehicles([])
     } finally {
-      setLoading(false)
+      if (isMounted.current) setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  useEffect(() => {
+    filterAndSortVehicles()
+  }, [vehicles, searchQuery, statusFilter, profitabilityFilter, sortBy])
 
   const filterAndSortVehicles = () => {
     let filtered = [...vehicles]
@@ -165,7 +176,7 @@ export default function VehicleFinancesPage() {
       {/* Vehicle List Section */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900 mb-4">Vehicles</h2>
-        
+
         <VehicleFinanceSearch
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}

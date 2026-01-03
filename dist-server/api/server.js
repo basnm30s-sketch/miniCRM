@@ -23,6 +23,8 @@ const invoices_1 = __importDefault(require("./routes/invoices"));
 const admin_1 = __importDefault(require("./routes/admin"));
 const uploads_1 = __importDefault(require("./routes/uploads"));
 const payslips_1 = __importDefault(require("./routes/payslips"));
+const vehicle_transactions_1 = __importDefault(require("./routes/vehicle-transactions"));
+const expense_categories_1 = __importDefault(require("./routes/expense-categories"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
 // Middleware
@@ -78,7 +80,11 @@ app.use('/api/invoices', invoices_1.default);
 app.use('/api/admin', admin_1.default);
 app.use('/api/uploads', uploads_1.default);
 app.use('/api/payslips', payslips_1.default);
+app.use('/api/vehicle-transactions', vehicle_transactions_1.default);
+app.use('/api/expense-categories', expense_categories_1.default);
 console.log('Payslips routes registered at /api/payslips');
+console.log('Vehicle transactions routes registered at /api/vehicle-transactions');
+console.log('Expense categories routes registered at /api/expense-categories');
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'API server is running' });

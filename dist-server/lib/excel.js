@@ -95,10 +95,12 @@ class ClientSideExcelRenderer {
         const workbook = new exceljs_1.default.Workbook();
         const worksheet = workbook.addWorksheet('Quote');
         let currentRow = 1;
+        // Load branding URLs from fixed file locations
+        const brandingUrls = await (0, api_client_1.loadBrandingUrls)();
         // Load images
-        const logoImage = await this.loadImageAsBuffer(adminSettings.logoUrl);
-        const sealImage = await this.loadImageAsBuffer(adminSettings.sealUrl);
-        const signatureImage = await this.loadImageAsBuffer(adminSettings.signatureUrl);
+        const logoImage = await this.loadImageAsBuffer(brandingUrls.logoUrl);
+        const sealImage = await this.loadImageAsBuffer(brandingUrls.sealUrl);
+        const signatureImage = await this.loadImageAsBuffer(brandingUrls.signatureUrl);
         // Header section with logo
         if (logoImage) {
             const logoId = workbook.addImage({
@@ -107,7 +109,7 @@ class ClientSideExcelRenderer {
             });
             worksheet.addImage(logoId, {
                 tl: { col: 0, row: 0 },
-                ext: { width: 200, height: 60 },
+                ext: { width: 250, height: 80 },
             });
         }
         // Company name (row 1, column 2 if logo exists, else column 1)
@@ -328,25 +330,11 @@ class ClientSideExcelRenderer {
         currentRow += quote.items.length;
         // Totals section
         currentRow++; // Empty row
-        const subtotalRow = currentRow;
-        worksheet.getCell(currentRow, 1).value = 'Subtotal:';
-        worksheet.getCell(currentRow, 6).value = {
-            formula: `SUM(${this.getCellRef(firstItemRow, 6)}:${this.getCellRef(currentRow - 1, 6)})`,
-        };
-        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
-            bold: true,
-            alignment: { horizontal: 'left', vertical: 'middle' },
-        });
-        this.applyCellStyle(worksheet.getCell(currentRow, 6), {
-            numFmt: '#,##0.00',
-            bold: true,
-            alignment: { horizontal: 'right', vertical: 'middle' },
-        });
-        currentRow++;
+        const lastItemRow = currentRow - 1;
         const taxRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'Total Tax:';
         worksheet.getCell(currentRow, 6).value = {
-            formula: `SUM(${this.getCellRef(firstItemRow, 5)}:${this.getCellRef(currentRow - 1, 5)})`,
+            formula: `SUM(${this.getCellRef(firstItemRow, 5)}:${this.getCellRef(lastItemRow, 5)})`,
         };
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
@@ -361,7 +349,7 @@ class ClientSideExcelRenderer {
         const totalRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'TOTAL:';
         worksheet.getCell(currentRow, 6).value = {
-            formula: `${this.getCellRef(subtotalRow, 6)}+${this.getCellRef(taxRow, 6)}`,
+            formula: `SUM(${this.getCellRef(firstItemRow, 6)}:${this.getCellRef(lastItemRow, 6)})`,
         };
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
@@ -409,7 +397,7 @@ class ClientSideExcelRenderer {
             });
             worksheet.addImage(sigId, {
                 tl: { col: 0, row: footerRow - 1 },
-                ext: { width: 150, height: 60 },
+                ext: { width: 180, height: 80 },
             });
         }
         worksheet.getCell(footerRow, 1).value = 'Authorized By:';
@@ -425,7 +413,7 @@ class ClientSideExcelRenderer {
             });
             worksheet.addImage(sealId, {
                 tl: { col: 4, row: footerRow - 1 },
-                ext: { width: 120, height: 80 },
+                ext: { width: 150, height: 100 },
             });
         }
         worksheet.getCell(footerRow + 2, 5).value = `Date: ${quote.date}`;
@@ -450,10 +438,12 @@ class ClientSideExcelRenderer {
         const workbook = new exceljs_1.default.Workbook();
         const worksheet = workbook.addWorksheet('Invoice');
         let currentRow = 1;
+        // Load branding URLs from fixed file locations
+        const brandingUrls = await (0, api_client_1.loadBrandingUrls)();
         // Load images
-        const logoImage = await this.loadImageAsBuffer(adminSettings.logoUrl);
-        const sealImage = await this.loadImageAsBuffer(adminSettings.sealUrl);
-        const signatureImage = await this.loadImageAsBuffer(adminSettings.signatureUrl);
+        const logoImage = await this.loadImageAsBuffer(brandingUrls.logoUrl);
+        const sealImage = await this.loadImageAsBuffer(brandingUrls.sealUrl);
+        const signatureImage = await this.loadImageAsBuffer(brandingUrls.signatureUrl);
         // Header section with logo
         if (logoImage) {
             const logoId = workbook.addImage({
@@ -462,7 +452,7 @@ class ClientSideExcelRenderer {
             });
             worksheet.addImage(logoId, {
                 tl: { col: 0, row: 0 },
-                ext: { width: 200, height: 60 },
+                ext: { width: 250, height: 80 },
             });
         }
         // Company name (row 1, column 2 if logo exists, else column 1)
@@ -639,37 +629,18 @@ class ClientSideExcelRenderer {
         currentRow += invoice.items.length;
         // Totals section
         currentRow++; // Empty row
-        const subtotalRow = currentRow;
-        worksheet.getCell(currentRow, 1).value = 'Subtotal:';
-        // Subtotal = sum of (quantity * unitPrice) for all items (without tax)
-        worksheet.getCell(currentRow, 4).value = {
-            formula: `SUM(${this.getCellRef(firstItemRow, 2)}:${this.getCellRef(currentRow - 1, 2)}*${this.getCellRef(firstItemRow, 3)}:${this.getCellRef(currentRow - 1, 3)})`,
-        };
-        // Use SUMPRODUCT for better formula support
-        const qtyRange = `${this.getCellRef(firstItemRow, 2)}:${this.getCellRef(currentRow - 1, 2)}`;
-        const priceRange = `${this.getCellRef(firstItemRow, 3)}:${this.getCellRef(currentRow - 1, 3)}`;
-        worksheet.getCell(currentRow, 4).value = {
-            formula: `SUMPRODUCT(${qtyRange},${priceRange})`,
-        };
-        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
-            bold: true,
-            alignment: { horizontal: 'left', vertical: 'middle' },
-        });
-        this.applyCellStyle(worksheet.getCell(currentRow, 4), {
-            numFmt: '#,##0.00',
-            bold: true,
-            alignment: { horizontal: 'right', vertical: 'middle' },
-        });
-        currentRow++;
+        const lastItemRow = currentRow - 1;
+        // Calculate subtotal for internal use (for tax calculation)
+        const qtyRange = `${this.getCellRef(firstItemRow, 2)}:${this.getCellRef(lastItemRow, 2)}`;
+        const priceRange = `${this.getCellRef(firstItemRow, 3)}:${this.getCellRef(lastItemRow, 3)}`;
         const taxRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'Tax:';
         // Tax can be document-level or sum of item-level taxes
         if (hasItemLevelTax) {
             // Sum item-level taxes (calculate from item totals - subtotals)
-            // Since we don't have a tax column, we calculate: sum of (item.total - quantity*unitPrice)
-            const totalRange = `${this.getCellRef(firstItemRow, 4)}:${this.getCellRef(currentRow - 1, 4)}`;
+            const totalRange = `${this.getCellRef(firstItemRow, 4)}:${this.getCellRef(lastItemRow, 4)}`;
             worksheet.getCell(currentRow, 4).value = {
-                formula: `SUM(${totalRange})-${this.getCellRef(subtotalRow, 4)}`,
+                formula: `SUM(${totalRange})-SUMPRODUCT(${qtyRange},${priceRange})`,
             };
         }
         else {
@@ -689,7 +660,7 @@ class ClientSideExcelRenderer {
         const totalRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'TOTAL:';
         worksheet.getCell(currentRow, 4).value = {
-            formula: `${this.getCellRef(subtotalRow, 4)}+${this.getCellRef(taxRow, 4)}`,
+            formula: `SUMPRODUCT(${qtyRange},${priceRange})+${this.getCellRef(taxRow, 4)}`,
         };
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
@@ -752,7 +723,7 @@ class ClientSideExcelRenderer {
             });
             worksheet.addImage(sigId, {
                 tl: { col: 0, row: footerRow - 1 },
-                ext: { width: 150, height: 60 },
+                ext: { width: 180, height: 80 },
             });
         }
         worksheet.getCell(footerRow, 1).value = 'Authorized By:';
@@ -768,7 +739,7 @@ class ClientSideExcelRenderer {
             });
             worksheet.addImage(sealId, {
                 tl: { col: 3, row: footerRow - 1 },
-                ext: { width: 120, height: 80 },
+                ext: { width: 150, height: 100 },
             });
         }
         worksheet.getCell(footerRow + 2, 4).value = `Date: ${invoice.date}`;

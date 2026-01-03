@@ -119,6 +119,9 @@
     "typescript": "^5",
     "wait-on": "^9.0.3"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "build": {
     "appId": "com.imanage.crm",
     "productName": "iManage",
@@ -134,6 +137,10 @@
       "buildResources": "public",
       "output": "dist"
     },
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**/*"
+    ],
+    "npmRebuild": true,
     "win": {
       "target": "nsis",
       "forceCodeSigning": false,

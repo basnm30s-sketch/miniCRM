@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Invoices Module', () => {
-
     test('Direct Invoice Creation', async ({ page }) => {
         const uniqueId = Date.now().toString();
         const customerName = `Invoice Test ${uniqueId}`;
@@ -14,7 +13,6 @@ test.describe('Invoices Module', () => {
         // 1. Setup Customer
         await page.goto('/customers');
         await page.waitForLoadState('networkidle');
-
         await page.getByRole('button', { name: 'Add Customer' }).click();
         await page.getByPlaceholder('Name').fill(customerName);
         await page.getByRole('button', { name: 'Create' }).click();
@@ -26,18 +24,24 @@ test.describe('Invoices Module', () => {
         // 2. Create Invoice
         await page.goto('/invoices');
         await page.waitForLoadState('networkidle');
-
         await page.getByRole('link', { name: 'New Invoice' }).or(page.getByRole('button', { name: 'New Invoice' })).first().click();
         await page.waitForLoadState('networkidle');
 
-        // Select Customer (Native Select)
-        await page.waitForLoadState('networkidle');
-        await page.reload(); // Force data refresh
-        await page.waitForLoadState('networkidle');
+        // Select Customer (Radix UI Combobox) -> FIXED
+        // Wait for the customer dropdown to be ready
+        const customerCombobox = page.getByRole('combobox', { name: /customer/i }).or(page.locator('[aria-label*="Customer"]')).or(page.locator('[placeholder*="customer"]')).first();
+        await expect(customerCombobox).toBeVisible({ timeout: 5000 });
 
-        console.log('Select HTML:', await page.locator('#customer').innerHTML());
+        // Click to open the dropdown
+        await customerCombobox.click();
 
-        await page.locator('#customer').selectOption({ label: customerName });
+        // Type to search for the customer
+        await page.keyboard.type(customerName);
+
+        // Wait for and click the matching option
+        const customerOption = page.getByRole('option', { name: new RegExp(customerName, 'i') });
+        await expect(customerOption).toBeVisible({ timeout: 5000 });
+        await customerOption.click();
 
         // Add Items
         await page.getByRole('button', { name: 'Add Item' }).click();
@@ -51,23 +55,28 @@ test.describe('Invoices Module', () => {
         await page.getByRole('button', { name: 'Save Invoice' }).click();
         await page.waitForLoadState('networkidle');
 
+        // Verify success toast or navigation
+        await expect(page.getByText(/invoice.*saved|created/i).or(page.getByRole('row', { name: new RegExp(customerName, 'i') }))).toBeVisible({ timeout: 5000 });
+
         // 3. Verify in List
-        await page.reload();
+        await page.goto('/invoices');
+        await page.waitForLoadState('networkidle');
         await expect(page.getByRole('row', { name: new RegExp(customerName, 'i') })).toBeVisible({ timeout: 5000 });
 
         // 4. Delete
         const row = page.getByRole('row', { name: new RegExp(customerName, 'i') });
         await row.getByRole('cell').last().getByRole('button').last().click();
 
-        await page.waitForTimeout(500);
-        await expect(page.getByRole('row', { name: new RegExp(customerName, 'i') })).not.toBeVisible();
+        // Verify deletion with assertion instead of timeout
+        await expect(page.getByRole('row', { name: new RegExp(customerName, 'i') })).not.toBeVisible({ timeout: 5000 });
 
         // Cleanup Customer
         await page.goto('/customers');
+        await page.waitForLoadState('networkidle');
         const custRow = page.getByRole('row', { name: new RegExp(customerName, 'i') });
         if (await custRow.isVisible().catch(() => false)) {
             await custRow.getByRole('cell').last().getByRole('button').last().click();
+            await expect(custRow).not.toBeVisible({ timeout: 5000 });
         }
     });
-
 });
