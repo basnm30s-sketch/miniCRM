@@ -68,50 +68,60 @@
       - generic [ref=e95]:
         - generic [ref=e96]:
           - generic [ref=e97]:
-            - heading "Customers" [level=1] [ref=e98]
-            - paragraph [ref=e99]: Manage your customers
-          - button "Add Customer" [ref=e100]:
+            - heading "Employees" [level=1] [ref=e98]
+            - paragraph [ref=e99]: Manage employee information
+          - button "Add Employee" [ref=e100]:
             - img
-            - text: Add Customer
+            - text: Add Employee
         - generic [ref=e101]:
-          - generic [ref=e103]: All Customers (0)
+          - generic [ref=e103]: All Employees (0)
           - table [ref=e107]:
             - rowgroup [ref=e108]:
-              - row "Name Company Email Phone Address Actions" [ref=e109]:
+              - row "Name Employee ID Role Pay Rate (AED) Pay Basis Actions" [ref=e109]:
                 - columnheader "Name" [ref=e110]
-                - columnheader "Company" [ref=e111]
-                - columnheader "Email" [ref=e112]
-                - columnheader "Phone" [ref=e113]
-                - columnheader "Address" [ref=e114]
+                - columnheader "Employee ID" [ref=e111]
+                - columnheader "Role" [ref=e112]
+                - columnheader "Pay Rate (AED)" [ref=e113]
+                - columnheader "Pay Basis" [ref=e114]
                 - columnheader "Actions" [ref=e115]
             - rowgroup [ref=e116]:
-              - row "No customers yet" [ref=e117]:
-                - cell "No customers yet" [ref=e118]
+              - row "No employees yet" [ref=e117]:
+                - cell "No employees yet" [ref=e118]
         - generic [ref=e121]:
-          - heading "Add Customer" [level=3] [ref=e122]
+          - heading "Add Employee" [level=3] [ref=e122]
           - generic [ref=e123]:
-            - textbox "Name" [ref=e124]: Invoice Test 1767510065992
-            - textbox "Company" [ref=e125]
-            - textbox "Email" [ref=e126]
-            - textbox "Phone" [ref=e127]
-            - textbox "Address" [ref=e128]
-          - generic [ref=e129]:
-            - button "Cancel" [ref=e130]
-            - button "Create" [active] [ref=e131]
+            - textbox "Name" [ref=e124]: Worker 1767510065993
+            - textbox "Employee ID" [ref=e125]: EMP-5993
+            - textbox "Role" [ref=e126]: Technician
+            - generic [ref=e127]:
+              - generic [ref=e128]: Payment Type
+              - radiogroup [ref=e129]:
+                - generic [ref=e130]:
+                  - radio "Hourly" [checked] [ref=e131]:
+                    - img [ref=e132]
+                  - generic [ref=e134] [cursor=pointer]: Hourly
+                - generic [ref=e135]:
+                  - radio "Monthly" [ref=e136]
+                  - generic [ref=e137] [cursor=pointer]: Monthly
+            - spinbutton [ref=e138]: "50"
+            - textbox "Bank Details" [ref=e139]
+          - generic [ref=e140]:
+            - button "Cancel" [ref=e141]
+            - button "Create" [active] [ref=e142]
   - region "Notifications (F8)":
     - list
-  - generic [ref=e136] [cursor=pointer]:
-    - button "Open Next.js Dev Tools" [ref=e137]:
-      - img [ref=e138]
-    - generic [ref=e141]:
-      - button "Open issues overlay" [ref=e142]:
-        - generic [ref=e143]:
-          - generic [ref=e144]: "5"
-          - generic [ref=e145]: "6"
-        - generic [ref=e146]:
+  - generic [ref=e147] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e148]:
+      - img [ref=e149]
+    - generic [ref=e152]:
+      - button "Open issues overlay" [ref=e153]:
+        - generic [ref=e154]:
+          - generic [ref=e155]: "5"
+          - generic [ref=e156]: "6"
+        - generic [ref=e157]:
           - text: Issue
-          - generic [ref=e147]: s
-      - button "Collapse issues badge" [ref=e148]:
-        - img [ref=e149]
-  - alert [ref=e151]
+          - generic [ref=e158]: s
+      - button "Collapse issues badge" [ref=e159]:
+        - img [ref=e160]
+  - alert [ref=e162]
 ```

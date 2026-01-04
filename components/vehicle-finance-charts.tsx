@@ -25,34 +25,35 @@ interface VehicleFinanceChartsProps {
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']
 
 export function VehicleFinanceCharts({
-  monthlyTrend,
-  topVehiclesByProfit,
-  expensesByCategory,
+  monthlyTrend = [],
+  topVehiclesByProfit = [],
+  expensesByCategory = {},
 }: VehicleFinanceChartsProps) {
-  // Format monthly trend data for chart
-  const trendData = monthlyTrend.map(item => ({
+  // Format monthly trend data for chart with null safety
+  const trendData = (monthlyTrend || []).map(item => ({
     month: item.month,
-    revenue: item.revenue,
-    expenses: item.expenses,
-    profit: item.profit,
+    revenue: item.revenue || 0,
+    expenses: item.expenses || 0,
+    profit: item.profit || 0,
   }))
 
   // Format month labels
   const formatMonth = (month: string) => {
+    if (!month) return ''
     const [year, monthNum] = month.split('-')
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     return monthNames[parseInt(monthNum) - 1] || month
   }
 
-  // Format profit by vehicle data
-  const profitData = topVehiclesByProfit.map(v => ({
-    name: v.vehicleNumber.length > 12 ? v.vehicleNumber.substring(0, 12) + '...' : v.vehicleNumber,
-    profit: v.profit,
+  // Format profit by vehicle data with null safety
+  const profitData = (topVehiclesByProfit || []).map(v => ({
+    name: (v.vehicleNumber || '').length > 12 ? (v.vehicleNumber || '').substring(0, 12) + '...' : (v.vehicleNumber || ''),
+    profit: v.profit || 0,
   }))
 
-  // Format expense category data for pie chart
-  const categoryData = Object.entries(expensesByCategory)
-    .map(([name, value]) => ({ name, value }))
+  // Format expense category data for pie chart with null safety
+  const categoryData = Object.entries(expensesByCategory || {})
+    .map(([name, value]) => ({ name, value: value || 0 }))
     .sort((a, b) => b.value - a.value)
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -76,8 +77,9 @@ export function VehicleFinanceCharts({
       {/* Revenue vs Expenses Trend */}
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <h3 className="text-lg font-bold text-slate-900 mb-4">Revenue vs Expenses Trend</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={trendData}>
+        {trendData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={trendData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
               dataKey="month"
@@ -108,13 +110,19 @@ export function VehicleFinanceCharts({
             />
           </LineChart>
         </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-[300px] text-slate-500">
+            <p>No trend data available</p>
+          </div>
+        )}
       </div>
 
       {/* Profit by Vehicle */}
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <h3 className="text-lg font-bold text-slate-900 mb-4">Top Vehicles by Profit</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={profitData} layout="vertical">
+        {profitData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={profitData} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
               type="number"
@@ -133,13 +141,19 @@ export function VehicleFinanceCharts({
             <Bar dataKey="profit" fill="#22c55e" name="Profit" />
           </BarChart>
         </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-[300px] text-slate-500">
+            <p>No profit data available</p>
+          </div>
+        )}
       </div>
 
       {/* Expense Category Breakdown */}
       <div className="bg-white rounded-lg border border-slate-200 p-6 lg:col-span-2">
         <h3 className="text-lg font-bold text-slate-900 mb-4">Expense Category Breakdown</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
+        {categoryData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
             <Pie
               data={categoryData}
               cx="50%"
@@ -160,6 +174,11 @@ export function VehicleFinanceCharts({
             <Legend />
           </PieChart>
         </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-[300px] text-slate-500">
+            <p>No expense category data available</p>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -90,9 +90,9 @@
         - generic [ref=e121]:
           - heading "Add Customer" [level=3] [ref=e122]
           - generic [ref=e123]:
-            - textbox "Name" [ref=e124]: Invoice Test 1767510065992
-            - textbox "Company" [ref=e125]
-            - textbox "Email" [ref=e126]
+            - textbox "Name" [ref=e124]: Customer 1767510065992
+            - textbox "Company" [ref=e125]: Corp 1767510065992
+            - textbox "Email" [ref=e126]: info1767510065992@test.com
             - textbox "Phone" [ref=e127]
             - textbox "Address" [ref=e128]
           - generic [ref=e129]:

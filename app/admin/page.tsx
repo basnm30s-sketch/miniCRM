@@ -55,6 +55,33 @@ export default function AdminSettingsPage() {
             showReports: (stored as any).showReports === false || (stored as any).showReports === 0
               ? false
               : ((stored as any).showReports === true || (stored as any).showReports === 1 ? true : false),
+            showVehicleFinances: (stored as any).showVehicleFinances === false || (stored as any).showVehicleFinances === 0
+              ? false
+              : ((stored as any).showVehicleFinances === true || (stored as any).showVehicleFinances === 1 ? true : false),
+            showQuotationsInvoicesCard: (stored as any).showQuotationsInvoicesCard === false || (stored as any).showQuotationsInvoicesCard === 0
+              ? false
+              : ((stored as any).showQuotationsInvoicesCard === true || (stored as any).showQuotationsInvoicesCard === 1 ? true : true),
+            showEmployeeSalariesCard: (stored as any).showEmployeeSalariesCard === false || (stored as any).showEmployeeSalariesCard === 0
+              ? false
+              : ((stored as any).showEmployeeSalariesCard === true || (stored as any).showEmployeeSalariesCard === 1 ? true : false),
+            showVehicleRevenueExpensesCard: (stored as any).showVehicleRevenueExpensesCard === false || (stored as any).showVehicleRevenueExpensesCard === 0
+              ? false
+              : ((stored as any).showVehicleRevenueExpensesCard === true || (stored as any).showVehicleRevenueExpensesCard === 1 ? true : false),
+            showActivityThisMonth: (stored as any).showActivityThisMonth === false || (stored as any).showActivityThisMonth === 0
+              ? false
+              : ((stored as any).showActivityThisMonth === true || (stored as any).showActivityThisMonth === 1 ? true : false),
+            showFinancialHealth: (stored as any).showFinancialHealth === false || (stored as any).showFinancialHealth === 0
+              ? false
+              : ((stored as any).showFinancialHealth === true || (stored as any).showFinancialHealth === 1 ? true : true),
+            showBusinessOverview: (stored as any).showBusinessOverview === false || (stored as any).showBusinessOverview === 0
+              ? false
+              : ((stored as any).showBusinessOverview === true || (stored as any).showBusinessOverview === 1 ? true : true),
+            showTopCustomers: (stored as any).showTopCustomers === false || (stored as any).showTopCustomers === 0
+              ? false
+              : ((stored as any).showTopCustomers === true || (stored as any).showTopCustomers === 1 ? true : false),
+            showActivitySummary: (stored as any).showActivitySummary === false || (stored as any).showActivitySummary === 0
+              ? false
+              : ((stored as any).showActivitySummary === true || (stored as any).showActivitySummary === 1 ? true : false),
           }
           setSettings(settingsWithBooleans)
         } else {
@@ -140,6 +167,15 @@ export default function AdminSettingsPage() {
         showRevenueTrend: settings.showRevenueTrend === true ? true : false,
         showQuickActions: settings.showQuickActions === true ? true : false,
         showReports: settings.showReports === true ? true : false,
+        showVehicleFinances: settings.showVehicleFinances === true ? true : false,
+        showQuotationsInvoicesCard: settings.showQuotationsInvoicesCard === true ? true : false,
+        showEmployeeSalariesCard: settings.showEmployeeSalariesCard === true ? true : false,
+        showVehicleRevenueExpensesCard: settings.showVehicleRevenueExpensesCard === true ? true : false,
+        showActivityThisMonth: settings.showActivityThisMonth === true ? true : false,
+        showFinancialHealth: settings.showFinancialHealth === true ? true : false,
+        showBusinessOverview: settings.showBusinessOverview === true ? true : false,
+        showTopCustomers: settings.showTopCustomers === true ? true : false,
+        showActivitySummary: settings.showActivitySummary === true ? true : false,
         updatedAt: new Date().toISOString(),
       }
 
@@ -360,55 +396,206 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Dashboard Settings */}
+      {/* Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Dashboard Settings</CardTitle>
+          <CardTitle>Configuration</CardTitle>
           <CardDescription>
             Control which sections are displayed on the home screen
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="showRevenueTrend">Show Revenue Trend Chart</Label>
-              <p className="text-sm text-gray-500">
-                Display the revenue trend chart on the home screen
-              </p>
+          {/* Sidebar & Navigation */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Sidebar & Navigation</h4>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="showReports">Show Reports Menu</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Reports menu item in the sidebar
+                </p>
+              </div>
+              <Switch
+                id="showReports"
+                checked={settings.showReports === true}
+                onCheckedChange={(checked) => handleInputChange('showReports', checked)}
+              />
             </div>
-            <Switch
-              id="showRevenueTrend"
-              checked={settings.showRevenueTrend === true}
-              onCheckedChange={(checked) => handleInputChange('showRevenueTrend', checked)}
-            />
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showVehicleFinances">Show Vehicle Finances Menu</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Vehicle Finances menu item in the sidebar
+                </p>
+              </div>
+              <Switch
+                id="showVehicleFinances"
+                checked={settings.showVehicleFinances === true}
+                onCheckedChange={(checked) => handleInputChange('showVehicleFinances', checked)}
+              />
+            </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="showQuickActions">Show Quick Actions</Label>
-              <p className="text-sm text-gray-500">
-                Display the quick actions section on the home screen
-              </p>
+          {/* Top Section */}
+          <div className="pt-4 border-t border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Top Section</h4>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="showQuickActions">Show Quick Actions</Label>
+                <p className="text-sm text-gray-500">
+                  Display the quick actions section on the home screen
+                </p>
+              </div>
+              <Switch
+                id="showQuickActions"
+                checked={settings.showQuickActions === true}
+                onCheckedChange={(checked) => handleInputChange('showQuickActions', checked)}
+              />
             </div>
-            <Switch
-              id="showQuickActions"
-              checked={settings.showQuickActions === true}
-              onCheckedChange={(checked) => handleInputChange('showQuickActions', checked)}
-            />
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="showReports">Show Reports Menu</Label>
-              <p className="text-sm text-gray-500">
-                Display the Reports menu item in the sidebar
-              </p>
+          {/* Overview Cards */}
+          <div className="pt-4 border-t border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Overview Cards (Top Row)</h4>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="showQuotationsInvoicesCard">Show Quotations & Invoices Card</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Quotations & Invoices overview card
+                </p>
+              </div>
+              <Switch
+                id="showQuotationsInvoicesCard"
+                checked={settings.showQuotationsInvoicesCard === true}
+                onCheckedChange={(checked) => handleInputChange('showQuotationsInvoicesCard', checked)}
+              />
             </div>
-            <Switch
-              id="showReports"
-              checked={settings.showReports === true}
-              onCheckedChange={(checked) => handleInputChange('showReports', checked)}
-            />
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showEmployeeSalariesCard">Show Employee Salaries Card</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Employee Salaries overview card
+                </p>
+              </div>
+              <Switch
+                id="showEmployeeSalariesCard"
+                checked={settings.showEmployeeSalariesCard === true}
+                onCheckedChange={(checked) => handleInputChange('showEmployeeSalariesCard', checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showVehicleRevenueExpensesCard">Show Vehicle Revenue & Expenses Card</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Vehicle Revenue & Expenses overview card
+                </p>
+              </div>
+              <Switch
+                id="showVehicleRevenueExpensesCard"
+                checked={settings.showVehicleRevenueExpensesCard === true}
+                onCheckedChange={(checked) => handleInputChange('showVehicleRevenueExpensesCard', checked)}
+              />
+            </div>
+          </div>
+
+          {/* KPIs */}
+          <div className="pt-4 border-t border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Key Performance Indicators (Middle Row)</h4>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="showActivityThisMonth">Show Activity This Month</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Activity This Month metrics section
+                </p>
+              </div>
+              <Switch
+                id="showActivityThisMonth"
+                checked={settings.showActivityThisMonth === true}
+                onCheckedChange={(checked) => handleInputChange('showActivityThisMonth', checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showFinancialHealth">Show Financial Health</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Financial Health metrics section
+                </p>
+              </div>
+              <Switch
+                id="showFinancialHealth"
+                checked={settings.showFinancialHealth === true}
+                onCheckedChange={(checked) => handleInputChange('showFinancialHealth', checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showBusinessOverview">Show Business Overview</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Business Overview metrics section
+                </p>
+              </div>
+              <Switch
+                id="showBusinessOverview"
+                checked={settings.showBusinessOverview === true}
+                onCheckedChange={(checked) => handleInputChange('showBusinessOverview', checked)}
+              />
+            </div>
+          </div>
+
+          {/* Analytics & Reports */}
+          <div className="pt-4 border-t border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Analytics & Reports (Bottom Section)</h4>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="showRevenueTrend">Show Revenue Trend Chart</Label>
+                <p className="text-sm text-gray-500">
+                  Display the revenue trend chart
+                </p>
+              </div>
+              <Switch
+                id="showRevenueTrend"
+                checked={settings.showRevenueTrend === true}
+                onCheckedChange={(checked) => handleInputChange('showRevenueTrend', checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showTopCustomers">Show Top Customers by Value</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Top Customers by Value card
+                </p>
+              </div>
+              <Switch
+                id="showTopCustomers"
+                checked={settings.showTopCustomers === true}
+                onCheckedChange={(checked) => handleInputChange('showTopCustomers', checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showActivitySummary">Show Activity Summary</Label>
+                <p className="text-sm text-gray-500">
+                  Display the Activity Summary card
+                </p>
+              </div>
+              <Switch
+                id="showActivitySummary"
+                checked={settings.showActivitySummary === true}
+                onCheckedChange={(checked) => handleInputChange('showActivitySummary', checked)}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

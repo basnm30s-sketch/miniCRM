@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { VehicleFinanceCharts } from '@/components/vehicle-finance-charts'
 import VehicleTransactionForm from '@/components/vehicle-transaction-form'
-import { getVehicleById, getVehicleProfitability } from '@/lib/storage'
+import { getVehicleById, getVehicleProfitability, getAllVehicleTransactions } from '@/lib/storage'
 import type { Vehicle } from '@/lib/types'
 import type { VehicleProfitabilitySummary } from '@/lib/types'
 
@@ -14,6 +14,7 @@ export default function VehicleFinanceDetailPage() {
   const vehicleId = params?.vehicleId as string
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [profitability, setProfitability] = useState<VehicleProfitabilitySummary | null>(null)
+  const [transactions, setTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -25,9 +26,10 @@ export default function VehicleFinanceDetailPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [vehicleData, profitabilityData] = await Promise.allSettled([
+      const [vehicleData, profitabilityData, transactionsData] = await Promise.allSettled([
         getVehicleById(vehicleId),
         getVehicleProfitability(vehicleId),
+        getAllVehicleTransactions(vehicleId),
       ])
 
       if (vehicleData.status === 'fulfilled') {
@@ -36,6 +38,10 @@ export default function VehicleFinanceDetailPage() {
 
       if (profitabilityData.status === 'fulfilled') {
         setProfitability(profitabilityData.value)
+      }
+
+      if (transactionsData.status === 'fulfilled') {
+        setTransactions(transactionsData.value || [])
       }
     } catch (error) {
       console.error('Failed to load vehicle data:', error)
@@ -51,6 +57,41 @@ export default function VehicleFinanceDetailPage() {
       </div>
     )
   }
+
+  // Transform profitability data for charts
+  const chartData = useMemo(() => {
+    if (!profitability || !vehicle) return null
+
+    // Transform months array to monthlyTrend format
+    const monthlyTrend = (profitability.months || []).map(m => ({
+      month: m.month,
+      revenue: m.totalRevenue,
+      expenses: m.totalExpenses,
+      profit: m.profit,
+    }))
+
+    // Create single-item array for topVehiclesByProfit
+    const topVehiclesByProfit = [{
+      vehicleId: vehicle.id,
+      vehicleNumber: vehicle.vehicleNumber || `${vehicle.make} ${vehicle.model}`,
+      profit: profitability.allTimeProfit,
+    }]
+
+    // Calculate expensesByCategory from transactions
+    const expensesByCategory: Record<string, number> = {}
+    transactions
+      .filter(tx => tx.transactionType === 'expense' && tx.category)
+      .forEach(tx => {
+        const category = tx.category || 'Uncategorized'
+        expensesByCategory[category] = (expensesByCategory[category] || 0) + tx.amount
+      })
+
+    return {
+      monthlyTrend,
+      topVehiclesByProfit,
+      expensesByCategory,
+    }
+  }, [profitability, vehicle, transactions])
 
   if (!vehicle) {
     return (
@@ -73,10 +114,11 @@ export default function VehicleFinanceDetailPage() {
         <p className="text-slate-600 mt-1">Financial details and transactions</p>
       </div>
 
-      {profitability && (
+      {chartData && (
         <VehicleFinanceCharts
-          vehicle={vehicle}
-          profitability={profitability}
+          monthlyTrend={chartData.monthlyTrend}
+          topVehiclesByProfit={chartData.topVehiclesByProfit}
+          expensesByCategory={chartData.expensesByCategory}
         />
       )}
 

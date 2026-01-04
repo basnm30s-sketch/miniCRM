@@ -95,7 +95,7 @@ export default function CreateQuotePage() {
   useEffect(() => {
     async function loadData() {
       try {
-        // Initialize sample data (vehicles, customers)
+        // Initialize sample data (vehicles)
         await initializeSampleData()
 
         // Load admin settings

@@ -16,6 +16,9 @@ import Database from 'better-sqlite3'
 
 let db: any = null
 let dbPath: string | null = null
+let initAttempted: boolean = false
+let initFailed: boolean = false
+let initError: Error | null = null
 
 /**
  * Get the database path
@@ -35,8 +38,19 @@ function getDatabasePath(): string {
  * Creates database file and tables if they don't exist
  */
 export function initDatabase(): any {
+  // Return existing database if already initialized
   if (db) {
     return db
+  }
+
+  // If initialization already failed, don't retry
+  if (initFailed) {
+    return null
+  }
+
+  // Mark that we've attempted initialization
+  if (!initAttempted) {
+    initAttempted = true
   }
 
   try {
@@ -50,21 +64,41 @@ export function initDatabase(): any {
     createTables(db)
 
     console.log(`Database initialized at: ${dbPath}`)
+    initFailed = false
+    initError = null
     return db
   } catch (error) {
-    console.error('Database initialization failed:', error)
-    throw error
+    // Cache the failure to prevent repeated attempts
+    initFailed = true
+    initError = error instanceof Error ? error : new Error(String(error))
+    
+    // Only log the error once
+    if (!initAttempted || initError) {
+      console.error('Database initialization failed:', initError)
+      console.error('App will continue using client-side storage (localStorage)')
+    }
+    
+    // Return null instead of throwing to allow graceful fallback
+    return null
   }
 }
 
 /**
  * Get the database instance (initialize if needed)
+ * Returns null if database is unavailable, allowing graceful fallback
  */
-export function getDatabase(): any {
+export function getDatabase(): any | null {
   if (!db) {
     return initDatabase()
   }
   return db
+}
+
+/**
+ * Check if database is available
+ */
+export function isDatabaseAvailable(): boolean {
+  return db !== null && !initFailed
 }
 
 /**
@@ -75,6 +109,10 @@ export function closeDatabase(): void {
     db.close()
     db = null
   }
+  // Reset initialization state when closing
+  initAttempted = false
+  initFailed = false
+  initError = null
 }
 
 /**
@@ -487,5 +525,12 @@ function createTables(database: any): void {
  */
 export function isDatabaseInitialized(): boolean {
   return db !== null
+}
+
+/**
+ * Get the initialization error if database failed to initialize
+ */
+export function getInitError(): Error | null {
+  return initError
 }
 

@@ -68,50 +68,51 @@
       - generic [ref=e95]:
         - generic [ref=e96]:
           - generic [ref=e97]:
-            - heading "Customers" [level=1] [ref=e98]
-            - paragraph [ref=e99]: Manage your customers
-          - button "Add Customer" [ref=e100]:
+            - heading "Vendors" [level=1] [ref=e98]
+            - paragraph [ref=e99]: Manage your vendors
+          - button "Add Vendor" [ref=e100]:
             - img
-            - text: Add Customer
+            - text: Add Vendor
         - generic [ref=e101]:
-          - generic [ref=e103]: All Customers (0)
+          - generic [ref=e103]: All Vendors (0)
           - table [ref=e107]:
             - rowgroup [ref=e108]:
-              - row "Name Company Email Phone Address Actions" [ref=e109]:
+              - row "Name Contact Person Email Phone Actions" [ref=e109]:
                 - columnheader "Name" [ref=e110]
-                - columnheader "Company" [ref=e111]
+                - columnheader "Contact Person" [ref=e111]
                 - columnheader "Email" [ref=e112]
                 - columnheader "Phone" [ref=e113]
-                - columnheader "Address" [ref=e114]
-                - columnheader "Actions" [ref=e115]
-            - rowgroup [ref=e116]:
-              - row "No customers yet" [ref=e117]:
-                - cell "No customers yet" [ref=e118]
-        - generic [ref=e121]:
-          - heading "Add Customer" [level=3] [ref=e122]
-          - generic [ref=e123]:
-            - textbox "Name" [ref=e124]: Invoice Test 1767510065992
-            - textbox "Company" [ref=e125]
-            - textbox "Email" [ref=e126]
-            - textbox "Phone" [ref=e127]
-            - textbox "Address" [ref=e128]
-          - generic [ref=e129]:
-            - button "Cancel" [ref=e130]
-            - button "Create" [active] [ref=e131]
+                - columnheader "Actions" [ref=e114]
+            - rowgroup [ref=e115]:
+              - row "No vendors yet" [ref=e116]:
+                - cell "No vendors yet" [ref=e117]
+        - generic [ref=e120]:
+          - heading "Add Vendor" [level=3] [ref=e121]
+          - generic [ref=e122]:
+            - textbox "Name" [ref=e123]: Vendor 1767510065994
+            - textbox "Contact Person" [ref=e124]: Mike
+            - textbox "Email" [ref=e125]: mike1767510065994@vendor.com
+            - textbox "Phone" [ref=e126]: 555-0123
+            - textbox "Address" [ref=e127]
+            - textbox "Bank Details" [ref=e128]
+            - textbox "Payment Terms" [ref=e129]
+          - generic [ref=e130]:
+            - button "Cancel" [ref=e131]
+            - button "Create" [active] [ref=e132]
   - region "Notifications (F8)":
     - list
-  - generic [ref=e136] [cursor=pointer]:
-    - button "Open Next.js Dev Tools" [ref=e137]:
-      - img [ref=e138]
-    - generic [ref=e141]:
-      - button "Open issues overlay" [ref=e142]:
-        - generic [ref=e143]:
-          - generic [ref=e144]: "5"
-          - generic [ref=e145]: "6"
-        - generic [ref=e146]:
+  - generic [ref=e137] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e138]:
+      - img [ref=e139]
+    - generic [ref=e142]:
+      - button "Open issues overlay" [ref=e143]:
+        - generic [ref=e144]:
+          - generic [ref=e145]: "5"
+          - generic [ref=e146]: "6"
+        - generic [ref=e147]:
           - text: Issue
-          - generic [ref=e147]: s
-      - button "Collapse issues badge" [ref=e148]:
-        - img [ref=e149]
-  - alert [ref=e151]
+          - generic [ref=e148]: s
+      - button "Collapse issues badge" [ref=e149]:
+        - img [ref=e150]
+  - alert [ref=e152]
 ```

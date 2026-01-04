@@ -133,8 +133,17 @@ async function initializeAdminSettings() {
         currency: 'AED',
         defaultTerms: `1. This quotation is valid for 30 days from the date of issue.\n2. Goods remain the property of the company until full payment is received.\n3. Any additional costs such as tolls, fines or damages are not included unless stated.\n4. Payment terms: as agreed in the contract.`,
         showRevenueTrend: false,
-        showQuickActions: false,
+        showQuickActions: true,
         showReports: false,
+        showVehicleFinances: false,
+        showQuotationsInvoicesCard: false,
+        showEmployeeSalariesCard: false,
+        showVehicleRevenueExpensesCard: false,
+        showActivityThisMonth: false,
+        showFinancialHealth: false,
+        showBusinessOverview: false,
+        showTopCustomers: false,
+        showActivitySummary: false,
         createdAt: new Date().toISOString(),
     };
     await saveAdminSettings(defaults);
@@ -309,7 +318,7 @@ function convertQuoteToInvoice(quote) {
     };
     return invoice;
 }
-// Initialize sample data on first load
+// Initialize sample vehicles on first load
 async function initializeSampleData() {
     const vehicles = await getAllVehicles();
     if (vehicles.length === 0) {
@@ -322,30 +331,6 @@ async function initializeSampleData() {
         ];
         for (const vehicle of sampleVehicles) {
             await saveVehicle(vehicle);
-        }
-    }
-    const customers = await getAllCustomers();
-    if (customers.length === 0) {
-        const sampleCustomers = [
-            {
-                id: generateId(),
-                name: 'Ahmed Al Mansouri',
-                company: 'Al Mansouri Trading',
-                email: 'ahmed@almansouri.ae',
-                phone: '+971 4 1234567',
-                address: 'Dubai, UAE',
-            },
-            {
-                id: generateId(),
-                name: 'Fatima Al Maktoum',
-                company: 'Al Maktoum Logistics',
-                email: 'fatima@almaktoum.ae',
-                phone: '+971 4 7654321',
-                address: 'Abu Dhabi, UAE',
-            },
-        ];
-        for (const customer of sampleCustomers) {
-            await saveCustomer(customer);
         }
     }
 }

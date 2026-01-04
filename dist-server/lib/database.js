@@ -45,8 +45,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initDatabase = initDatabase;
 exports.getDatabase = getDatabase;
+exports.isDatabaseAvailable = isDatabaseAvailable;
 exports.closeDatabase = closeDatabase;
 exports.isDatabaseInitialized = isDatabaseInitialized;
+exports.getInitError = getInitError;
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 // Import better-sqlite3
@@ -54,6 +56,9 @@ const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 // Removed Electron-specific imports - using project folder for all environments
 let db = null;
 let dbPath = null;
+let initAttempted = false;
+let initFailed = false;
+let initError = null;
 /**
  * Get the database path
  * Always uses ./data directory in project folder for portability
@@ -71,8 +76,17 @@ function getDatabasePath() {
  * Creates database file and tables if they don't exist
  */
 function initDatabase() {
+    // Return existing database if already initialized
     if (db) {
         return db;
+    }
+    // If initialization already failed, don't retry
+    if (initFailed) {
+        return null;
+    }
+    // Mark that we've attempted initialization
+    if (!initAttempted) {
+        initAttempted = true;
     }
     try {
         dbPath = getDatabasePath();
@@ -82,21 +96,38 @@ function initDatabase() {
         // Create tables
         createTables(db);
         console.log(`Database initialized at: ${dbPath}`);
+        initFailed = false;
+        initError = null;
         return db;
     }
     catch (error) {
-        console.error('Database initialization failed:', error);
-        throw error;
+        // Cache the failure to prevent repeated attempts
+        initFailed = true;
+        initError = error instanceof Error ? error : new Error(String(error));
+        // Only log the error once
+        if (!initAttempted || initError) {
+            console.error('Database initialization failed:', initError);
+            console.error('App will continue using client-side storage (localStorage)');
+        }
+        // Return null instead of throwing to allow graceful fallback
+        return null;
     }
 }
 /**
  * Get the database instance (initialize if needed)
+ * Returns null if database is unavailable, allowing graceful fallback
  */
 function getDatabase() {
     if (!db) {
         return initDatabase();
     }
     return db;
+}
+/**
+ * Check if database is available
+ */
+function isDatabaseAvailable() {
+    return db !== null && !initFailed;
 }
 /**
  * Close the database connection
@@ -106,6 +137,10 @@ function closeDatabase() {
         db.close();
         db = null;
     }
+    // Reset initialization state when closing
+    initAttempted = false;
+    initFailed = false;
+    initError = null;
 }
 /**
  * Create all database tables
@@ -500,4 +535,10 @@ function createTables(database) {
  */
 function isDatabaseInitialized() {
     return db !== null;
+}
+/**
+ * Get the initialization error if database failed to initialize
+ */
+function getInitError() {
+    return initError;
 }

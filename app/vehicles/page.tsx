@@ -357,11 +357,11 @@ export default function VehiclesPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex gap-2 justify-center">
-                          <Link href={`/vehicle-finances/${vehicle.id}`}>
-                            <button className="text-green-600 hover:text-green-800" title="View Profitability">
-                              <DollarSign className="w-4 h-4" />
-                            </button>
-                          </Link>
+                          {/* <Link href={`/vehicle-finances/${vehicle.id}`} className="inline-block">
+                            <span className="text-green-600 hover:text-green-800 cursor-pointer inline-flex" title="View Profitability">
+                              <DollarSign className="w-4 h-4" /> 
+                            </span>
+                          </Link> */}
                           <button onClick={() => handleEdit(vehicle)} className="text-blue-600 hover:text-blue-800">
                             <Edit2 className="w-4 h-4" />
                           </button>

@@ -3,14 +3,24 @@
  * Provides CRUD operations for all entities using SQLite database
  */
 
-import { getDatabase } from '../../lib/database'
+import { getDatabase, isDatabaseAvailable } from '../../lib/database'
 import Database from 'better-sqlite3'
 
 type Db = Database.Database
 
 // Helper to get database instance
-function getDb(): Db {
+// Returns null if database is unavailable, allowing graceful fallback
+function getDb(): Db | null {
   return getDatabase()
+}
+
+// Helper to check if database is available before operations
+function ensureDb(): Db {
+  const db = getDb()
+  if (!db) {
+    throw new Error('Database is not available. App is using client-side storage.')
+  }
+  return db
 }
 
 // Helper function to format reference error messages
@@ -27,83 +37,114 @@ export function formatReferenceError(entityName: string, references: Array<{ typ
 export const customersAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM customers ORDER BY createdAt DESC').all() as any[]
-    return rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      company: row.company || '',
-      email: row.email || '',
-      phone: row.phone || '',
-      address: row.address || '',
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    }))
+    if (!db) return []
+    try {
+      const rows = db.prepare('SELECT * FROM customers ORDER BY createdAt DESC').all() as any[]
+      return rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        company: row.company || '',
+        email: row.email || '',
+        phone: row.phone || '',
+        address: row.address || '',
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      }))
+    } catch (error) {
+      console.error('Error in customersAdapter.getAll:', error)
+      return []
+    }
   },
 
   getById: (id: string): any | null => {
     const db = getDb()
-    const row = db.prepare('SELECT * FROM customers WHERE id = ?').get(id) as any
-    if (!row) return null
-    return {
-      id: row.id,
-      name: row.name,
-      company: row.company || '',
-      email: row.email || '',
-      phone: row.phone || '',
-      address: row.address || '',
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
+    if (!db) return null
+    try {
+      const row = db.prepare('SELECT * FROM customers WHERE id = ?').get(id) as any
+      if (!row) return null
+      return {
+        id: row.id,
+        name: row.name,
+        company: row.company || '',
+        email: row.email || '',
+        phone: row.phone || '',
+        address: row.address || '',
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      }
+    } catch (error) {
+      console.error('Error in customersAdapter.getById:', error)
+      return null
     }
   },
 
   create: (data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
-    const stmt = db.prepare(`
-      INSERT INTO customers (id, name, company, email, phone, address, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    stmt.run(
-      data.id,
-      data.name,
-      data.company || '',
-      data.email || '',
-      data.phone || '',
-      data.address || '',
-      now,
-      now
-    )
-    return customersAdapter.getById(data.id)
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const now = new Date().toISOString()
+      const stmt = db.prepare(`
+        INSERT INTO customers (id, name, company, email, phone, address, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      stmt.run(
+        data.id,
+        data.name,
+        data.company || '',
+        data.email || '',
+        data.phone || '',
+        data.address || '',
+        now,
+        now
+      )
+      return customersAdapter.getById(data.id)
+    } catch (error) {
+      console.error('Error in customersAdapter.create:', error)
+      throw error
+    }
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
-    const stmt = db.prepare(`
-      UPDATE customers 
-      SET name = ?, company = ?, email = ?, phone = ?, address = ?, updatedAt = ?
-      WHERE id = ?
-    `)
-    stmt.run(
-      data.name,
-      data.company || '',
-      data.email || '',
-      data.phone || '',
-      data.address || '',
-      now,
-      id
-    )
-    return customersAdapter.getById(id)
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const now = new Date().toISOString()
+      const stmt = db.prepare(`
+        UPDATE customers 
+        SET name = ?, company = ?, email = ?, phone = ?, address = ?, updatedAt = ?
+        WHERE id = ?
+      `)
+      stmt.run(
+        data.name,
+        data.company || '',
+        data.email || '',
+        data.phone || '',
+        data.address || '',
+        now,
+        id
+      )
+      return customersAdapter.getById(id)
+    } catch (error) {
+      console.error('Error in customersAdapter.update:', error)
+      throw error
+    }
   },
 
   delete: (id: string): void => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      // Check for related quotes
+      const quotes = db.prepare('SELECT number FROM quotes WHERE customerId = ?').all(id) as any[]
 
-    // Check for related quotes
-    const quotes = db.prepare('SELECT number FROM quotes WHERE customerId = ?').all(id) as any[]
-
-    // Check for related invoices
-    const invoices = db.prepare('SELECT number FROM invoices WHERE customerId = ?').all(id) as any[]
+      // Check for related invoices
+      const invoices = db.prepare('SELECT number FROM invoices WHERE customerId = ?').all(id) as any[]
 
     // Build references array
     const references = [
@@ -115,28 +156,32 @@ export const customersAdapter = {
       throw new Error(formatReferenceError('Customer', references))
     }
 
-    // If no related records, proceed with deletion
-    // Wrap in try-catch to handle any database constraint errors as fallback
-    try {
-      db.prepare('DELETE FROM customers WHERE id = ?').run(id)
-    } catch (dbError: any) {
-      // If database throws foreign key error, query again to get references
-      if (dbError.message && (dbError.message.includes('FOREIGN KEY') || dbError.message.includes('constraint'))) {
-        // Re-query to get references (in case they were missed in initial check)
-        const quotesRetry = db.prepare('SELECT number FROM quotes WHERE customerId = ?').all(id) as any[]
-        const invoicesRetry = db.prepare('SELECT number FROM invoices WHERE customerId = ?').all(id) as any[]
-        const referencesRetry = [
-          ...quotesRetry.map(q => ({ type: 'Quote', number: q.number })),
-          ...invoicesRetry.map(i => ({ type: 'Invoice', number: i.number }))
-        ]
-        if (referencesRetry.length > 0) {
-          throw new Error(formatReferenceError('Customer', referencesRetry))
+      // If no related records, proceed with deletion
+      // Wrap in try-catch to handle any database constraint errors as fallback
+      try {
+        db.prepare('DELETE FROM customers WHERE id = ?').run(id)
+      } catch (dbError: any) {
+        // If database throws foreign key error, query again to get references
+        if (dbError.message && (dbError.message.includes('FOREIGN KEY') || dbError.message.includes('constraint'))) {
+          // Re-query to get references (in case they were missed in initial check)
+          const quotesRetry = db.prepare('SELECT number FROM quotes WHERE customerId = ?').all(id) as any[]
+          const invoicesRetry = db.prepare('SELECT number FROM invoices WHERE customerId = ?').all(id) as any[]
+          const referencesRetry = [
+            ...quotesRetry.map(q => ({ type: 'Quote', number: q.number })),
+            ...invoicesRetry.map(i => ({ type: 'Invoice', number: i.number }))
+          ]
+          if (referencesRetry.length > 0) {
+            throw new Error(formatReferenceError('Customer', referencesRetry))
+          }
+          // If still no references found, throw generic error
+          throw new Error('Cannot delete Customer as it is referenced in other records')
         }
-        // If still no references found, throw generic error
-        throw new Error('Cannot delete Customer as it is referenced in other records')
+        // Re-throw other errors
+        throw dbError
       }
-      // Re-throw other errors
-      throw dbError
+    } catch (error) {
+      console.error('Error in customersAdapter.delete:', error)
+      throw error
     }
   },
 }
@@ -145,99 +190,134 @@ export const customersAdapter = {
 export const vendorsAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM vendors ORDER BY createdAt DESC').all() as any[]
-    return rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      contactPerson: row.contactPerson || '',
-      email: row.email || '',
-      phone: row.phone || '',
-      address: row.address || '',
-      bankDetails: row.bankDetails || '',
-      paymentTerms: row.paymentTerms || '',
-      createdAt: row.createdAt,
-    }))
+    if (!db) return []
+    try {
+      const rows = db.prepare('SELECT * FROM vendors ORDER BY createdAt DESC').all() as any[]
+      return rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        contactPerson: row.contactPerson || '',
+        email: row.email || '',
+        phone: row.phone || '',
+        address: row.address || '',
+        bankDetails: row.bankDetails || '',
+        paymentTerms: row.paymentTerms || '',
+        createdAt: row.createdAt,
+      }))
+    } catch (error) {
+      console.error('Error in vendorsAdapter.getAll:', error)
+      return []
+    }
   },
 
   getById: (id: string): any | null => {
     const db = getDb()
-    const row = db.prepare('SELECT * FROM vendors WHERE id = ?').get(id) as any
-    if (!row) return null
-    return {
-      id: row.id,
-      name: row.name,
-      contactPerson: row.contactPerson || '',
-      email: row.email || '',
-      phone: row.phone || '',
-      address: row.address || '',
-      bankDetails: row.bankDetails || '',
-      paymentTerms: row.paymentTerms || '',
-      createdAt: row.createdAt,
+    if (!db) return null
+    try {
+      const row = db.prepare('SELECT * FROM vendors WHERE id = ?').get(id) as any
+      if (!row) return null
+      return {
+        id: row.id,
+        name: row.name,
+        contactPerson: row.contactPerson || '',
+        email: row.email || '',
+        phone: row.phone || '',
+        address: row.address || '',
+        bankDetails: row.bankDetails || '',
+        paymentTerms: row.paymentTerms || '',
+        createdAt: row.createdAt,
+      }
+    } catch (error) {
+      console.error('Error in vendorsAdapter.getById:', error)
+      return null
     }
   },
 
   create: (data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
-    const stmt = db.prepare(`
-      INSERT INTO vendors (id, name, contactPerson, email, phone, address, bankDetails, paymentTerms, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    stmt.run(
-      data.id,
-      data.name,
-      data.contactPerson || '',
-      data.email || '',
-      data.phone || '',
-      data.address || '',
-      data.bankDetails || '',
-      data.paymentTerms || '',
-      now
-    )
-    return vendorsAdapter.getById(data.id)
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const now = new Date().toISOString()
+      const stmt = db.prepare(`
+        INSERT INTO vendors (id, name, contactPerson, email, phone, address, bankDetails, paymentTerms, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      stmt.run(
+        data.id,
+        data.name,
+        data.contactPerson || '',
+        data.email || '',
+        data.phone || '',
+        data.address || '',
+        data.bankDetails || '',
+        data.paymentTerms || '',
+        now
+      )
+      return vendorsAdapter.getById(data.id)
+    } catch (error) {
+      console.error('Error in vendorsAdapter.create:', error)
+      throw error
+    }
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
-    const stmt = db.prepare(`
-      UPDATE vendors 
-      SET name = ?, contactPerson = ?, email = ?, phone = ?, address = ?, bankDetails = ?, paymentTerms = ?
-      WHERE id = ?
-    `)
-    stmt.run(
-      data.name,
-      data.contactPerson || '',
-      data.email || '',
-      data.phone || '',
-      data.address || '',
-      data.bankDetails || '',
-      data.paymentTerms || '',
-      id
-    )
-    return vendorsAdapter.getById(id)
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const stmt = db.prepare(`
+        UPDATE vendors 
+        SET name = ?, contactPerson = ?, email = ?, phone = ?, address = ?, bankDetails = ?, paymentTerms = ?
+        WHERE id = ?
+      `)
+      stmt.run(
+        data.name,
+        data.contactPerson || '',
+        data.email || '',
+        data.phone || '',
+        data.address || '',
+        data.bankDetails || '',
+        data.paymentTerms || '',
+        id
+      )
+      return vendorsAdapter.getById(id)
+    } catch (error) {
+      console.error('Error in vendorsAdapter.update:', error)
+      throw error
+    }
   },
 
   delete: (id: string): void => {
     const db = getDb()
-
-    // Check for related purchase orders
-    const purchaseOrders = db.prepare('SELECT number FROM purchase_orders WHERE vendorId = ?').all(id) as any[]
-
-    // Check for related invoices
-    const invoices = db.prepare('SELECT number FROM invoices WHERE vendorId = ?').all(id) as any[]
-
-    // Build references array
-    const references = [
-      ...purchaseOrders.map(po => ({ type: 'Purchase Order', number: po.number })),
-      ...invoices.map(i => ({ type: 'Invoice', number: i.number }))
-    ]
-
-    if (references.length > 0) {
-      throw new Error(formatReferenceError('Vendor', references))
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
     }
+    try {
+      // Check for related purchase orders
+      const purchaseOrders = db.prepare('SELECT number FROM purchase_orders WHERE vendorId = ?').all(id) as any[]
 
-    // If no related records, proceed with deletion
-    db.prepare('DELETE FROM vendors WHERE id = ?').run(id)
+      // Check for related invoices
+      const invoices = db.prepare('SELECT number FROM invoices WHERE vendorId = ?').all(id) as any[]
+
+      // Build references array
+      const references = [
+        ...purchaseOrders.map(po => ({ type: 'Purchase Order', number: po.number })),
+        ...invoices.map(i => ({ type: 'Invoice', number: i.number }))
+      ]
+
+      if (references.length > 0) {
+        throw new Error(formatReferenceError('Vendor', references))
+      }
+
+      // If no related records, proceed with deletion
+      db.prepare('DELETE FROM vendors WHERE id = ?').run(id)
+    } catch (error) {
+      console.error('Error in vendorsAdapter.delete:', error)
+      throw error
+    }
   },
 }
 
@@ -245,8 +325,10 @@ export const vendorsAdapter = {
 export const employeesAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM employees ORDER BY createdAt DESC').all()
-    return rows.map((row: any) => ({
+    if (!db) return []
+    try {
+      const rows = db.prepare('SELECT * FROM employees ORDER BY createdAt DESC').all()
+      return rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       employeeId: row.employeeId || '',
@@ -257,11 +339,17 @@ export const employeesAdapter = {
       bankDetails: row.bankDetails || '',
       createdAt: row.createdAt,
     }))
+    } catch (error) {
+      console.error('Error in employeesAdapter.getAll:', error)
+      return []
+    }
   },
 
   getById: (id: string): any | null => {
     const db = getDb()
-    const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(id) as any
+    if (!db) return null
+    try {
+      const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(id) as any
     if (!row) return null
     return {
       id: row.id,
@@ -274,15 +362,23 @@ export const employeesAdapter = {
       bankDetails: row.bankDetails || '',
       createdAt: row.createdAt,
     }
+    } catch (error) {
+      console.error('Error in employeesAdapter.getById:', error)
+      return null
+    }
   },
 
   create: (data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
-    const stmt = db.prepare(`
-      INSERT INTO employees (id, name, employeeId, role, paymentType, hourlyRate, salary, bankDetails, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const now = new Date().toISOString()
+      const stmt = db.prepare(`
+        INSERT INTO employees (id, name, employeeId, role, paymentType, hourlyRate, salary, bankDetails, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
     stmt.run(
       data.id,
       data.name,
@@ -295,15 +391,23 @@ export const employeesAdapter = {
       now
     )
     return employeesAdapter.getById(data.id)
+    } catch (error) {
+      console.error('Error in employeesAdapter.create:', error)
+      throw error
+    }
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
-    const stmt = db.prepare(`
-      UPDATE employees 
-      SET name = ?, employeeId = ?, role = ?, paymentType = ?, hourlyRate = ?, salary = ?, bankDetails = ?
-      WHERE id = ?
-    `)
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const stmt = db.prepare(`
+        UPDATE employees 
+        SET name = ?, employeeId = ?, role = ?, paymentType = ?, hourlyRate = ?, salary = ?, bankDetails = ?
+        WHERE id = ?
+      `)
     stmt.run(
       data.name,
       data.employeeId || '',
@@ -315,10 +419,18 @@ export const employeesAdapter = {
       id
     )
     return employeesAdapter.getById(id)
+    } catch (error) {
+      console.error('Error in employeesAdapter.update:', error)
+      throw error
+    }
   },
 
   delete: (id: string): void => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
 
     // Check for related payslips
     const payslips = db.prepare('SELECT id, month FROM payslips WHERE employeeId = ?').all(id) as any[]
@@ -334,15 +446,20 @@ export const employeesAdapter = {
     }
 
     // If no related records, proceed with deletion
-    db.prepare('DELETE FROM employees WHERE id = ?').run(id)
+      db.prepare('DELETE FROM employees WHERE id = ?').run(id)
+    } catch (error) {
+      console.error('Error in employeesAdapter.delete:', error)
+      throw error
+    }
   },
 }
 
 // ==================== PAYSLIPS ====================
 export const payslipsAdapter = {
   getAll: (): any[] => {
+    const db = getDb()
+    if (!db) return []
     try {
-      const db = getDb()
       const rows = db.prepare('SELECT * FROM payslips ORDER BY year DESC, month DESC, createdAt DESC').all()
       return rows.map((row: any) => ({
         id: row.id,
@@ -500,7 +617,9 @@ export const payslipsAdapter = {
 export const vehiclesAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM vehicles ORDER BY createdAt DESC').all() as any[]
+    if (!db) return []
+    try {
+      const rows = db.prepare('SELECT * FROM vehicles ORDER BY createdAt DESC').all() as any[]
     return rows.map(row => ({
       id: row.id,
       vehicleNumber: row.vehicleNumber || row.type || '', // Fallback to type for migration
@@ -526,63 +645,76 @@ export const vehiclesAdapter = {
       notes: row.notes || '',
       createdAt: row.createdAt,
     }))
+    } catch (error) {
+      console.error('Error in vehiclesAdapter.getAll:', error)
+      return []
+    }
   },
 
   getById: (id: string): any | null => {
     const db = getDb()
-    const row = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(id) as any
-    if (!row) return null
-    return {
-      id: row.id,
-      vehicleNumber: row.vehicleNumber || row.type || '',
-      vehicleType: row.vehicleType || '',
-      make: row.make || '',
-      model: row.model || '',
-      year: row.year || undefined,
-      color: row.color || '',
-      purchasePrice: row.purchasePrice || undefined,
-      purchaseDate: row.purchaseDate || '',
-      currentValue: row.currentValue || undefined,
-      insuranceCostMonthly: row.insuranceCostMonthly || undefined,
-      financingCostMonthly: row.financingCostMonthly || undefined,
-      odometerReading: row.odometerReading || undefined,
-      lastServiceDate: row.lastServiceDate || '',
-      nextServiceDue: row.nextServiceDue || '',
-      fuelType: row.fuelType || undefined,
-      status: row.status || 'active',
-      registrationExpiry: row.registrationExpiry || '',
-      insuranceExpiry: row.insuranceExpiry || '',
-      description: row.description || '',
-      basePrice: row.basePrice || 0,
-      notes: row.notes || '',
-      createdAt: row.createdAt,
+    if (!db) return null
+    try {
+      const row = db.prepare('SELECT * FROM vehicles WHERE id = ?').get(id) as any
+      if (!row) return null
+      return {
+        id: row.id,
+        vehicleNumber: row.vehicleNumber || row.type || '',
+        vehicleType: row.vehicleType || '',
+        make: row.make || '',
+        model: row.model || '',
+        year: row.year || undefined,
+        color: row.color || '',
+        purchasePrice: row.purchasePrice || undefined,
+        purchaseDate: row.purchaseDate || '',
+        currentValue: row.currentValue || undefined,
+        insuranceCostMonthly: row.insuranceCostMonthly || undefined,
+        financingCostMonthly: row.financingCostMonthly || undefined,
+        odometerReading: row.odometerReading || undefined,
+        lastServiceDate: row.lastServiceDate || '',
+        nextServiceDue: row.nextServiceDue || '',
+        fuelType: row.fuelType || undefined,
+        status: row.status || 'active',
+        registrationExpiry: row.registrationExpiry || '',
+        insuranceExpiry: row.insuranceExpiry || '',
+        description: row.description || '',
+        basePrice: row.basePrice || 0,
+        notes: row.notes || '',
+        createdAt: row.createdAt,
+      }
+    } catch (error) {
+      console.error('Error in vehiclesAdapter.getById:', error)
+      return null
     }
   },
 
   create: (data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
-
-    // Validate vehicle number is provided
-    if (!data.vehicleNumber || data.vehicleNumber.trim() === '') {
-      throw new Error('Vehicle Number is required')
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
     }
+    try {
+      const now = new Date().toISOString()
 
-    // Check uniqueness of vehicle number
-    const existing = db.prepare('SELECT id FROM vehicles WHERE vehicleNumber = ?').get(data.vehicleNumber.trim()) as any
+      // Validate vehicle number is provided
+      if (!data.vehicleNumber || data.vehicleNumber.trim() === '') {
+        throw new Error('Vehicle Number is required')
+      }
+
+      // Check uniqueness of vehicle number
+      const existing = db.prepare('SELECT id FROM vehicles WHERE vehicleNumber = ?').get(data.vehicleNumber.trim()) as any
     if (existing) {
       throw new Error(`Vehicle Number "${data.vehicleNumber}" already exists`)
     }
 
-    // Note: 'type' column included for backward compatibility with existing databases
     const stmt = db.prepare(`
       INSERT INTO vehicles (
         id, vehicleNumber, vehicleType, make, model, year, color,
         purchasePrice, purchaseDate, currentValue, insuranceCostMonthly, financingCostMonthly,
         odometerReading, lastServiceDate, nextServiceDue, fuelType, status,
-        registrationExpiry, insuranceExpiry, description, basePrice, notes, type, createdAt
+        registrationExpiry, insuranceExpiry, description, basePrice, notes, createdAt
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     stmt.run(
       data.id,
@@ -607,33 +739,38 @@ export const vehiclesAdapter = {
       data.description || '',
       data.basePrice || 0,
       data.notes || '',
-      data.vehicleNumber.trim(), // Legacy 'type' column - copy vehicleNumber for compat
       now
     )
     return vehiclesAdapter.getById(data.id)
+    } catch (error) {
+      console.error('Error in vehiclesAdapter.create:', error)
+      throw error
+    }
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
-
-    // Validate vehicle number is provided
-    if (!data.vehicleNumber || data.vehicleNumber.trim() === '') {
-      throw new Error('Vehicle Number is required')
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
     }
+    try {
+      // Validate vehicle number is provided
+      if (!data.vehicleNumber || data.vehicleNumber.trim() === '') {
+        throw new Error('Vehicle Number is required')
+      }
 
-    // Check uniqueness of vehicle number (excluding current vehicle)
-    const existing = db.prepare('SELECT id FROM vehicles WHERE vehicleNumber = ? AND id != ?').get(data.vehicleNumber.trim(), id) as any
+      // Check uniqueness of vehicle number (excluding current vehicle)
+      const existing = db.prepare('SELECT id FROM vehicles WHERE vehicleNumber = ? AND id != ?').get(data.vehicleNumber.trim(), id) as any
     if (existing) {
       throw new Error(`Vehicle Number "${data.vehicleNumber}" already exists`)
     }
 
-    // Note: 'type' column included for backward compatibility with existing databases
     const stmt = db.prepare(`
       UPDATE vehicles 
       SET vehicleNumber = ?, vehicleType = ?, make = ?, model = ?, year = ?, color = ?,
           purchasePrice = ?, purchaseDate = ?, currentValue = ?, insuranceCostMonthly = ?, financingCostMonthly = ?,
           odometerReading = ?, lastServiceDate = ?, nextServiceDue = ?, fuelType = ?, status = ?,
-          registrationExpiry = ?, insuranceExpiry = ?, description = ?, basePrice = ?, notes = ?, type = ?
+          registrationExpiry = ?, insuranceExpiry = ?, description = ?, basePrice = ?, notes = ?
       WHERE id = ?
     `)
     stmt.run(
@@ -658,35 +795,45 @@ export const vehiclesAdapter = {
       data.description || '',
       data.basePrice || 0,
       data.notes || '',
-      data.vehicleNumber.trim(), // Legacy 'type' column - copy vehicleNumber for compat
       id
     )
     return vehiclesAdapter.getById(id)
+    } catch (error) {
+      console.error('Error in vehiclesAdapter.update:', error)
+      throw error
+    }
   },
 
   delete: (id: string): void => {
     const db = getDb()
-
-    // Check for related quote items (vehicleTypeId references this vehicle)
-    const quoteItems = db.prepare(`
-      SELECT DISTINCT q.number 
-      FROM quote_items qi
-      JOIN quotes q ON qi.quoteId = q.id
-      WHERE qi.vehicleTypeId = ?
-    `).all(id) as any[]
-
-    // Build references array
-    const references = quoteItems.map(qi => ({
-      type: 'Quote',
-      number: qi.number
-    }))
-
-    if (references.length > 0) {
-      throw new Error(formatReferenceError('Vehicle', references))
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
     }
+    try {
+      // Check for related quote items (vehicleTypeId references this vehicle)
+      const quoteItems = db.prepare(`
+        SELECT DISTINCT q.number 
+        FROM quote_items qi
+        JOIN quotes q ON qi.quoteId = q.id
+        WHERE qi.vehicleTypeId = ?
+      `).all(id) as any[]
 
-    // If no related records, proceed with deletion
-    db.prepare('DELETE FROM vehicles WHERE id = ?').run(id)
+      // Build references array
+      const references = quoteItems.map(qi => ({
+        type: 'Quote',
+        number: qi.number
+      }))
+
+      if (references.length > 0) {
+        throw new Error(formatReferenceError('Vehicle', references))
+      }
+
+      // If no related records, proceed with deletion
+      db.prepare('DELETE FROM vehicles WHERE id = ?').run(id)
+    } catch (error) {
+      console.error('Error in vehiclesAdapter.delete:', error)
+      throw error
+    }
   },
 }
 
@@ -705,6 +852,33 @@ export const adminAdapter = {
       }
       if (!columnNames.includes('showQuickActions')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showVehicleFinances')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleFinances INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showQuotationsInvoicesCard')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsInvoicesCard INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showEmployeeSalariesCard')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showEmployeeSalariesCard INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showVehicleRevenueExpensesCard')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleRevenueExpensesCard INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showActivityThisMonth')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showActivityThisMonth INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showFinancialHealth')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showFinancialHealth INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showBusinessOverview')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showBusinessOverview INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showTopCustomers')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showTopCustomers INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showActivitySummary')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0')
       }
     } catch (error: any) {
       console.log('Migration check:', error.message)
@@ -730,6 +904,51 @@ export const adminAdapter = {
       : (row.showReports === 1)
         ? true
         : false // default to false if null/undefined
+    const showVehicleFinances = (row.showVehicleFinances === 0)
+      ? false
+      : (row.showVehicleFinances === 1)
+        ? true
+        : false // default to false if null/undefined
+    const showQuotationsInvoicesCard = (row.showQuotationsInvoicesCard === 0)
+      ? false
+      : (row.showQuotationsInvoicesCard === 1)
+        ? true
+        : true // default to true if null/undefined
+    const showEmployeeSalariesCard = (row.showEmployeeSalariesCard === 0)
+      ? false
+      : (row.showEmployeeSalariesCard === 1)
+        ? true
+        : false // default to false if null/undefined
+    const showVehicleRevenueExpensesCard = (row.showVehicleRevenueExpensesCard === 0)
+      ? false
+      : (row.showVehicleRevenueExpensesCard === 1)
+        ? true
+        : false // default to false if null/undefined
+    const showActivityThisMonth = (row.showActivityThisMonth === 0)
+      ? false
+      : (row.showActivityThisMonth === 1)
+        ? true
+        : false // default to false if null/undefined
+    const showFinancialHealth = (row.showFinancialHealth === 0)
+      ? false
+      : (row.showFinancialHealth === 1)
+        ? true
+        : true // default to true if null/undefined
+    const showBusinessOverview = (row.showBusinessOverview === 0)
+      ? false
+      : (row.showBusinessOverview === 1)
+        ? true
+        : true // default to true if null/undefined
+    const showTopCustomers = (row.showTopCustomers === 0)
+      ? false
+      : (row.showTopCustomers === 1)
+        ? true
+        : false // default to false if null/undefined
+    const showActivitySummary = (row.showActivitySummary === 0)
+      ? false
+      : (row.showActivitySummary === 1)
+        ? true
+        : false // default to false if null/undefined
 
     return {
       id: row.id,
@@ -745,6 +964,15 @@ export const adminAdapter = {
       showRevenueTrend,
       showQuickActions,
       showReports,
+      showVehicleFinances,
+      showQuotationsInvoicesCard,
+      showEmployeeSalariesCard,
+      showVehicleRevenueExpensesCard,
+      showActivityThisMonth,
+      showFinancialHealth,
+      showBusinessOverview,
+      showTopCustomers,
+      showActivitySummary,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }
@@ -767,6 +995,33 @@ export const adminAdapter = {
       if (!columnNames.includes('showReports')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showReports INTEGER DEFAULT 0')
       }
+      if (!columnNames.includes('showVehicleFinances')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleFinances INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showQuotationsInvoicesCard')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsInvoicesCard INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showEmployeeSalariesCard')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showEmployeeSalariesCard INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showVehicleRevenueExpensesCard')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleRevenueExpensesCard INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showActivityThisMonth')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showActivityThisMonth INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showFinancialHealth')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showFinancialHealth INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showBusinessOverview')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showBusinessOverview INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showTopCustomers')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showTopCustomers INTEGER DEFAULT 0')
+      }
+      if (!columnNames.includes('showActivitySummary')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0')
+      }
     } catch (error: any) {
       console.log('Migration check in save:', error.message)
     }
@@ -781,11 +1036,29 @@ export const adminAdapter = {
     const showRevenueTrend = (data.showRevenueTrend === true) ? 1 : 0
     const showQuickActions = (data.showQuickActions === true) ? 1 : 0
     const showReports = (data.showReports === true) ? 1 : 0
+    const showVehicleFinances = (data.showVehicleFinances === true) ? 1 : 0
+    const showQuotationsInvoicesCard = (data.showQuotationsInvoicesCard === true) ? 1 : 0
+    const showEmployeeSalariesCard = (data.showEmployeeSalariesCard === true) ? 1 : 0
+    const showVehicleRevenueExpensesCard = (data.showVehicleRevenueExpensesCard === true) ? 1 : 0
+    const showActivityThisMonth = (data.showActivityThisMonth === true) ? 1 : 0
+    const showFinancialHealth = (data.showFinancialHealth === true) ? 1 : 0
+    const showBusinessOverview = (data.showBusinessOverview === true) ? 1 : 0
+    const showTopCustomers = (data.showTopCustomers === true) ? 1 : 0
+    const showActivitySummary = (data.showActivitySummary === true) ? 1 : 0
 
     console.log('Adapter save - converting:', {
       showRevenueTrend: { input: data.showRevenueTrend, output: showRevenueTrend },
       showQuickActions: { input: data.showQuickActions, output: showQuickActions },
       showReports: { input: data.showReports, output: showReports },
+      showVehicleFinances: { input: data.showVehicleFinances, output: showVehicleFinances },
+      showQuotationsInvoicesCard: { input: data.showQuotationsInvoicesCard, output: showQuotationsInvoicesCard },
+      showEmployeeSalariesCard: { input: data.showEmployeeSalariesCard, output: showEmployeeSalariesCard },
+      showVehicleRevenueExpensesCard: { input: data.showVehicleRevenueExpensesCard, output: showVehicleRevenueExpensesCard },
+      showActivityThisMonth: { input: data.showActivityThisMonth, output: showActivityThisMonth },
+      showFinancialHealth: { input: data.showFinancialHealth, output: showFinancialHealth },
+      showBusinessOverview: { input: data.showBusinessOverview, output: showBusinessOverview },
+      showTopCustomers: { input: data.showTopCustomers, output: showTopCustomers },
+      showActivitySummary: { input: data.showActivitySummary, output: showActivitySummary },
     })
 
     if (existing) {
@@ -793,7 +1066,10 @@ export const adminAdapter = {
         UPDATE admin_settings 
         SET companyName = ?, address = ?, vatNumber = ?, logoUrl = ?, sealUrl = ?, 
             signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, 
-            showRevenueTrend = ?, showQuickActions = ?, showReports = ?, updatedAt = ?
+            showRevenueTrend = ?, showQuickActions = ?, showReports = ?, showVehicleFinances = ?, 
+            showQuotationsInvoicesCard = ?, showEmployeeSalariesCard = ?, showVehicleRevenueExpensesCard = ?, 
+            showActivityThisMonth = ?, showFinancialHealth = ?, showBusinessOverview = ?, 
+            showTopCustomers = ?, showActivitySummary = ?, updatedAt = ?
         WHERE id = ?
       `)
       const result = stmt.run(
@@ -809,6 +1085,15 @@ export const adminAdapter = {
         showRevenueTrend,
         showQuickActions,
         showReports,
+        showVehicleFinances,
+        showQuotationsInvoicesCard,
+        showEmployeeSalariesCard,
+        showVehicleRevenueExpensesCard,
+        showActivityThisMonth,
+        showFinancialHealth,
+        showBusinessOverview,
+        showTopCustomers,
+        showActivitySummary,
         now,
         existing.id
       )
@@ -816,8 +1101,11 @@ export const adminAdapter = {
       const stmt = db.prepare(`
         INSERT INTO admin_settings (id, companyName, address, vatNumber, logoUrl, sealUrl, 
                                     signatureUrl, quoteNumberPattern, currency, defaultTerms, 
-                                    showRevenueTrend, showQuickActions, showReports, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    showRevenueTrend, showQuickActions, showReports, showVehicleFinances, 
+                                    showQuotationsInvoicesCard, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, 
+                                    showActivityThisMonth, showFinancialHealth, showBusinessOverview, 
+                                    showTopCustomers, showActivitySummary, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         data.id || 'settings_1',
@@ -833,6 +1121,15 @@ export const adminAdapter = {
         showRevenueTrend,
         showQuickActions,
         showReports,
+        showVehicleFinances,
+        showQuotationsInvoicesCard,
+        showEmployeeSalariesCard,
+        showVehicleRevenueExpensesCard,
+        showActivityThisMonth,
+        showFinancialHealth,
+        showBusinessOverview,
+        showTopCustomers,
+        showActivitySummary,
         now,
         now
       )
@@ -845,7 +1142,9 @@ export const adminAdapter = {
 export const quotesAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const quotes = db.prepare('SELECT * FROM quotes ORDER BY createdAt DESC').all() as any[]
+    if (!db) return []
+    try {
+      const quotes = db.prepare('SELECT * FROM quotes ORDER BY createdAt DESC').all() as any[]
     return quotes.map(quote => {
       const items = db.prepare('SELECT * FROM quote_items WHERE quoteId = ?').all(quote.id) as any[]
       // Get customer object
@@ -876,27 +1175,33 @@ export const quotesAdapter = {
         updatedAt: quote.updatedAt,
       }
     })
+    } catch (error) {
+      console.error('Error in quotesAdapter.getAll:', error)
+      return []
+    }
   },
 
   getById: (id: string): any | null => {
     const db = getDb()
-    const quote = db.prepare('SELECT * FROM quotes WHERE id = ?').get(id) as any
-    if (!quote) return null
+    if (!db) return null
+    try {
+      const quote = db.prepare('SELECT * FROM quotes WHERE id = ?').get(id) as any
+      if (!quote) return null
 
-    const items = db.prepare('SELECT * FROM quote_items WHERE quoteId = ?').all(id) as any[]
-    // Get customer object
-    const customer = quote.customerId ? customersAdapter.getById(quote.customerId) : null
-    // If customer doesn't exist, return null instead of empty object to prevent FK issues
-    if (quote.customerId && !customer) {
-      console.warn(`Quote ${quote.number} references non-existent customer ${quote.customerId}`)
-    }
-    return {
-      id: quote.id,
-      number: quote.number,
-      date: quote.date,
-      validUntil: quote.validUntil || '',
-      currency: quote.currency || 'AED',
-      customer: customer || null,
+      const items = db.prepare('SELECT * FROM quote_items WHERE quoteId = ?').all(id) as any[]
+      // Get customer object
+      const customer = quote.customerId ? customersAdapter.getById(quote.customerId) : null
+      // If customer doesn't exist, return null instead of empty object to prevent FK issues
+      if (quote.customerId && !customer) {
+        console.warn(`Quote ${quote.number} references non-existent customer ${quote.customerId}`)
+      }
+      return {
+        id: quote.id,
+        number: quote.number,
+        date: quote.date,
+        validUntil: quote.validUntil || '',
+        currency: quote.currency || 'AED',
+        customer: customer || null,
       items: items.map(item => ({
         id: item.id,
         vehicleTypeId: item.vehicleTypeId || '',
@@ -914,12 +1219,20 @@ export const quotesAdapter = {
       notes: quote.notes || '',
       createdAt: quote.createdAt,
       updatedAt: quote.updatedAt,
+      }
+    } catch (error) {
+      console.error('Error in quotesAdapter.getById:', error)
+      return null
     }
   },
 
   create: (data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const now = new Date().toISOString()
 
     // Validate required fields
     if (!data.number || data.number.trim() === '') {
@@ -989,11 +1302,19 @@ export const quotesAdapter = {
     }
 
     return quotesAdapter.getById(data.id)
+    } catch (error) {
+      console.error('Error in quotesAdapter.create:', error)
+      throw error
+    }
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const now = new Date().toISOString()
 
     // Validate required fields
     if (!data.number || data.number.trim() === '') {
@@ -1065,27 +1386,38 @@ export const quotesAdapter = {
     }
 
     return quotesAdapter.getById(id)
+    } catch (error) {
+      console.error('Error in quotesAdapter.update:', error)
+      throw error
+    }
   },
 
   delete: (id: string): void => {
     const db = getDb()
-
-    // Check for related invoices
-    const invoices = db.prepare('SELECT number FROM invoices WHERE quoteId = ?').all(id) as any[]
-
-    // Build references array
-    const references = invoices.map(i => ({
-      type: 'Invoice',
-      number: i.number
-    }))
-
-    if (references.length > 0) {
-      throw new Error(formatReferenceError('Quote', references))
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
     }
+    try {
+      // Check for related invoices
+      const invoices = db.prepare('SELECT number FROM invoices WHERE quoteId = ?').all(id) as any[]
 
-    // If no related records, proceed with deletion
-    // Items will be deleted automatically due to CASCADE
-    db.prepare('DELETE FROM quotes WHERE id = ?').run(id)
+      // Build references array
+      const references = invoices.map(i => ({
+        type: 'Invoice',
+        number: i.number
+      }))
+
+      if (references.length > 0) {
+        throw new Error(formatReferenceError('Quote', references))
+      }
+
+      // If no related records, proceed with deletion
+      // Items will be deleted automatically due to CASCADE
+      db.prepare('DELETE FROM quotes WHERE id = ?').run(id)
+    } catch (error) {
+      console.error('Error in quotesAdapter.delete:', error)
+      throw error
+    }
   },
 }
 
@@ -1093,7 +1425,9 @@ export const quotesAdapter = {
 export const purchaseOrdersAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const pos = db.prepare('SELECT * FROM purchase_orders ORDER BY createdAt DESC').all() as any[]
+    if (!db) return []
+    try {
+      const pos = db.prepare('SELECT * FROM purchase_orders ORDER BY createdAt DESC').all() as any[]
     return pos.map(po => {
       const items = db.prepare('SELECT * FROM po_items WHERE purchaseOrderId = ?').all(po.id) as any[]
       return {
@@ -1107,17 +1441,21 @@ export const purchaseOrdersAdapter = {
           quantity: item.quantity || 0,
           unitPrice: item.unitPrice || 0,
           tax: item.tax || 0,
-          total: item.total || 0,
-        })),
-        subtotal: po.subtotal || 0,
-        tax: po.tax || 0,
-        amount: po.amount || 0,
-        currency: po.currency || 'AED',
-        status: po.status || 'draft',
-        notes: po.notes || '',
-        createdAt: po.createdAt,
-      }
-    })
+        total: item.total || 0,
+      })),
+      subtotal: po.subtotal || 0,
+      tax: po.tax || 0,
+      amount: po.amount || 0,
+      currency: po.currency || 'AED',
+      status: po.status || 'draft',
+      notes: po.notes || '',
+      createdAt: po.createdAt,
+    }
+  })
+    } catch (error) {
+      console.error('Error in purchaseOrdersAdapter.getAll:', error)
+      return []
+    }
   },
 
   getById: (id: string): any | null => {
@@ -1272,7 +1610,9 @@ export const purchaseOrdersAdapter = {
 export const invoicesAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const invoices = db.prepare('SELECT * FROM invoices ORDER BY createdAt DESC').all() as any[]
+    if (!db) return []
+    try {
+      const invoices = db.prepare('SELECT * FROM invoices ORDER BY createdAt DESC').all() as any[]
     return invoices.map(invoice => {
       const items = db.prepare('SELECT * FROM invoice_items WHERE invoiceId = ?').all(invoice.id) as any[]
       return {
@@ -1290,17 +1630,21 @@ export const invoicesAdapter = {
           quantity: item.quantity || 0,
           unitPrice: item.unitPrice || 0,
           tax: item.tax || 0,
-          total: item.total || 0,
-        })),
-        subtotal: invoice.subtotal || 0,
-        tax: invoice.tax || 0,
-        total: invoice.total || 0,
-        amountReceived: invoice.amountReceived || 0,
-        status: invoice.status || 'draft',
-        notes: invoice.notes || '',
-        createdAt: invoice.createdAt,
-      }
-    })
+        total: item.total || 0,
+      })),
+      subtotal: invoice.subtotal || 0,
+      tax: invoice.tax || 0,
+      total: invoice.total || 0,
+      amountReceived: invoice.amountReceived || 0,
+      status: invoice.status || 'draft',
+      notes: invoice.notes || '',
+      createdAt: invoice.createdAt,
+    }
+  })
+    } catch (error) {
+      console.error('Error in invoicesAdapter.getAll:', error)
+      return []
+    }
   },
 
   getById: (id: string): any | null => {
@@ -1586,8 +1930,16 @@ export const invoicesAdapter = {
 
   delete: (id: string): void => {
     const db = getDb()
-    // Items will be deleted automatically due to CASCADE
-    db.prepare('DELETE FROM invoices WHERE id = ?').run(id)
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      // Items will be deleted automatically due to CASCADE
+      db.prepare('DELETE FROM invoices WHERE id = ?').run(id)
+    } catch (error) {
+      console.error('Error in invoicesAdapter.delete:', error)
+      throw error
+    }
   },
 }
 
@@ -1595,95 +1947,126 @@ export const invoicesAdapter = {
 export const expenseCategoriesAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM expense_categories ORDER BY isCustom ASC, name ASC').all() as any[]
-    return rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      isCustom: row.isCustom === 1,
-      createdAt: row.createdAt,
-    }))
+    if (!db) return []
+    try {
+      const rows = db.prepare('SELECT * FROM expense_categories ORDER BY isCustom ASC, name ASC').all() as any[]
+      return rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        isCustom: row.isCustom === 1,
+        createdAt: row.createdAt,
+      }))
+    } catch (error) {
+      console.error('Error in expenseCategoriesAdapter.getAll:', error)
+      return []
+    }
   },
 
   getById: (id: string): any | null => {
     const db = getDb()
-    const row = db.prepare('SELECT * FROM expense_categories WHERE id = ?').get(id) as any
-    if (!row) return null
-    return {
-      id: row.id,
-      name: row.name,
-      isCustom: row.isCustom === 1,
-      createdAt: row.createdAt,
+    if (!db) return null
+    try {
+      const row = db.prepare('SELECT * FROM expense_categories WHERE id = ?').get(id) as any
+      if (!row) return null
+      return {
+        id: row.id,
+        name: row.name,
+        isCustom: row.isCustom === 1,
+        createdAt: row.createdAt,
+      }
+    } catch (error) {
+      console.error('Error in expenseCategoriesAdapter.getById:', error)
+      return null
     }
   },
 
   create: (data: any): any => {
     const db = getDb()
-    
-    // Validate required fields
-    if (!data.name || !data.name.trim()) {
-      throw new Error('Category name is required')
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
     }
-    
-    // Generate ID if not provided
-    const id = data.id || `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    
-    // Check for duplicate name
-    const existing = db.prepare('SELECT id FROM expense_categories WHERE LOWER(name) = LOWER(?)').get(data.name.trim()) as any
-    if (existing) {
-      throw new Error('Category with this name already exists')
-    }
-    
-    const now = new Date().toISOString()
-    const stmt = db.prepare(`
-      INSERT INTO expense_categories (id, name, isCustom, createdAt)
-      VALUES (?, ?, ?, ?)
-    `)
-    
     try {
+      // Validate required fields
+      if (!data.name || !data.name.trim()) {
+        throw new Error('Category name is required')
+      }
+      
+      // Generate ID if not provided
+      const id = data.id || `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      
+      // Check for duplicate name
+      const existing = db.prepare('SELECT id FROM expense_categories WHERE LOWER(name) = LOWER(?)').get(data.name.trim()) as any
+      if (existing) {
+        throw new Error('Category with this name already exists')
+      }
+      
+      const now = new Date().toISOString()
+      const stmt = db.prepare(`
+        INSERT INTO expense_categories (id, name, isCustom, createdAt)
+        VALUES (?, ?, ?, ?)
+      `)
+      
       stmt.run(
         id,
         data.name.trim(),
         data.isCustom ? 1 : 0,
         now
       )
+      
+      return expenseCategoriesAdapter.getById(id)
     } catch (error: any) {
       if (error.message && error.message.includes('UNIQUE constraint')) {
         throw new Error('Category with this ID or name already exists')
       }
+      console.error('Error in expenseCategoriesAdapter.create:', error)
       throw error
     }
-    
-    return expenseCategoriesAdapter.getById(id)
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
-    const stmt = db.prepare(`
-      UPDATE expense_categories 
-      SET name = ?, isCustom = ?
-      WHERE id = ?
-    `)
-    stmt.run(
-      data.name,
-      data.isCustom ? 1 : 0,
-      id
-    )
-    return expenseCategoriesAdapter.getById(id)
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const stmt = db.prepare(`
+        UPDATE expense_categories 
+        SET name = ?, isCustom = ?
+        WHERE id = ?
+      `)
+      stmt.run(
+        data.name,
+        data.isCustom ? 1 : 0,
+        id
+      )
+      return expenseCategoriesAdapter.getById(id)
+    } catch (error) {
+      console.error('Error in expenseCategoriesAdapter.update:', error)
+      throw error
+    }
   },
 
   delete: (id: string): void => {
     const db = getDb()
-    // Check if category is predefined
-    const category = db.prepare('SELECT isCustom FROM expense_categories WHERE id = ?').get(id) as any
-    if (category && category.isCustom === 0) {
-      throw new Error('Cannot delete predefined expense category')
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
     }
-    // Check if category is used in transactions
-    const transactions = db.prepare('SELECT COUNT(*) as count FROM vehicle_transactions WHERE category = (SELECT name FROM expense_categories WHERE id = ?)').get(id) as any
-    if (transactions && transactions.count > 0) {
-      throw new Error('Cannot delete expense category that is used in transactions')
+    try {
+      // Check if category is predefined
+      const category = db.prepare('SELECT isCustom FROM expense_categories WHERE id = ?').get(id) as any
+      if (category && category.isCustom === 0) {
+        throw new Error('Cannot delete predefined expense category')
+      }
+      // Check if category is used in transactions
+      const transactions = db.prepare('SELECT COUNT(*) as count FROM vehicle_transactions WHERE category = (SELECT name FROM expense_categories WHERE id = ?)').get(id) as any
+      if (transactions && transactions.count > 0) {
+        throw new Error('Cannot delete expense category that is used in transactions')
+      }
+      db.prepare('DELETE FROM expense_categories WHERE id = ?').run(id)
+    } catch (error) {
+      console.error('Error in expenseCategoriesAdapter.delete:', error)
+      throw error
     }
-    db.prepare('DELETE FROM expense_categories WHERE id = ?').run(id)
   },
 }
 
@@ -1691,7 +2074,9 @@ export const expenseCategoriesAdapter = {
 export const vehicleTransactionsAdapter = {
   getAll: (): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM vehicle_transactions ORDER BY date DESC, createdAt DESC').all() as any[]
+    if (!db) return []
+    try {
+      const rows = db.prepare('SELECT * FROM vehicle_transactions ORDER BY date DESC, createdAt DESC').all() as any[]
     return rows.map(row => ({
       id: row.id,
       vehicleId: row.vehicleId,
@@ -1706,11 +2091,17 @@ export const vehicleTransactionsAdapter = {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }))
+    } catch (error) {
+      console.error('Error in vehicleTransactionsAdapter.getAll:', error)
+      return []
+    }
   },
 
   getById: (id: string): any | null => {
     const db = getDb()
-    const row = db.prepare('SELECT * FROM vehicle_transactions WHERE id = ?').get(id) as any
+    if (!db) return null
+    try {
+      const row = db.prepare('SELECT * FROM vehicle_transactions WHERE id = ?').get(id) as any
     if (!row) return null
     return {
       id: row.id,
@@ -1726,11 +2117,17 @@ export const vehicleTransactionsAdapter = {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }
+    } catch (error) {
+      console.error('Error in vehicleTransactionsAdapter.getById:', error)
+      return null
+    }
   },
 
   getByVehicleId: (vehicleId: string): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM vehicle_transactions WHERE vehicleId = ? ORDER BY date DESC, createdAt DESC').all(vehicleId) as any[]
+    if (!db) return []
+    try {
+      const rows = db.prepare('SELECT * FROM vehicle_transactions WHERE vehicleId = ? ORDER BY date DESC, createdAt DESC').all(vehicleId) as any[]
     return rows.map(row => ({
       id: row.id,
       vehicleId: row.vehicleId,
@@ -1745,11 +2142,17 @@ export const vehicleTransactionsAdapter = {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }))
+    } catch (error) {
+      console.error('Error in vehicleTransactionsAdapter.getByVehicleId:', error)
+      return []
+    }
   },
 
   getByVehicleIdAndMonth: (vehicleId: string, month: string): any[] => {
     const db = getDb()
-    const rows = db.prepare('SELECT * FROM vehicle_transactions WHERE vehicleId = ? AND month = ? ORDER BY date DESC, createdAt DESC').all(vehicleId, month) as any[]
+    if (!db) return []
+    try {
+      const rows = db.prepare('SELECT * FROM vehicle_transactions WHERE vehicleId = ? AND month = ? ORDER BY date DESC, createdAt DESC').all(vehicleId, month) as any[]
     return rows.map(row => ({
       id: row.id,
       vehicleId: row.vehicleId,
@@ -1764,11 +2167,17 @@ export const vehicleTransactionsAdapter = {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }))
+    } catch (error) {
+      console.error('Error in vehicleTransactionsAdapter.getByVehicleIdAndMonth:', error)
+      return []
+    }
   },
 
   getProfitabilityByVehicle: (vehicleId: string): any => {
     const db = getDb()
-    const transactions = vehicleTransactionsAdapter.getByVehicleId(vehicleId)
+    if (!db) return null
+    try {
+      const transactions = vehicleTransactionsAdapter.getByVehicleId(vehicleId)
     
     // Debug logging
     if (process.env.NODE_ENV === 'development') {
@@ -1957,10 +2366,16 @@ export const vehicleTransactionsAdapter = {
       allTimeProfit: allTimeRevenue - allTimeExpenses,
       months: completeMonths,
     }
+    } catch (error) {
+      console.error('Error in vehicleTransactionsAdapter.getProfitabilityByVehicle:', error)
+      return null
+    }
   },
 
   getDashboardMetrics: (): any => {
     const db = getDb()
+    if (!db) return null
+    try {
     const allTransactions = vehicleTransactionsAdapter.getAll()
     const allVehicles = vehiclesAdapter.getAll()
     
@@ -2198,11 +2613,19 @@ export const vehicleTransactionsAdapter = {
         avgTransactionsPerVehicle,
       },
     }
+    } catch (error) {
+      console.error('Error in vehicleTransactionsAdapter.getDashboardMetrics:', error)
+      return null
+    }
   },
 
   create: (data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const now = new Date().toISOString()
     
     // Validate date is within 12 months and not future
     const txDate = new Date(data.date)
@@ -2260,11 +2683,19 @@ export const vehicleTransactionsAdapter = {
       now
     )
     return vehicleTransactionsAdapter.getById(data.id)
+    } catch (error) {
+      console.error('Error in vehicleTransactionsAdapter.create:', error)
+      throw error
+    }
   },
 
   update: (id: string, data: any): any => {
     const db = getDb()
-    const now = new Date().toISOString()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      const now = new Date().toISOString()
 
     // Validate date if provided
     if (data.date) {
@@ -2333,11 +2764,23 @@ export const vehicleTransactionsAdapter = {
       id
     )
     return vehicleTransactionsAdapter.getById(id)
+    } catch (error) {
+      console.error('Error in vehicleTransactionsAdapter.update:', error)
+      throw error
+    }
   },
 
   delete: (id: string): void => {
     const db = getDb()
-    db.prepare('DELETE FROM vehicle_transactions WHERE id = ?').run(id)
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
+    try {
+      db.prepare('DELETE FROM vehicle_transactions WHERE id = ?').run(id)
+    } catch (error) {
+      console.error('Error in vehicleTransactionsAdapter.delete:', error)
+      throw error
+    }
   },
 }
 

@@ -17,6 +17,14 @@ export interface AdminSettings {
   showQuickActions?: boolean; // Show/hide quick actions on home page
   showReports?: boolean; // Show/hide Reports menu in sidebar
   showVehicleFinances?: boolean; // Show/hide Vehicle Finances menu in sidebar
+  showQuotationsInvoicesCard?: boolean; // Show/hide Quotations & Invoices card on home page
+  showEmployeeSalariesCard?: boolean; // Show/hide Employee Salaries card on home page
+  showVehicleRevenueExpensesCard?: boolean; // Show/hide Vehicle Revenue & Expenses card on home page
+  showActivityThisMonth?: boolean; // Show/hide Activity This Month section on home page
+  showFinancialHealth?: boolean; // Show/hide Financial Health section on home page
+  showBusinessOverview?: boolean; // Show/hide Business Overview section on home page
+  showTopCustomers?: boolean; // Show/hide Top Customers by Value card on home page
+  showActivitySummary?: boolean; // Show/hide Activity Summary card on home page
   createdAt?: string; // ISO8601
   updatedAt?: string; // ISO8601
 }

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { getAdminSettings } from '@/lib/storage'
+import { checkApiHealth, waitForApiServer } from '@/lib/api-client'
 import type { AdminSettings } from '@/lib/types'
 import {
   Home,
@@ -86,7 +87,9 @@ const allOtherNavigationItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
+  const [settingsLoading, setSettingsLoading] = useState(true)
   const [mastersOpen, setMastersOpen] = useState(() => {
     return masterNavigationItems.some(
       (item) => pathname === item.href || pathname.startsWith(item.href + '/')
@@ -107,10 +110,11 @@ export function Sidebar() {
 
   useEffect(() => {
     const loadSettings = async () => {
+      setSettingsLoading(true)
       try {
         const settings = await getAdminSettings()
         if (settings) {
-          // Ensure backward compatibility - default to true if not set
+          // Ensure backward compatibility - default to true for showReports, false for showVehicleFinances
           const settingsWithDefaults: AdminSettings = {
             ...settings,
             showReports: settings.showReports !== undefined 
@@ -118,11 +122,18 @@ export function Sidebar() {
                   ? settings.showReports 
                   : Boolean(settings.showReports))
               : true,
+            showVehicleFinances: settings.showVehicleFinances !== undefined 
+              ? (typeof settings.showVehicleFinances === 'boolean' 
+                  ? settings.showVehicleFinances 
+                  : Boolean(settings.showVehicleFinances))
+              : false,
           }
           setAdminSettings(settingsWithDefaults)
         }
       } catch (error) {
         console.error('Error loading settings in sidebar:', error)
+      } finally {
+        setSettingsLoading(false)
       }
     }
     loadSettings()
@@ -141,6 +152,11 @@ export function Sidebar() {
                   ? settings.showReports 
                   : Boolean(settings.showReports))
               : true,
+            showVehicleFinances: settings.showVehicleFinances !== undefined 
+              ? (typeof settings.showVehicleFinances === 'boolean' 
+                  ? settings.showVehicleFinances 
+                  : Boolean(settings.showVehicleFinances))
+              : false,
           }
           setAdminSettings(settingsWithDefaults)
         }
@@ -169,6 +185,54 @@ export function Sidebar() {
     }
     return pathname === href || pathname.startsWith(href + '/')
   }
+
+  // Navigation logging and health check handler
+  const handleNavigation = useCallback(async (href: string, label: string) => {
+    const timestamp = new Date().toISOString()
+    const fromPath = pathname
+    
+    console.log(`[${timestamp}] Navigation attempt: ${fromPath} -> ${href} (${label})`)
+    
+    // Store navigation history in sessionStorage for debug panel
+    try {
+      const storedHistory = sessionStorage.getItem('navigationHistory')
+      const history = storedHistory ? JSON.parse(storedHistory) : []
+      history.push({
+        timestamp,
+        from: fromPath,
+        to: href,
+        label,
+      })
+      // Keep only last 50 entries
+      const trimmedHistory = history.slice(-50)
+      sessionStorage.setItem('navigationHistory', JSON.stringify(trimmedHistory))
+    } catch (error) {
+      // Ignore storage errors
+    }
+    
+    // Optional: Check API health before navigation (non-blocking, fails gracefully)
+    // Only check if we're navigating to a page that might need API
+    const apiDependentRoutes = ['/customers', '/vendors', '/vehicles', '/employees', '/invoices', '/quotations', '/purchase-orders', '/payslips', '/vehicle-finances']
+    const needsApi = apiDependentRoutes.some(route => href.startsWith(route))
+    
+    if (needsApi) {
+      try {
+        const isHealthy = await checkApiHealth()
+        if (!isHealthy) {
+          console.warn(`[${timestamp}] API server not healthy, but proceeding with navigation`)
+          // Don't block navigation, just log the warning
+        } else {
+          console.log(`[${timestamp}] API server health check passed`)
+        }
+      } catch (error) {
+        // Don't block navigation on health check failure
+        console.warn(`[${timestamp}] Health check failed, but proceeding:`, error)
+      }
+    }
+    
+    // Log navigation completion when pathname changes (handled by Next.js router)
+    // The actual navigation is handled by Next.js Link component
+  }, [pathname])
 
   const isAnyMasterActive = masterNavigationItems.some((item) => isActive(item.href)) || 
     financesNavigationItems.some((item) => isActive(item.href))
@@ -203,6 +267,7 @@ export function Sidebar() {
         {/* Home */}
         <Link
           href="/"
+          onClick={() => handleNavigation('/', 'Home')}
           className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
             isHomeActive
               ? 'bg-blue-600 text-white'
@@ -214,17 +279,20 @@ export function Sidebar() {
         </Link>
 
         {/* Vehicle Finances - Standalone */}
-        <Link
-          href="/vehicle-finances"
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
-            isActive('/vehicle-finances')
-              ? 'bg-blue-600 text-white'
-              : 'text-blue-100 hover:bg-blue-900/50'
-          }`}
-        >
-          <TrendingUp className="w-5 h-5" />
-          <span>Vehicle Finances</span>
-        </Link>
+        {adminSettings?.showVehicleFinances === true && (
+          <Link
+            href="/vehicle-finances"
+            onClick={() => handleNavigation('/vehicle-finances', 'Vehicle Finances')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
+              isActive('/vehicle-finances')
+                ? 'bg-blue-600 text-white'
+                : 'text-blue-100 hover:bg-blue-900/50'
+            }`}
+          >
+            <TrendingUp className="w-5 h-5" />
+            <span>Vehicle Finances</span>
+          </Link>
+        )}
 
         {/* Doc Generator Section - Collapsible */}
         <Collapsible open={docGeneratorOpen} onOpenChange={setDocGeneratorOpen}>
@@ -254,6 +322,7 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={() => handleNavigation(item.href, item.label)}
                   className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${
                     active
                       ? 'bg-blue-600 text-white'
@@ -296,6 +365,7 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={() => handleNavigation(item.href, item.label)}
                   className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${
                     active
                       ? 'bg-blue-600 text-white'
@@ -336,6 +406,7 @@ export function Sidebar() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={() => handleNavigation(item.href, item.label)}
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm ${
                         active
                           ? 'bg-blue-600 text-white'
@@ -355,6 +426,7 @@ export function Sidebar() {
         {/* Payslips - Standalone */}
         <Link
           href="/payslips"
+          onClick={() => handleNavigation('/payslips', 'Payslips')}
           className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
             isActive('/payslips')
               ? 'bg-blue-600 text-white'
@@ -374,6 +446,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => handleNavigation(item.href, item.label)}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
                 active
                   ? 'bg-blue-600 text-white'

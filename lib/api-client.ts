@@ -6,6 +6,75 @@
 // Use relative paths for Vercel/Next.js API routes, or explicit URL for Express server
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://localhost:3001/api')
 
+// Connection status tracking
+let lastHealthCheck: number = 0
+let isServerHealthy: boolean | null = null
+const HEALTH_CHECK_CACHE_MS = 2000 // Cache health check for 2 seconds
+
+/**
+ * Check if API server is healthy
+ * Uses cached result for 2 seconds to avoid excessive requests
+ */
+export async function checkApiHealth(): Promise<boolean> {
+  const now = Date.now()
+  
+  // Return cached result if recent
+  if (isServerHealthy !== null && (now - lastHealthCheck) < HEALTH_CHECK_CACHE_MS) {
+    return isServerHealthy
+  }
+
+  try {
+    const url = `${API_BASE_URL}/health`
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    clearTimeout(timeoutId)
+    
+    const isHealthy = response.ok
+    isServerHealthy = isHealthy
+    lastHealthCheck = now
+    
+    return isHealthy
+  } catch (error) {
+    isServerHealthy = false
+    lastHealthCheck = now
+    return false
+  }
+}
+
+/**
+ * Wait for API server to be ready with retry logic
+ * @param maxRetries Maximum number of retry attempts
+ * @param retryDelayMs Delay between retries in milliseconds
+ */
+export async function waitForApiServer(
+  maxRetries: number = 5,
+  retryDelayMs: number = 500
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const isHealthy = await checkApiHealth()
+    if (isHealthy) {
+      return true
+    }
+    
+    if (attempt < maxRetries) {
+      // Exponential backoff: delay increases with each attempt
+      const delay = retryDelayMs * Math.pow(1.5, attempt - 1)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  
+  return false
+}
+
 async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
   try {

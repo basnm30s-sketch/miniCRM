@@ -70,7 +70,7 @@
           - generic [ref=e97]:
             - heading "Customers" [level=1] [ref=e98]
             - paragraph [ref=e99]: Manage your customers
-          - button "Add Customer" [ref=e100]:
+          - button "Add Customer" [active] [ref=e100]:
             - img
             - text: Add Customer
         - generic [ref=e101]:
@@ -90,14 +90,14 @@
         - generic [ref=e121]:
           - heading "Add Customer" [level=3] [ref=e122]
           - generic [ref=e123]:
-            - textbox "Name" [ref=e124]: Invoice Test 1767510065992
+            - textbox "Name" [ref=e124]
             - textbox "Company" [ref=e125]
             - textbox "Email" [ref=e126]
             - textbox "Phone" [ref=e127]
             - textbox "Address" [ref=e128]
           - generic [ref=e129]:
             - button "Cancel" [ref=e130]
-            - button "Create" [active] [ref=e131]
+            - button "Create" [ref=e131]
   - region "Notifications (F8)":
     - list
   - generic [ref=e136] [cursor=pointer]:
@@ -106,8 +106,8 @@
     - generic [ref=e141]:
       - button "Open issues overlay" [ref=e142]:
         - generic [ref=e143]:
-          - generic [ref=e144]: "5"
-          - generic [ref=e145]: "6"
+          - generic [ref=e144]: "2"
+          - generic [ref=e145]: "3"
         - generic [ref=e146]:
           - text: Issue
           - generic [ref=e147]: s

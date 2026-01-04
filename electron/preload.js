@@ -9,7 +9,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // to use the database through IPC
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
-  // IPC methods for storage operations
+  // IPC methods for storage operations and error logging
   invoke: (channel, ...args) => {
     // Whitelist channels for security
     const validChannels = [
@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'storage:getAll',
       'storage:save',
       'storage:delete',
+      'log-error', // Allow error logging from renderer
     ];
     if (validChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);

@@ -4,6 +4,40 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const isDev = require('electron-is-dev');
 
+// IPC handler for error logging from renderer
+ipcMain.handle('log-error', async (event, errorData) => {
+  const timestamp = new Date().toISOString();
+  console.error('========================================');
+  console.error(`[${timestamp}] Renderer Error Logged`);
+  console.error('Message:', errorData.message);
+  console.error('Stack:', errorData.stack);
+  if (errorData.componentStack) {
+    console.error('Component Stack:', errorData.componentStack);
+  }
+  console.error('========================================');
+  
+  // Log to file
+  try {
+    const logDir = path.join(app.getPath('userData'), 'logs');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const logFile = path.join(logDir, `renderer-error-${Date.now()}.log`);
+    const logContent = `[${timestamp}] Renderer Error\n` +
+      `Message: ${errorData.message}\n` +
+      `Stack: ${errorData.stack || 'N/A'}\n` +
+      `Component Stack: ${errorData.componentStack || 'N/A'}\n` +
+      `App Version: ${app.getVersion()}\n` +
+      `Platform: ${process.platform}\n` +
+      `Node Version: ${process.version}\n`;
+    fs.writeFileSync(logFile, logContent);
+  } catch (logError) {
+    console.error('Failed to save error log:', logError);
+  }
+  
+  return { success: true };
+});
+
 let db = null;
 let apiServer = null;
 let serverStartupPromise = null;
@@ -243,6 +277,100 @@ async function createWindow() {
   // Show window when ready
   win.once('ready-to-show', () => {
     win.show();
+  });
+
+  // ============================================
+  // RENDERER CRASH DETECTION & ERROR HANDLING
+  // ============================================
+  
+  // Track renderer crashes
+  win.webContents.on('render-process-gone', (event, details) => {
+    const timestamp = new Date().toISOString();
+    console.error('========================================');
+    console.error(`[${timestamp}] RENDERER PROCESS CRASHED`);
+    console.error('Reason:', details.reason);
+    console.error('Exit Code:', details.exitCode);
+    console.error('========================================');
+    
+    // Log to file if possible (for persistent debugging)
+    try {
+      const logDir = path.join(app.getPath('userData'), 'logs');
+      if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+      }
+      const logFile = path.join(logDir, `crash-${Date.now()}.log`);
+      const logContent = `[${timestamp}] Renderer Process Crashed\n` +
+        `Reason: ${details.reason}\n` +
+        `Exit Code: ${details.exitCode}\n` +
+        `App Version: ${app.getVersion()}\n` +
+        `Platform: ${process.platform}\n` +
+        `Node Version: ${process.version}\n` +
+        `Electron Version: ${process.versions.electron}\n` +
+        `Chrome Version: ${process.versions.chrome}\n` +
+        `Server URL: http://localhost:3001\n` +
+        `Is Packaged: ${app.isPackaged}\n`;
+      fs.writeFileSync(logFile, logContent);
+      console.error('Crash log saved to:', logFile);
+    } catch (logError) {
+      console.error('Failed to save crash log:', logError);
+    }
+    
+    // Attempt automatic reload for recoverable crashes
+    if (details.reason === 'clean-exit' || details.reason === 'abnormal-exit') {
+      console.log('Attempting to reload window...');
+      setTimeout(() => {
+        if (!win.isDestroyed()) {
+          win.reload();
+        }
+      }, 1000);
+    }
+  });
+
+  // Handle unresponsive renderer
+  win.webContents.on('unresponsive', () => {
+    const timestamp = new Date().toISOString();
+    console.warn(`[${timestamp}] Renderer process became unresponsive`);
+  });
+
+  // Handle responsive recovery
+  win.webContents.on('responsive', () => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] Renderer process recovered`);
+  });
+
+  // Capture console errors from renderer
+  win.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const timestamp = new Date().toISOString();
+    const levelStr = ['', 'INFO', 'WARN', 'ERROR'][level] || 'LOG';
+    if (level >= 2) { // Only log warnings and errors to main process
+      console.log(`[${timestamp}] [Renderer ${levelStr}] ${message} (${sourceId}:${line})`);
+    }
+  });
+
+  // Capture JavaScript errors from renderer
+  win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (isMainFrame) {
+      const timestamp = new Date().toISOString();
+      console.error(`[${timestamp}] Failed to load: ${validatedURL}`);
+      console.error(`Error Code: ${errorCode}, Description: ${errorDescription}`);
+      
+      // Log to file
+      try {
+        const logDir = path.join(app.getPath('userData'), 'logs');
+        if (!fs.existsSync(logDir)) {
+          fs.mkdirSync(logDir, { recursive: true });
+        }
+        const logFile = path.join(logDir, `load-error-${Date.now()}.log`);
+        const logContent = `[${timestamp}] Failed to Load Page\n` +
+          `URL: ${validatedURL}\n` +
+          `Error Code: ${errorCode}\n` +
+          `Description: ${errorDescription}\n` +
+          `Is Main Frame: ${isMainFrame}\n`;
+        fs.writeFileSync(logFile, logContent);
+      } catch (logError) {
+        // Ignore logging errors
+      }
+    }
   });
 
   // Load the app
