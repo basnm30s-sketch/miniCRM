@@ -22,6 +22,7 @@ export default function EmployeesPage() {
   const [paymentType, setPaymentType] = useState<'hourly' | 'monthly' | ''>('')
   const [newHourlyRate, setNewHourlyRate] = useState('')
   const [newSalary, setNewSalary] = useState('')
+  const [newOvertimeRate, setNewOvertimeRate] = useState('')
   const [newBankDetails, setNewBankDetails] = useState('')
 
   useEffect(() => {
@@ -84,6 +85,7 @@ export default function EmployeesPage() {
 
     setNewHourlyRate(String(emp.hourlyRate || ''))
     setNewSalary(String(emp.salary || ''))
+    setNewOvertimeRate(String(emp.overtimeRate || ''))
     setNewBankDetails(emp.bankDetails || '')
     setShowAdd(true)
   }
@@ -102,6 +104,7 @@ export default function EmployeesPage() {
       paymentType: paymentType as 'hourly' | 'monthly',
       hourlyRate: paymentType === 'hourly' ? (parseFloat(newHourlyRate) || undefined) : undefined,
       salary: paymentType === 'monthly' ? (parseFloat(newSalary) || undefined) : undefined,
+      overtimeRate: newOvertimeRate ? (parseFloat(newOvertimeRate) || undefined) : undefined,
       bankDetails: newBankDetails.trim(),
       createdAt: new Date().toISOString(),
     }
@@ -115,6 +118,7 @@ export default function EmployeesPage() {
       setPaymentType('')
       setNewHourlyRate('')
       setNewSalary('')
+      setNewOvertimeRate('')
       setNewBankDetails('')
       setEditingId(null)
       setShowAdd(false)
@@ -258,10 +262,19 @@ export default function EmployeesPage() {
                 />
               )}
 
+              <input
+                className="w-full border px-2 py-1 rounded"
+                placeholder="Overtime Rate (AED/hr)"
+                type="number"
+                step="0.01"
+                value={newOvertimeRate}
+                onChange={(e) => setNewOvertimeRate(e.target.value)}
+              />
+
               <textarea className="w-full border px-2 py-1 rounded" placeholder="Bank Details" value={newBankDetails} onChange={(e) => setNewBankDetails(e.target.value)} />
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <button className="px-3 py-1 border rounded" onClick={() => { setShowAdd(false); setEditingId(null); setNewName(''); setNewEmployeeId(''); setNewRole(''); setPaymentType(''); setNewHourlyRate(''); setNewSalary(''); setNewBankDetails('') }}>Cancel</button>
+              <button className="px-3 py-1 border rounded" onClick={() => { setShowAdd(false); setEditingId(null); setNewName(''); setNewEmployeeId(''); setNewRole(''); setPaymentType(''); setNewHourlyRate(''); setNewSalary(''); setNewOvertimeRate(''); setNewBankDetails('') }}>Cancel</button>
               <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={handleSave}>{editingId ? 'Update' : 'Create'}</button>
             </div>
           </div>

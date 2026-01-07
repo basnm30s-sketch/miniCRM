@@ -171,7 +171,7 @@ export class ClientSideExcelRenderer implements ExcelRenderer {
     currentRow++ // Empty row
 
     // Title
-    worksheet.getCell(currentRow, 1).value = 'QUOTE'
+    worksheet.getCell(currentRow, 1).value = 'QUOTATION'
     this.applyCellStyle(worksheet.getCell(currentRow, 1), {
       bold: true,
       fontSize: 16,

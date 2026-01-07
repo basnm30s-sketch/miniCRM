@@ -487,6 +487,7 @@ export const payslipsAdapter = {
   getById: (id: string): any | null => {
     try {
       const db = getDb()
+      if (!db) return null
       const row = db.prepare('SELECT * FROM payslips WHERE id = ?').get(id) as any
       if (!row) return null
       return {
@@ -514,6 +515,7 @@ export const payslipsAdapter = {
   getByMonth: (month: string): any[] => {
     try {
       const db = getDb()
+      if (!db) return []
       const rows = db.prepare('SELECT * FROM payslips WHERE month = ? ORDER BY createdAt DESC').all(month)
       return rows.map((row: any) => ({
         id: row.id,
@@ -540,6 +542,9 @@ export const payslipsAdapter = {
   create: (data: any): any => {
     try {
       const db = getDb()
+      if (!db) {
+        throw new Error('Database is not available. App is using client-side storage.')
+      }
       const now = new Date().toISOString()
 
       // Validate required fields
@@ -583,6 +588,9 @@ export const payslipsAdapter = {
 
   update: (id: string, data: any): any => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
     const now = new Date().toISOString()
     const stmt = db.prepare(`
       UPDATE payslips 
@@ -609,6 +617,9 @@ export const payslipsAdapter = {
 
   delete: (id: string): void => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
     db.prepare('DELETE FROM payslips WHERE id = ?').run(id)
   },
 }
@@ -841,6 +852,7 @@ export const vehiclesAdapter = {
 export const adminAdapter = {
   get: (): any | null => {
     const db = getDb()
+    if (!db) return null
 
     // Ensure migration runs - check and add columns if needed
     try {
@@ -980,6 +992,9 @@ export const adminAdapter = {
 
   save: (data: any): any => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
 
     // Ensure migration runs before save
     try {
@@ -1437,12 +1452,22 @@ export const purchaseOrdersAdapter = {
         vendorId: po.vendorId,
         items: items.map(item => ({
           id: item.id,
-          description: item.description || '',
+          serialNumber: item.serialNumber || undefined,
+          vehicleTypeId: item.vehicleTypeId || undefined,
+          vehicleTypeLabel: item.vehicleTypeLabel || undefined,
+          vehicleNumber: item.vehicleNumber || undefined,
+          description: item.description || undefined,
+          rentalBasis: item.rentalBasis || undefined,
           quantity: item.quantity || 0,
           unitPrice: item.unitPrice || 0,
-          tax: item.tax || 0,
-        total: item.total || 0,
-      })),
+          taxPercent: item.taxPercent || undefined,
+          tax: item.tax || undefined,
+          grossAmount: item.grossAmount || undefined,
+          lineTaxAmount: item.lineTaxAmount || undefined,
+          lineTotal: item.lineTotal || undefined,
+          total: item.total || 0,
+          amountReceived: item.amountReceived || undefined,
+        })),
       subtotal: po.subtotal || 0,
       tax: po.tax || 0,
       amount: po.amount || 0,
@@ -1460,6 +1485,7 @@ export const purchaseOrdersAdapter = {
 
   getById: (id: string): any | null => {
     const db = getDb()
+    if (!db) return null
     const po = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(id) as any
     if (!po) return null
 
@@ -1489,6 +1515,9 @@ export const purchaseOrdersAdapter = {
 
   create: (data: any): any => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
     const now = new Date().toISOString()
 
     // Insert purchase order
@@ -1537,6 +1566,9 @@ export const purchaseOrdersAdapter = {
 
   update: (id: string, data: any): any => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
 
     // Update purchase order
     const poStmt = db.prepare(`
@@ -1586,6 +1618,9 @@ export const purchaseOrdersAdapter = {
 
   delete: (id: string): void => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
 
     // Check for related invoices
     const invoices = db.prepare('SELECT number FROM invoices WHERE purchaseOrderId = ?').all(id) as any[]
@@ -1626,12 +1661,22 @@ export const invoicesAdapter = {
         quoteId: invoice.quoteId || '',
         items: items.map(item => ({
           id: item.id,
-          description: item.description || '',
+          serialNumber: item.serialNumber || undefined,
+          vehicleTypeId: item.vehicleTypeId || undefined,
+          vehicleTypeLabel: item.vehicleTypeLabel || undefined,
+          vehicleNumber: item.vehicleNumber || undefined,
+          description: item.description || undefined,
+          rentalBasis: item.rentalBasis || undefined,
           quantity: item.quantity || 0,
           unitPrice: item.unitPrice || 0,
-          tax: item.tax || 0,
-        total: item.total || 0,
-      })),
+          taxPercent: item.taxPercent || undefined,
+          tax: item.tax || undefined,
+          grossAmount: item.grossAmount || undefined,
+          lineTaxAmount: item.lineTaxAmount || undefined,
+          lineTotal: item.lineTotal || undefined,
+          total: item.total || 0,
+          amountReceived: item.amountReceived || undefined,
+        })),
       subtotal: invoice.subtotal || 0,
       tax: invoice.tax || 0,
       total: invoice.total || 0,
@@ -1649,6 +1694,7 @@ export const invoicesAdapter = {
 
   getById: (id: string): any | null => {
     const db = getDb()
+    if (!db) return null
     const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id) as any
     if (!invoice) return null
 
@@ -1682,6 +1728,9 @@ export const invoicesAdapter = {
 
   create: (data: any): any => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
     const now = new Date().toISOString()
 
     // Validate required fields
@@ -1775,8 +1824,10 @@ export const invoicesAdapter = {
     // Insert items
     if (data.items && data.items.length > 0) {
       const itemStmt = db.prepare(`
-        INSERT INTO invoice_items (id, invoiceId, description, quantity, unitPrice, tax, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO invoice_items (id, invoiceId, serialNumber, vehicleTypeId, vehicleTypeLabel, vehicleNumber, 
+                                   description, rentalBasis, quantity, unitPrice, taxPercent, tax, 
+                                   grossAmount, lineTaxAmount, lineTotal, total, amountReceived)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       try {
         const insertItems = db.transaction((items: any[]) => {
@@ -1784,11 +1835,21 @@ export const invoicesAdapter = {
             itemStmt.run(
               item.id,
               data.id,
-              item.description || '',
+              item.serialNumber || null,
+              item.vehicleTypeId || null,
+              item.vehicleTypeLabel || null,
+              item.vehicleNumber || null,
+              item.description || null,
+              item.rentalBasis || null,
               item.quantity || 0,
               item.unitPrice || 0,
-              item.tax || 0,
-              item.total || 0
+              item.taxPercent || null,
+              item.tax || null,
+              item.grossAmount || null,
+              item.lineTaxAmount || null,
+              item.lineTotal || null,
+              item.total || 0,
+              item.amountReceived || null
             )
           }
         })
@@ -1807,6 +1868,9 @@ export const invoicesAdapter = {
 
   update: (id: string, data: any): any => {
     const db = getDb()
+    if (!db) {
+      throw new Error('Database is not available. App is using client-side storage.')
+    }
 
     // Check if invoice exists first
     const existing = invoicesAdapter.getById(id)
@@ -1906,19 +1970,31 @@ export const invoicesAdapter = {
     db.prepare('DELETE FROM invoice_items WHERE invoiceId = ?').run(id)
     if (data.items && data.items.length > 0) {
       const itemStmt = db.prepare(`
-        INSERT INTO invoice_items (id, invoiceId, description, quantity, unitPrice, tax, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO invoice_items (id, invoiceId, serialNumber, vehicleTypeId, vehicleTypeLabel, vehicleNumber, 
+                                   description, rentalBasis, quantity, unitPrice, taxPercent, tax, 
+                                   grossAmount, lineTaxAmount, lineTotal, total, amountReceived)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       const insertItems = db.transaction((items: any[]) => {
         for (const item of items) {
           itemStmt.run(
             item.id,
             id,
-            item.description || '',
+            item.serialNumber || null,
+            item.vehicleTypeId || null,
+            item.vehicleTypeLabel || null,
+            item.vehicleNumber || null,
+            item.description || null,
+            item.rentalBasis || null,
             item.quantity || 0,
             item.unitPrice || 0,
-            item.tax || 0,
-            item.total || 0
+            item.taxPercent || null,
+            item.tax || null,
+            item.grossAmount || null,
+            item.lineTaxAmount || null,
+            item.lineTotal || null,
+            item.total || 0,
+            item.amountReceived || null
           )
         }
       })

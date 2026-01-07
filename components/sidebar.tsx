@@ -251,13 +251,13 @@ export function Sidebar() {
               alt="Almsar Alzaki logo"
               width={40}
               height={40}
-              className="w-10 h-10 object-contain"
+              className="object-contain"
               priority
             />
           </div>
           <div className="flex-1">
             <div className="font-bold text-sm text-white">Almsar Alzaki</div>
-            <div className="text-xs text-blue-200">Car Rental Management</div>
+            <div className="text-xs text-blue-200">Transportation and Maintenance</div>
           </div>
         </div>
       </div>

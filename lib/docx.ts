@@ -278,7 +278,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
       new Paragraph({
         children: [
           new TextRun({
-            text: 'QUOTE',
+            text: 'QUOTATION',
             bold: true,
             size: 36, // 18pt
           }),

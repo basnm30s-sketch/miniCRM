@@ -357,8 +357,8 @@ export default function CreatePurchaseOrderPage() {
                     className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
                   >
                     <option value="">Select Vendor</option>
-                    {vendors.map((v) => (
-                      <option key={v.id} value={v.id}>
+                    {vendors.map((v, idx) => (
+                      <option key={v.id ?? `vendor-${idx}`} value={v.id}>
                         {v.name}
                       </option>
                     ))}
@@ -403,8 +403,8 @@ export default function CreatePurchaseOrderPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {po.items.map((item) => (
-                      <tr key={item.id} className="border-b hover:bg-slate-50">
+                    {po.items.map((item, idx) => (
+                      <tr key={item.id ?? `po-item-${idx}`} className="border-b hover:bg-slate-50">
                         <td className="p-2">
                           <Input
                             type="text"

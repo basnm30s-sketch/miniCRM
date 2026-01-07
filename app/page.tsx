@@ -117,56 +117,11 @@ export default function Home() {
             ? (typeof settings.showQuickActions === 'boolean'
               ? settings.showQuickActions
               : Boolean(settings.showQuickActions))
-            : true,
+            : false,
           showReports: settings.showReports !== undefined
             ? (typeof settings.showReports === 'boolean'
               ? settings.showReports
               : Boolean(settings.showReports))
-            : false,
-          showVehicleFinances: settings.showVehicleFinances !== undefined
-            ? (typeof settings.showVehicleFinances === 'boolean'
-              ? settings.showVehicleFinances
-              : Boolean(settings.showVehicleFinances))
-            : false,
-          showQuotationsInvoicesCard: settings.showQuotationsInvoicesCard !== undefined
-            ? (typeof settings.showQuotationsInvoicesCard === 'boolean'
-              ? settings.showQuotationsInvoicesCard
-              : Boolean(settings.showQuotationsInvoicesCard))
-            : false,
-          showEmployeeSalariesCard: settings.showEmployeeSalariesCard !== undefined
-            ? (typeof settings.showEmployeeSalariesCard === 'boolean'
-              ? settings.showEmployeeSalariesCard
-              : Boolean(settings.showEmployeeSalariesCard))
-            : false,
-          showVehicleRevenueExpensesCard: settings.showVehicleRevenueExpensesCard !== undefined
-            ? (typeof settings.showVehicleRevenueExpensesCard === 'boolean'
-              ? settings.showVehicleRevenueExpensesCard
-              : Boolean(settings.showVehicleRevenueExpensesCard))
-            : false,
-          showActivityThisMonth: settings.showActivityThisMonth !== undefined
-            ? (typeof settings.showActivityThisMonth === 'boolean'
-              ? settings.showActivityThisMonth
-              : Boolean(settings.showActivityThisMonth))
-            : false,
-          showFinancialHealth: settings.showFinancialHealth !== undefined
-            ? (typeof settings.showFinancialHealth === 'boolean'
-              ? settings.showFinancialHealth
-              : Boolean(settings.showFinancialHealth))
-            : false,
-          showBusinessOverview: settings.showBusinessOverview !== undefined
-            ? (typeof settings.showBusinessOverview === 'boolean'
-              ? settings.showBusinessOverview
-              : Boolean(settings.showBusinessOverview))
-            : false,
-          showTopCustomers: settings.showTopCustomers !== undefined
-            ? (typeof settings.showTopCustomers === 'boolean'
-              ? settings.showTopCustomers
-              : Boolean(settings.showTopCustomers))
-            : false,
-          showActivitySummary: settings.showActivitySummary !== undefined
-            ? (typeof settings.showActivitySummary === 'boolean'
-              ? settings.showActivitySummary
-              : Boolean(settings.showActivitySummary))
             : false,
         }
         setAdminSettings(settingsWithDefaults)
@@ -252,17 +207,17 @@ export default function Home() {
         const vehicleRevenue = (vehicleTransactions || [])
           .filter(t => t.transactionType === 'revenue')
           .reduce((sum, t) => sum + (t.amount || 0), 0)
-
+        
         const vehicleExpenses = (vehicleTransactions || [])
           .filter(t => t.transactionType === 'expense')
           .reduce((sum, t) => sum + (t.amount || 0), 0)
 
         // Total revenue = invoice revenue + vehicle revenue
         const totalRevenue = invoiceRevenue + vehicleRevenue
-
+        
         // Total expenses = vehicle expenses (invoices are revenue, not expenses)
         const totalExpenses = vehicleExpenses
-
+        
         const netProfit = totalRevenue - totalExpenses
 
         // Calculate total quote value
@@ -499,9 +454,23 @@ export default function Home() {
   ]
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen relative">
+      {/* Background Image - only covers the main content area, not sidebar */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: 'url(/bg_1.jpg)',
+          zIndex: 0,
+        }}
+      />
+      {/* Overlay for better readability - reduced opacity and blur */}
+      <div
+        className="absolute inset-0 bg-slate-50/40"
+        style={{ zIndex: 1 }}
+      />
+
       {/* Content Container */}
-      <div>
+      <div className="relative z-10">
         {/* Header */}
         <div className="relative bg-white/90 backdrop-blur-sm border-b border-slate-200 px-8 py-6 overflow-hidden">
           {/* Watermark logo in header background */}
@@ -512,352 +481,338 @@ export default function Home() {
               width={220}
               height={220}
               className="w-[180px] md:w-[220px] h-auto object-contain"
+              style={{ width: 'auto', height: 'auto' }}
               priority
             />
           </div>
 
           <div className="relative">
             <h1 className="text-2xl font-bold text-slate-900">iManage</h1>
-            <p className="mt-1 text-base md:text-lg font-medium text-slate-700">
-              Manage More. Worry Less.
-            </p>
           </div>
         </div>
 
         {/* Main Content */}
         <div className="p-8 space-y-6 max-w-7xl mx-auto">
           {/* Quick Actions */}
-          {(adminSettings?.showQuickActions === true) && (
+          {adminSettings && (adminSettings.showQuickActions === true || adminSettings.showQuickActions === undefined) && (
             <QuickActions actions={quickActions} />
           )}
 
           {/* Overview Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Quotations & Invoices Card */}
-            {(adminSettings?.showQuotationsInvoicesCard === true) && (
-              <OverviewCard
-                icon={FileText}
-                title="Quotations & Invoices"
-                description="Create, manage, and track all quotes and invoices"
-                metrics={[]}
-                quoteMetrics={[
-                  {
-                    label: 'Total Quotes',
-                    value: loading ? '...' : metrics.totalQuotes,
-                  },
-                  {
-                    label: 'This Month',
-                    value: loading ? '...' : metrics.quotesThisMonth,
-                  },
-                  {
-                    label: 'Total Value',
-                    value: loading ? '...' : `AED ${metrics.totalQuoteValue.toLocaleString()}`,
-                  },
-                  {
-                    label: 'Value This Month',
-                    value: loading ? '...' : `AED ${metrics.outstandingAmount.toLocaleString()}`,
-                  },
-                ]}
-                invoiceMetrics={[
-                  {
-                    label: 'Total Invoices',
-                    value: loading ? '...' : metrics.totalInvoices,
-                  },
-                  {
-                    label: 'This Month',
-                    value: loading ? '...' : metrics.invoicesThisMonth,
-                  },
-                  {
-                    label: 'Payment Received',
-                    value: loading ? '...' : metrics.paidInvoices,
-                  },
-                  {
-                    label: 'Pending',
-                    value: loading ? '...' : metrics.pendingInvoices,
-                  },
-                ]}
-                quoteHref="/quotations"
-                invoiceHref="/invoices"
-                borderColor="blue"
-                iconBgColor="bg-blue-50"
-                iconColor="text-blue-600"
-              />
-            )}
+            <OverviewCard
+              icon={FileText}
+              title="Quotations & Invoices"
+              description="Create, manage, and track all quotes and invoices"
+              metrics={[]}
+              quoteMetrics={[
+                {
+                  label: 'Total Quotes',
+                  value: loading ? '...' : metrics.totalQuotes,
+                },
+                {
+                  label: 'This Month',
+                  value: loading ? '...' : metrics.quotesThisMonth,
+                },
+                {
+                  label: 'Total Value',
+                  value: loading ? '...' : `AED ${metrics.totalQuoteValue.toLocaleString()}`,
+                },
+                {
+                  label: 'Value This Month',
+                  value: loading ? '...' : `AED ${metrics.outstandingAmount.toLocaleString()}`,
+                },
+              ]}
+              invoiceMetrics={[
+                {
+                  label: 'Total Invoices',
+                  value: loading ? '...' : metrics.totalInvoices,
+                },
+                {
+                  label: 'This Month',
+                  value: loading ? '...' : metrics.invoicesThisMonth,
+                },
+                {
+                  label: 'Payment Received',
+                  value: loading ? '...' : metrics.paidInvoices,
+                },
+                {
+                  label: 'Pending',
+                  value: loading ? '...' : metrics.pendingInvoices,
+                },
+              ]}
+              quoteHref="/quotations"
+              invoiceHref="/invoices"
+              borderColor="blue"
+              iconBgColor="bg-blue-50"
+              iconColor="text-blue-600"
+            />
 
             {/* Employee Salaries Card */}
-            {(adminSettings?.showEmployeeSalariesCard === true) && (
-              <OverviewCard
-                icon={Wallet}
-                title="Employee Salaries"
-                description="Manage payroll and employee compensation"
-                metrics={[
-                  {
-                    label: 'Active Employees',
-                    value: loading ? '...' : metrics.activeEmployees,
-                  },
-                  {
-                    label: 'This Month',
-                    value: loading ? '...' : `AED ${metrics.payslipsThisMonth.toLocaleString()}`,
-                  },
-                  {
-                    label: 'Avg per Employee',
-                    value: loading ? '...' : metrics.activeEmployees > 0
-                      ? `AED ${Math.round(metrics.payslipsThisMonth / metrics.activeEmployees).toLocaleString()}`
-                      : 'AED 0',
-                  },
-                ]}
-                href="/payslips"
-                borderColor="green"
-                iconBgColor="bg-emerald-50"
-                iconColor="text-emerald-600"
-              />
-            )}
+            <OverviewCard
+              icon={Wallet}
+              title="Employee Salaries"
+              description="Manage payroll and employee compensation"
+              metrics={[
+                {
+                  label: 'Active Employees',
+                  value: loading ? '...' : metrics.activeEmployees,
+                },
+                {
+                  label: 'This Month',
+                  value: loading ? '...' : `AED ${metrics.payslipsThisMonth.toLocaleString()}`,
+                },
+                {
+                  label: 'Avg per Employee',
+                  value: loading ? '...' : metrics.activeEmployees > 0
+                    ? `AED ${Math.round(metrics.payslipsThisMonth / metrics.activeEmployees).toLocaleString()}`
+                    : 'AED 0',
+                },
+              ]}
+              href="/payslips"
+              borderColor="green"
+              iconBgColor="bg-emerald-50"
+              iconColor="text-emerald-600"
+            />
 
             {/* Vehicle Revenue & Expenses Card */}
-            {(adminSettings?.showVehicleRevenueExpensesCard === true) && (
-              <OverviewCard
-                icon={TrendingUp}
-                title="Vehicle Revenue & Expenses"
-                description="Track income and costs for your fleet"
-                metrics={[
-                  {
-                    label: 'Total Revenue',
-                    value: loading ? '...' : `AED ${metrics.totalRevenue.toLocaleString()}`,
-                  },
-                  {
-                    label: 'Total Expenses',
-                    value: loading ? '...' : `AED ${metrics.totalExpenses.toLocaleString()}`,
-                  },
-                  {
-                    label: 'Net Profit',
-                    value: loading ? '...' : `AED ${metrics.netProfit.toLocaleString()}`,
-                  },
-                  {
-                    label: 'Profit Margin',
-                    value: loading ? '...' : metrics.totalRevenue > 0
-                      ? `${((metrics.netProfit / metrics.totalRevenue) * 100).toFixed(1)}%`
-                      : '0%',
-                  },
-                ]}
-                href="/vehicle-finances"
-                borderColor="purple"
-                iconBgColor="bg-purple-50"
-                iconColor="text-purple-600"
-              />
-            )}
+            <OverviewCard
+              icon={TrendingUp}
+              title="Vehicle Revenue & Expenses"
+              description="Track income and costs for your fleet"
+              metrics={[
+                {
+                  label: 'Total Revenue',
+                  value: loading ? '...' : `AED ${metrics.totalRevenue.toLocaleString()}`,
+                },
+                {
+                  label: 'Total Expenses',
+                  value: loading ? '...' : `AED ${metrics.totalExpenses.toLocaleString()}`,
+                },
+                {
+                  label: 'Net Profit',
+                  value: loading ? '...' : `AED ${metrics.netProfit.toLocaleString()}`,
+                },
+                {
+                  label: 'Profit Margin',
+                  value: loading ? '...' : metrics.totalRevenue > 0
+                    ? `${((metrics.netProfit / metrics.totalRevenue) * 100).toFixed(1)}%`
+                    : '0%',
+                },
+              ]}
+              href="/vehicle-finances"
+              borderColor="purple"
+              iconBgColor="bg-purple-50"
+              iconColor="text-purple-600"
+            />
           </div>
 
           {/* Dashboard KPI Tiles */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Column 1: Activity This Month */}
-            {(adminSettings?.showActivityThisMonth === true) && (
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3 bg-white/80 backdrop-blur-md px-4 py-1.5 rounded-lg inline-flex items-center shadow-sm">Activity This Month</h3>
-                <div className="space-y-2">
-                  {/* Quotes This Month */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-md hover:shadow-lg transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4 text-indigo-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Quotes This Month</p>
-                        <p className="text-lg font-bold text-indigo-600 leading-6">
-                          {loading ? '...' : metrics.quotesThisMonth}
-                        </p>
-                      </div>
+            <div>
+              <h3 className="text-sm font-medium text-slate-500 mb-2">Activity This Month</h3>
+              <div className="space-y-2">
+                {/* Quotes This Month */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-md hover:shadow-lg transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Quotes This Month</p>
+                      <p className="text-lg font-bold text-indigo-600 leading-6">
+                        {loading ? '...' : metrics.quotesThisMonth}
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Invoices This Month */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-cyan-100 rounded-lg flex items-center justify-center shrink-0">
-                        <CreditCard className="w-4 h-4 text-cyan-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Invoices This Month</p>
-                        <p className="text-lg font-bold text-cyan-600 leading-6">
-                          {loading ? '...' : metrics.invoicesThisMonth}
-                        </p>
-                      </div>
+                {/* Invoices This Month */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-cyan-100 rounded-lg flex items-center justify-center shrink-0">
+                      <CreditCard className="w-4 h-4 text-cyan-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Invoices This Month</p>
+                      <p className="text-lg font-bold text-cyan-600 leading-6">
+                        {loading ? '...' : metrics.invoicesThisMonth}
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Amount Received */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
-                        <DirhamIcon className="w-4 h-4 text-green-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Amount Received</p>
-                        <p className="text-lg font-bold text-green-600 leading-6">
-                          {loading ? '...' : `AED ${metrics.amountReceived.toLocaleString()}`}
-                        </p>
-                      </div>
+                {/* Amount Received */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
+                      <DirhamIcon className="w-4 h-4 text-green-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Amount Received</p>
+                      <p className="text-lg font-bold text-green-600 leading-6">
+                        {loading ? '...' : `AED ${metrics.amountReceived.toLocaleString()}`}
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Payroll This Month */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-violet-100 rounded-lg flex items-center justify-center shrink-0">
-                        <Banknote className="w-4 h-4 text-violet-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Payroll This Month</p>
-                        <p className="text-lg font-bold text-violet-600 leading-6">
-                          {loading ? '...' : `AED ${metrics.payslipsThisMonth.toLocaleString()}`}
-                        </p>
-                      </div>
+                {/* Payroll This Month */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-violet-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Banknote className="w-4 h-4 text-violet-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Payroll This Month</p>
+                      <p className="text-lg font-bold text-violet-600 leading-6">
+                        {loading ? '...' : `AED ${metrics.payslipsThisMonth.toLocaleString()}`}
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Column 2: Financial Health */}
-            {(adminSettings?.showFinancialHealth === true) && (
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3 bg-white/80 backdrop-blur-md px-4 py-1.5 rounded-lg inline-flex items-center shadow-sm">Financial Health</h3>
-                <div className="space-y-2">
-                  {/* Total Revenue */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
-                        <TrendingUp className="w-4 h-4 text-emerald-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Total Revenue</p>
-                        <p className="text-lg font-bold text-emerald-600 leading-6">
-                          {loading ? '...' : `AED ${metrics.totalRevenue.toLocaleString()}`}
-                        </p>
-                      </div>
+            <div>
+              <h3 className="text-sm font-medium text-slate-500 mb-2">Financial Health</h3>
+              <div className="space-y-2">
+                {/* Total Revenue */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Total Revenue</p>
+                      <p className="text-lg font-bold text-emerald-600 leading-6">
+                        {loading ? '...' : `AED ${metrics.totalRevenue.toLocaleString()}`}
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Net Profit */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
-                        <BarChart3 className="w-4 h-4 text-green-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Net Profit</p>
-                        <p className="text-lg font-bold text-green-600 leading-6">
-                          {loading ? '...' : `AED ${metrics.netProfit.toLocaleString()}`}
-                        </p>
-                      </div>
+                {/* Net Profit */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center shrink-0">
+                      <BarChart3 className="w-4 h-4 text-green-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Net Profit</p>
+                      <p className="text-lg font-bold text-green-600 leading-6">
+                        {loading ? '...' : `AED ${metrics.netProfit.toLocaleString()}`}
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Profit Margin */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-lime-100 rounded-lg flex items-center justify-center shrink-0">
-                        <Percent className="w-4 h-4 text-lime-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Profit Margin</p>
-                        <p className="text-lg font-bold text-lime-600 leading-6">
-                          {loading ? '...' : metrics.totalRevenue > 0
-                            ? `${((metrics.netProfit / metrics.totalRevenue) * 100).toFixed(1)}%`
-                            : '0%'}
-                        </p>
-                      </div>
+                {/* Profit Margin */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-lime-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Percent className="w-4 h-4 text-lime-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Profit Margin</p>
+                      <p className="text-lg font-bold text-lime-600 leading-6">
+                        {loading ? '...' : metrics.totalRevenue > 0
+                          ? `${((metrics.netProfit / metrics.totalRevenue) * 100).toFixed(1)}%`
+                          : '0%'}
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Outstanding Amount */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
-                        <AlertCircle className="w-4 h-4 text-amber-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Outstanding Amount</p>
-                        <p className="text-lg font-bold text-amber-600 leading-6">
-                          {loading ? '...' : `AED ${metrics.outstandingInvoiceAmount.toLocaleString()}`}
-                        </p>
-                      </div>
+                {/* Outstanding Amount */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center shrink-0">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Outstanding Amount</p>
+                      <p className="text-lg font-bold text-amber-600 leading-6">
+                        {loading ? '...' : `AED ${metrics.outstandingInvoiceAmount.toLocaleString()}`}
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Column 3: Business Overview */}
-            {(adminSettings?.showBusinessOverview === true) && (
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3 bg-white/80 backdrop-blur-md px-4 py-1.5 rounded-lg inline-flex items-center shadow-sm">Business Overview</h3>
-                <div className="space-y-2">
-                  {/* Total Customers */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
-                        <Users className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Total Customers</p>
-                        <p className="text-lg font-bold text-blue-600 leading-6">
-                          {loading ? '...' : metrics.totalCustomers}
-                        </p>
-                      </div>
+            <div>
+              <h3 className="text-sm font-medium text-slate-500 mb-2">Business Overview</h3>
+              <div className="space-y-2">
+                {/* Total Customers */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Users className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Total Customers</p>
+                      <p className="text-lg font-bold text-blue-600 leading-6">
+                        {loading ? '...' : metrics.totalCustomers}
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Total Quote Value */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4 text-purple-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Total Quote Value</p>
-                        <p className="text-lg font-bold text-purple-600 leading-6">
-                          {loading ? '...' : `AED ${metrics.totalQuoteValue.toLocaleString()}`}
-                        </p>
-                      </div>
+                {/* Total Quote Value */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Total Quote Value</p>
+                      <p className="text-lg font-bold text-purple-600 leading-6">
+                        {loading ? '...' : `AED ${metrics.totalQuoteValue.toLocaleString()}`}
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Pending Invoices */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
-                        <Clock className="w-4 h-4 text-orange-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Pending Invoices</p>
-                        <p className="text-lg font-bold text-orange-600 leading-6">
-                          {loading ? '...' : metrics.pendingInvoices}
-                        </p>
-                      </div>
+                {/* Pending Invoices */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Clock className="w-4 h-4 text-orange-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Pending Invoices</p>
+                      <p className="text-lg font-bold text-orange-600 leading-6">
+                        {loading ? '...' : metrics.pendingInvoices}
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {/* Active Employees */}
-                  <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-teal-100 rounded-lg flex items-center justify-center shrink-0">
-                        <Users2 className="w-4 h-4 text-teal-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-slate-600 leading-4">Active Employees</p>
-                        <p className="text-lg font-bold text-teal-600 leading-6">
-                          {loading ? '...' : metrics.activeEmployees}
-                        </p>
-                      </div>
+                {/* Active Employees */}
+                <div className="bg-white rounded-lg border border-slate-200 p-2.5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-teal-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Users2 className="w-4 h-4 text-teal-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-600 leading-4">Active Employees</p>
+                      <p className="text-lg font-bold text-teal-600 leading-6">
+                        {loading ? '...' : metrics.activeEmployees}
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Revenue Trend Chart */}
-          {(adminSettings?.showRevenueTrend === true) && (
+          {adminSettings && (adminSettings.showRevenueTrend === true || adminSettings.showRevenueTrend === undefined) && (
             <RevenueTrendChart
               data={chartData}
               netProfit={netProfit}
@@ -868,126 +823,122 @@ export default function Home() {
           {/* Customer Statistics Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top Customers by Value */}
-            {(adminSettings?.showTopCustomers === true) && (
-              <div className="bg-white rounded-lg border border-slate-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-blue-600" />
-                    Top Customers by Value
-                  </h3>
-                </div>
-                <div className="space-y-3">
-                  {loading ? (
-                    <p className="text-slate-500 text-sm">Loading...</p>
-                  ) : customerStats.length > 0 ? (
-                    customerStats.map((customer, index) => (
-                      <div key={customer.customerId} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-slate-900 truncate">{customer.customerName}</p>
-                            <p className="text-xs text-slate-500">
-                              {customer.invoiceCount} invoices • {customer.quoteCount} quotes
-                            </p>
-                          </div>
+            <div className="bg-white rounded-lg border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-blue-600" />
+                  Top Customers by Value
+                </h3>
+              </div>
+              <div className="space-y-3">
+                {loading ? (
+                  <p className="text-slate-500 text-sm">Loading...</p>
+                ) : customerStats.length > 0 ? (
+                  customerStats.map((customer, index) => (
+                    <div key={customer.customerId} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                          {index + 1}
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-slate-900">
-                            AED {(customer.invoiceValue + customer.quoteValue).toLocaleString()}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-slate-900 truncate">{customer.customerName}</p>
+                          <p className="text-xs text-slate-500">
+                            {customer.invoiceCount} invoices • {customer.quoteCount} quotes
                           </p>
-                          {customer.outstanding > 0 && (
-                            <p className="text-xs text-orange-600">
-                              Outstanding: AED {customer.outstanding.toLocaleString()}
-                            </p>
-                          )}
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-slate-500 text-sm text-center py-4">No customer data available</p>
-                  )}
-                </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-slate-900">
+                          AED {(customer.invoiceValue + customer.quoteValue).toLocaleString()}
+                        </p>
+                        {customer.outstanding > 0 && (
+                          <p className="text-xs text-orange-600">
+                            Outstanding: AED {customer.outstanding.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500 text-sm text-center py-4">No customer data available</p>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Activity Summary */}
-            {(adminSettings?.showActivitySummary === true) && (
-              <div className="bg-white rounded-lg border border-slate-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-green-600" />
-                    Activity Summary
-                  </h3>
-                </div>
-                <div className="space-y-3">
-                  {loading ? (
-                    <p className="text-sm text-slate-500">Loading activities...</p>
-                  ) : activities.length > 0 ? (
-                    activities.map((activity, index) => {
-                      const getActivityIcon = () => {
-                        switch (activity.type) {
-                          case 'quote':
-                            return <FileText className="w-4 h-4 text-blue-600" />
-                          case 'invoice':
-                            return <CreditCard className="w-4 h-4 text-green-600" />
-                          case 'payslip':
-                            return <Wallet className="w-4 h-4 text-purple-600" />
-                          case 'employee':
-                            return <Users2 className="w-4 h-4 text-indigo-600" />
-                          case 'customer':
-                            return <Users className="w-4 h-4 text-orange-600" />
-                          default:
-                            return <CheckCircle className="w-4 h-4 text-slate-600" />
-                        }
+            <div className="bg-white rounded-lg border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-green-600" />
+                  Activity Summary
+                </h3>
+              </div>
+              <div className="space-y-3">
+                {loading ? (
+                  <p className="text-sm text-slate-500">Loading activities...</p>
+                ) : activities.length > 0 ? (
+                  activities.map((activity, index) => {
+                    const getActivityIcon = () => {
+                      switch (activity.type) {
+                        case 'quote':
+                          return <FileText className="w-4 h-4 text-blue-600" />
+                        case 'invoice':
+                          return <CreditCard className="w-4 h-4 text-green-600" />
+                        case 'payslip':
+                          return <Wallet className="w-4 h-4 text-purple-600" />
+                        case 'employee':
+                          return <Users2 className="w-4 h-4 text-indigo-600" />
+                        case 'customer':
+                          return <Users className="w-4 h-4 text-orange-600" />
+                        default:
+                          return <CheckCircle className="w-4 h-4 text-slate-600" />
                       }
+                    }
 
-                      const getActivityBg = () => {
-                        switch (activity.type) {
-                          case 'quote':
-                            return 'bg-blue-50 border-blue-200'
-                          case 'invoice':
-                            return 'bg-green-50 border-green-200'
-                          case 'payslip':
-                            return 'bg-purple-50 border-purple-200'
-                          case 'employee':
-                            return 'bg-indigo-50 border-indigo-200'
-                          case 'customer':
-                            return 'bg-orange-50 border-orange-200'
-                          default:
-                            return 'bg-slate-50 border-slate-200'
-                        }
+                    const getActivityBg = () => {
+                      switch (activity.type) {
+                        case 'quote':
+                          return 'bg-blue-50 border-blue-200'
+                        case 'invoice':
+                          return 'bg-green-50 border-green-200'
+                        case 'payslip':
+                          return 'bg-purple-50 border-purple-200'
+                        case 'employee':
+                          return 'bg-indigo-50 border-indigo-200'
+                        case 'customer':
+                          return 'bg-orange-50 border-orange-200'
+                        default:
+                          return 'bg-slate-50 border-slate-200'
                       }
+                    }
 
-                      return (
-                        <div key={index} className={`p-3 rounded-lg border ${getActivityBg()}`}>
-                          <div className="flex items-start gap-3">
-                            <div className="mt-0.5">{getActivityIcon()}</div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-slate-900 font-medium">{activity.description}</p>
-                              {activity.createdAt && (
-                                <p className="text-xs text-slate-500 mt-1">
-                                  {new Date(activity.createdAt).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </p>
-                              )}
-                            </div>
+                    return (
+                      <div key={index} className={`p-3 rounded-lg border ${getActivityBg()}`}>
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5">{getActivityIcon()}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-slate-900 font-medium">{activity.description}</p>
+                            {activity.createdAt && (
+                              <p className="text-xs text-slate-500 mt-1">
+                                {new Date(activity.createdAt).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
+                            )}
                           </div>
                         </div>
-                      )
-                    })
-                  ) : (
-                    <p className="text-sm text-slate-500 text-center py-4">No recent activities</p>
-                  )}
-                </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <p className="text-sm text-slate-500 text-center py-4">No recent activities</p>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

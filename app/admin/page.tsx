@@ -600,6 +600,61 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Footer Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>PDF Footer Settings</CardTitle>
+          <CardDescription>
+            Configure footer address and contact details for PDF documents (English and Arabic)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="footerAddressEnglish">Footer Address (English)</Label>
+            <Textarea
+              id="footerAddressEnglish"
+              value={settings.footerAddressEnglish || ''}
+              onChange={(e) => handleInputChange('footerAddressEnglish' as keyof typeof settings, e.target.value)}
+              placeholder="Company address in English"
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="footerAddressArabic">Footer Address (Arabic)</Label>
+            <Textarea
+              id="footerAddressArabic"
+              value={settings.footerAddressArabic || ''}
+              onChange={(e) => handleInputChange('footerAddressArabic' as keyof typeof settings, e.target.value)}
+              placeholder="عنوان الشركة بالعربية"
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="footerContactEnglish">Footer Contact Details (English)</Label>
+            <Textarea
+              id="footerContactEnglish"
+              value={settings.footerContactEnglish || ''}
+              onChange={(e) => handleInputChange('footerContactEnglish' as keyof typeof settings, e.target.value)}
+              placeholder="Phone, Email, Website in English"
+              rows={2}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="footerContactArabic">Footer Contact Details (Arabic)</Label>
+            <Textarea
+              id="footerContactArabic"
+              value={settings.footerContactArabic || ''}
+              onChange={(e) => handleInputChange('footerContactArabic' as keyof typeof settings, e.target.value)}
+              placeholder="الهاتف، البريد الإلكتروني، الموقع الإلكتروني بالعربية"
+              rows={2}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Save Button */}
       <div className="flex justify-end gap-2">
         <Button variant="outline">Cancel</Button>

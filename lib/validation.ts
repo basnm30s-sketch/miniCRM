@@ -308,11 +308,21 @@ export async function validateInvoice(
     invoice.items.forEach((item, index) => {
       const itemPrefix = `items[${index}]`
 
-      // Description validation
-      if (!isNonEmptyString(item.description)) {
+      // Description validation - now optional (can be auto-filled from vehicle)
+      // Only validate if neither description nor vehicleTypeId is provided
+      if (!item.description && !item.vehicleTypeId) {
         errors.push({
           field: `${itemPrefix}.description`,
-          message: 'Item description is required',
+          message: 'Item description or vehicle selection is required',
+        })
+      }
+
+      // Vehicle Type ID validation (if provided, should be valid)
+      // Note: Actual existence check would require database access, so we just check format
+      if (item.vehicleTypeId && item.vehicleTypeId.trim() === '') {
+        errors.push({
+          field: `${itemPrefix}.vehicleTypeId`,
+          message: 'Vehicle Type ID cannot be empty if provided',
         })
       }
 
@@ -332,12 +342,24 @@ export async function validateInvoice(
         })
       }
 
-      // Tax validation (if present, must be non-negative)
-      if (item.tax !== undefined && !isNonNegativeNumber(item.tax)) {
-        errors.push({
-          field: `${itemPrefix}.tax`,
-          message: 'Tax must be a valid non-negative number',
-        })
+      // Tax Percent validation (if provided, must be 0-100)
+      if (item.taxPercent !== undefined && item.taxPercent !== null) {
+        if (!isNonNegativeNumber(item.taxPercent) || item.taxPercent > 100) {
+          errors.push({
+            field: `${itemPrefix}.taxPercent`,
+            message: 'Tax percent must be a valid number between 0 and 100',
+          })
+        }
+      }
+
+      // Tax validation (if present and taxPercent not used, must be non-negative)
+      if (item.tax !== undefined && item.tax !== null && (item.taxPercent === undefined || item.taxPercent === null)) {
+        if (!isNonNegativeNumber(item.tax)) {
+          errors.push({
+            field: `${itemPrefix}.tax`,
+            message: 'Tax must be a valid non-negative number',
+          })
+        }
       }
     })
   }

@@ -11,23 +11,33 @@ export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-// Helper to generate quote number from pattern
-export function generateQuoteNumber(pattern: string): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const timestamp = `${year}${month}${day}`
+// Helper to get and increment quote counter
+export async function getNextQuoteNumber(): Promise<string> {
+  const settings = await getAdminSettings()
+  const startingNumber = settings?.quoteStartingNumber || 1
+  
+  // Get all existing quotes to find the highest number
+  const allQuotes = await getAllQuotes()
+  let maxNumber = startingNumber - 1
+  
+  // Extract numbers from existing quote numbers (format: Quote-XXX)
+  allQuotes.forEach(quote => {
+    const match = quote.number.match(/^Quote-(\d+)$/i)
+    if (match) {
+      const num = parseInt(match[1], 10)
+      if (num > maxNumber) {
+        maxNumber = num
+      }
+    }
+  })
+  
+  const nextNumber = maxNumber + 1
+  return `Quote-${String(nextNumber).padStart(3, '0')}`
+}
 
-  // Simple counter per day; in production, use server-backed counter
-  const randomSuffix = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
-
-  return pattern
-    .replace('YYYY', String(year))
-    .replace('MM', month)
-    .replace('DD', day)
-    .replace('YYYYMMDD', timestamp)
-    .replace('NNNN', randomSuffix)
+// Legacy function for backward compatibility - now uses sequential counter
+export async function generateQuoteNumber(pattern?: string): Promise<string> {
+  return getNextQuoteNumber()
 }
 
 // --- AdminSettings ---
@@ -55,17 +65,8 @@ export async function initializeAdminSettings(): Promise<AdminSettings> {
     currency: 'AED',
     defaultTerms: `1. This quotation is valid for 30 days from the date of issue.\n2. Goods remain the property of the company until full payment is received.\n3. Any additional costs such as tolls, fines or damages are not included unless stated.\n4. Payment terms: as agreed in the contract.`,
     showRevenueTrend: false,
-    showQuickActions: true,
+    showQuickActions: false,
     showReports: false,
-    showVehicleFinances: false,
-    showQuotationsInvoicesCard: false,
-    showEmployeeSalariesCard: false,
-    showVehicleRevenueExpensesCard: false,
-    showActivityThisMonth: false,
-    showFinancialHealth: false,
-    showBusinessOverview: false,
-    showTopCustomers: false,
-    showActivitySummary: false,
     createdAt: new Date().toISOString(),
   }
 
@@ -222,11 +223,21 @@ export interface Invoice {
 
 export interface InvoiceItem {
   id: string
-  description: string
+  serialNumber?: number // Auto-generated, matches quotation
+  vehicleTypeId?: string // Optional - reference to vehicle master (for backward compatibility)
+  vehicleTypeLabel?: string // Display name (Item name)
+  vehicleNumber?: string // From vehicle master
+  description?: string // Optional - can be auto-filled from vehicle or manually entered
+  rentalBasis?: 'hourly' | 'monthly' // Rental basis selection
   quantity: number
   unitPrice: number
-  tax?: number
-  total: number
+  taxPercent?: number // NEW - percentage-based tax (0-100)
+  tax?: number // Keep for backward compatibility (flat tax amount)
+  grossAmount?: number // Calculated: quantity * unitPrice
+  lineTaxAmount?: number // Calculated: grossAmount * (taxPercent / 100) or use tax if provided
+  lineTotal?: number // Calculated: grossAmount + lineTaxAmount
+  total: number // Keep for backward compatibility
+  amountReceived?: number // Invoice-specific - per line item payment tracking
 }
 
 export async function getAllInvoices(): Promise<Invoice[]> {
@@ -245,25 +256,37 @@ export async function deleteInvoice(id: string): Promise<void> {
   await apiClient.deleteInvoice(id)
 }
 
-// Helper to generate invoice number
-export function generateInvoiceNumber(pattern: string = 'INV-YYYYMMDD-NNNN'): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const timestamp = `${year}${month}${day}`
-  const randomSuffix = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+// Helper to get and increment invoice counter
+export async function getNextInvoiceNumber(): Promise<string> {
+  const settings = await getAdminSettings()
+  const startingNumber = settings?.invoiceStartingNumber || 1
+  
+  // Get all existing invoices to find the highest number
+  const allInvoices = await getAllInvoices()
+  let maxNumber = startingNumber - 1
+  
+  // Extract numbers from existing invoice numbers (format: Invoice-XXX)
+  allInvoices.forEach(invoice => {
+    const match = invoice.number.match(/^Invoice-(\d+)$/i)
+    if (match) {
+      const num = parseInt(match[1], 10)
+      if (num > maxNumber) {
+        maxNumber = num
+      }
+    }
+  })
+  
+  const nextNumber = maxNumber + 1
+  return `Invoice-${String(nextNumber).padStart(3, '0')}`
+}
 
-  return pattern
-    .replace('YYYY', String(year))
-    .replace('MM', month)
-    .replace('DD', day)
-    .replace('YYYYMMDD', timestamp)
-    .replace('NNNN', randomSuffix)
+// Legacy function for backward compatibility - now uses sequential counter
+export async function generateInvoiceNumber(pattern?: string): Promise<string> {
+  return getNextInvoiceNumber()
 }
 
 // Convert Quote to Invoice format
-export function convertQuoteToInvoice(quote: Quote): Invoice {
+export async function convertQuoteToInvoice(quote: Quote): Promise<Invoice> {
   // Validate quote has required data
   if (!quote.customer || !quote.customer.id || quote.customer.id.trim() === '') {
     throw new Error('Quote must have a valid customer to convert to invoice. The customer may have been deleted from the database.')
@@ -294,9 +317,10 @@ export function convertQuoteToInvoice(quote: Quote): Invoice {
   const total = subtotal + tax
 
   // Create invoice
+  const invoiceNumber = await getNextInvoiceNumber()
   const invoice: Invoice = {
     id: generateId(),
-    number: generateInvoiceNumber(),
+    number: invoiceNumber,
     date: new Date().toISOString().split('T')[0],
     dueDate: quote.validUntil || undefined,
     customerId: quote.customer.id,
@@ -313,7 +337,7 @@ export function convertQuoteToInvoice(quote: Quote): Invoice {
   return invoice
 }
 
-// Initialize sample vehicles on first load
+// Initialize sample data on first load
 export async function initializeSampleData(): Promise<void> {
   const vehicles = await getAllVehicles()
   if (vehicles.length === 0) {
@@ -326,6 +350,31 @@ export async function initializeSampleData(): Promise<void> {
     ]
     for (const vehicle of sampleVehicles) {
       await saveVehicle(vehicle)
+    }
+  }
+
+  const customers = await getAllCustomers()
+  if (customers.length === 0) {
+    const sampleCustomers: Customer[] = [
+      {
+        id: generateId(),
+        name: 'Ahmed Al Mansouri',
+        company: 'Al Mansouri Trading',
+        email: 'ahmed@almansouri.ae',
+        phone: '+971 4 1234567',
+        address: 'Dubai, UAE',
+      },
+      {
+        id: generateId(),
+        name: 'Fatima Al Maktoum',
+        company: 'Al Maktoum Logistics',
+        email: 'fatima@almaktoum.ae',
+        phone: '+971 4 7654321',
+        address: 'Abu Dhabi, UAE',
+      },
+    ]
+    for (const customer of sampleCustomers) {
+      await saveCustomer(customer)
     }
   }
 }

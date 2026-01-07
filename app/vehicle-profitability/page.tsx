@@ -147,8 +147,8 @@ export default function VehicleProfitabilityPage() {
               <SelectValue placeholder="Select a vehicle" />
             </SelectTrigger>
             <SelectContent>
-              {vehicles.map((vehicle) => (
-                <SelectItem key={vehicle.id} value={vehicle.id}>
+              {vehicles.map((vehicle, idx) => (
+                <SelectItem key={vehicle.id ?? `vehicle-${idx}`} value={vehicle.id}>
                   {vehicle.vehicleNumber} {vehicle.make && vehicle.model ? `- ${vehicle.make} ${vehicle.model}` : ''}
                 </SelectItem>
               ))}

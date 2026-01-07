@@ -21,9 +21,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 // Replaced top-of-page alerts with toast notifications
 import { toast } from '@/hooks/use-toast'
-import { Plus, Trash2, ArrowLeft, FileText, Sheet, FileType } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, FileText, Sheet, FileType, Pencil } from 'lucide-react'
 import {
   getAdminSettings,
   initializeAdminSettings,
@@ -59,6 +67,20 @@ export default function CreateQuotePage() {
   const [isValidForExport, setIsValidForExport] = useState(false)
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
+  const [isQuoteNumberEditable, setIsQuoteNumberEditable] = useState(false)
+  const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
+    serialNumber: true,
+    itemName: true,
+    vehicleNumber: true,
+    description: true,
+    rentalBasis: true,
+    quantity: true,
+    rate: true,
+    grossAmount: true,
+    tax: true,
+    netAmount: true,
+  })
   // top-of-page alerts replaced by toast notifications
 
   const [quote, setQuote] = useState<Quote>({
@@ -133,15 +155,11 @@ export default function CreateQuotePage() {
           }
         } else {
           // Set quote number for new quote
-          if (settings && !quote.number) {
+          if (!quote.number) {
+            const newNumber = await generateQuoteNumber()
             setQuote((prev) => ({
               ...prev,
-              number: generateQuoteNumber(settings.quoteNumberPattern),
-            }))
-          } else if (!quote.number) {
-            setQuote((prev) => ({
-              ...prev,
-              number: generateQuoteNumber('AAT-YYYYMMDD-NNNN'),
+              number: newNumber,
             }))
           }
         }
@@ -160,10 +178,19 @@ export default function CreateQuotePage() {
     let subTotal = 0
     let totalTax = 0
 
-    items.forEach((item) => {
-      const itemSubtotal = item.quantity * item.unitPrice
-      const itemTax = itemSubtotal * (item.taxPercent / 100)
-      subTotal += itemSubtotal
+    items.forEach((item, index) => {
+      // Calculate gross amount (quantity * unitPrice)
+      const grossAmount = item.quantity * item.unitPrice
+      const itemTax = grossAmount * (item.taxPercent / 100)
+      const lineTotal = grossAmount + itemTax
+      
+      // Update item with calculated values
+      item.grossAmount = grossAmount
+      item.lineTaxAmount = itemTax
+      item.lineTotal = lineTotal
+      item.serialNumber = index + 1
+      
+      subTotal += grossAmount
       totalTax += itemTax
     })
 
@@ -177,11 +204,18 @@ export default function CreateQuotePage() {
   const handleAddLineItem = () => {
     const newItem: QuoteLineItem = {
       id: generateId(),
+      serialNumber: quote.items.length + 1,
       vehicleTypeId: '',
       vehicleTypeLabel: '',
+      vehicleNumber: '',
+      description: '',
+      rentalBasis: undefined,
       quantity: 1,
       unitPrice: 0,
       taxPercent: 0,
+      grossAmount: 0,
+      lineTaxAmount: 0,
+      lineTotal: 0,
     }
 
     const newItems = [...quote.items, newItem]
@@ -214,11 +248,15 @@ export default function CreateQuotePage() {
       if (item.id === itemId) {
         const updated = { ...item, [field]: value }
 
-        // If changing vehicle type, update the label
+        // If changing vehicle type, update the label, vehicle number, and description
         if (field === 'vehicleTypeId' && value) {
           const vehicle = vehicles.find((v) => v.id === value)
           if (vehicle) {
-            updated.vehicleTypeLabel = vehicle.vehicleType || ''
+            updated.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
+            updated.vehicleNumber = vehicle.vehicleNumber || ''
+            updated.description = vehicle.description || ''
+            // Optionally set default rental basis from vehicle if it has one
+            // (This would require adding rentalBasis to Vehicle type if needed)
           }
         }
 
@@ -473,7 +511,7 @@ export default function CreateQuotePage() {
           </Button>
         </Link>
         <h1 className="text-3xl font-bold text-slate-900">
-          {isEditMode ? 'Edit Quote' : 'Create New Quote'}
+          {isEditMode ? 'Edit Quotation' : 'Create New Quotation'}
         </h1>
         <p className="text-slate-500 mt-1">
           {isEditMode ? `Quote ${quote.number}` : 'Fill in the details and generate a PDF quote'}
@@ -491,12 +529,46 @@ export default function CreateQuotePage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="quoteNumber" className="text-slate-700">Quote Number</Label>
+                  <Label htmlFor="quoteNumber" className="text-slate-700 flex items-center gap-2">
+                    Quote Number
+                    {!isQuoteNumberEditable && (
+                      <button
+                        type="button"
+                        onClick={() => setIsQuoteNumberEditable(true)}
+                        className="text-blue-600 hover:text-blue-800"
+                        title="Edit quote number"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                  </Label>
                   <Input
                     id="quoteNumber"
                     value={quote.number}
-                    disabled
-                    className="mt-2 bg-slate-50 text-slate-900"
+                    disabled={!isQuoteNumberEditable}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Validate format: Quote-XXX where XXX is digits
+                      if (value === '' || /^Quote-\d+$/.test(value)) {
+                        setQuote((prev) => ({ ...prev, number: value }))
+                      }
+                    }}
+                    onBlur={() => {
+                      // Validate on blur - if invalid, revert to previous value
+                      if (!/^Quote-\d+$/.test(quote.number) && quote.number !== '') {
+                        toast({
+                          title: 'Invalid Format',
+                          description: 'Quote number must be in format Quote-XXX (e.g., Quote-001)',
+                          variant: 'destructive',
+                        })
+                        // Revert to previous valid number or generate new one
+                        generateQuoteNumber().then((newNumber) => {
+                          setQuote((prev) => ({ ...prev, number: newNumber }))
+                        })
+                      }
+                    }}
+                    className={`mt-2 ${isQuoteNumberEditable ? 'bg-white text-slate-900' : 'bg-slate-50 text-slate-900'}`}
+                    placeholder="Quote-001"
                   />
                 </div>
                 <div>
@@ -580,8 +652,8 @@ export default function CreateQuotePage() {
                     <SelectValue placeholder="Select a customer..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
+                    {customers.map((customer, idx) => (
+                      <SelectItem key={customer.id ?? `customer-${idx}`} value={customer.id}>
                         {customer.name} {customer.company && `(${customer.company})`}
                       </SelectItem>
                     ))}
@@ -668,100 +740,161 @@ export default function CreateQuotePage() {
           {/* Line Items */}
           <Card>
             <CardHeader>
-              <CardTitle>Line Items</CardTitle>
-              <CardDescription>Add vehicles and services to the quote</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Line Items</CardTitle>
+                  <CardDescription>Add vehicles and services to the quote</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowColumnCustomizer(true)}
+                  className="text-sm"
+                >
+                  Customize Columns
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-100 border-b">
                     <tr>
-                      <th className="text-left p-2">Vehicle Type</th>
-                      <th className="text-right p-2">Qty</th>
-                      <th className="text-right p-2">Unit Price (AED)</th>
-                      <th className="text-right p-2">Tax %</th>
-                      <th className="text-right p-2">Line Tax (AED)</th>
-                      <th className="text-right p-2">Total (AED)</th>
+                      {visibleColumns.serialNumber !== false && <th className="text-center p-2">Sl. no.</th>}
+                      {visibleColumns.itemName !== false && <th className="text-left p-2">Item name</th>}
+                      {visibleColumns.vehicleNumber !== false && <th className="text-left p-2">Vehicle number</th>}
+                      {visibleColumns.description !== false && <th className="text-left p-2">Description</th>}
+                      {visibleColumns.rentalBasis !== false && <th className="text-center p-2">Rental basis</th>}
+                      {visibleColumns.quantity !== false && <th className="text-right p-2">Qty</th>}
+                      {visibleColumns.rate !== false && <th className="text-right p-2">Rate</th>}
+                      {visibleColumns.grossAmount !== false && <th className="text-right p-2">Gross amount</th>}
+                      {visibleColumns.tax !== false && <th className="text-right p-2">Tax</th>}
+                      {visibleColumns.netAmount !== false && <th className="text-right p-2">Net amount</th>}
                       <th className="text-center p-2">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {quote.items.map((item) => (
-                      <tr key={item.id} className="border-b hover:bg-slate-50">
-                        <td className="p-2">
-                          <Select
-                            value={item.vehicleTypeId}
-                            onValueChange={(value) => handleLineItemChange(item.id, 'vehicleTypeId', value)}
-                          >
-                            <SelectTrigger className="h-8">
-                              <SelectValue placeholder="Select vehicle..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {vehicles.map((vehicle) => (
-                                <SelectItem key={vehicle.id} value={vehicle.id}>
-                                  {vehicle.vehicleNumber || vehicle.type || 'Unknown Vehicle'}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="p-2 text-right">
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              handleLineItemChange(item.id, 'quantity', parseInt(e.target.value) || 1)
-                            }
-                            className="h-8 w-16 text-right text-slate-900"
-                          />
-                        </td>
-                        <td className="p-2 text-right">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.unitPrice}
-                            onChange={(e) =>
-                              handleLineItemChange(item.id, 'unitPrice', parseFloat(e.target.value) || 0)
-                            }
-                            className="h-8 w-24 text-right text-slate-900"
-                          />
-                        </td>
-                        <td className="p-2 text-right">
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            value={item.taxPercent}
-                            onChange={(e) =>
-                              handleLineItemChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0)
-                            }
-                            className="h-8 w-16 text-right text-slate-900"
-                          />
-                        </td>
-                        <td className="p-2 text-right text-slate-900">
-                          {((item.quantity * item.unitPrice * item.taxPercent) / 100).toFixed(2)}
-                        </td>
-                        <td className="p-2 text-right font-semibold text-slate-900">
-                          {(
-                            item.quantity * item.unitPrice +
-                            (item.quantity * item.unitPrice * item.taxPercent) / 100
-                          ).toFixed(2)}
-                        </td>
-                        <td className="p-2 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveLineItem(item.id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {quote.items.map((item, index) => {
+                      const quantityLabel = item.rentalBasis === 'hourly' ? 'Qty (total hours)' : item.rentalBasis === 'monthly' ? 'Qty (total months)' : 'Qty'
+                      const rateLabel = item.rentalBasis === 'hourly' ? 'Rate per hour' : item.rentalBasis === 'monthly' ? 'Rate per month' : 'Rate'
+                      return (
+                        <tr key={item.id ?? `quote-item-${index}`} className="border-b hover:bg-slate-50">
+                          {visibleColumns.serialNumber !== false && (
+                            <td className="p-2 text-center text-slate-700">
+                              {item.serialNumber || index + 1}
+                            </td>
+                          )}
+                          {visibleColumns.itemName !== false && (
+                            <td className="p-2">
+                              <Select
+                                value={item.vehicleTypeId}
+                                onValueChange={(value) => handleLineItemChange(item.id, 'vehicleTypeId', value)}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder="Select vehicle..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {vehicles.map((vehicle, idx) => (
+                                    <SelectItem key={vehicle.id ?? `vehicle-${idx}`} value={vehicle.id}>
+                                      {vehicle.vehicleType || vehicle.vehicleNumber || 'Unknown Vehicle'}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                          )}
+                          {visibleColumns.vehicleNumber !== false && (
+                            <td className="p-2 text-slate-700">
+                              {item.vehicleNumber || '-'}
+                            </td>
+                          )}
+                          {visibleColumns.description !== false && (
+                            <td className="p-2 text-slate-700">
+                              {item.description || '-'}
+                            </td>
+                          )}
+                          {visibleColumns.rentalBasis !== false && (
+                            <td className="p-2">
+                              <Select
+                                value={item.rentalBasis || ''}
+                                onValueChange={(value) => handleLineItemChange(item.id, 'rentalBasis', value || undefined)}
+                              >
+                                <SelectTrigger className="h-8 w-32">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="hourly">Hourly</SelectItem>
+                                  <SelectItem value="monthly">Monthly</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                          )}
+                          {visibleColumns.quantity !== false && (
+                            <td className="p-2 text-right">
+                              <div className="flex flex-col">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.quantity && item.quantity > 0 ? item.quantity : ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                                    handleLineItemChange(item.id, 'quantity', val)
+                                  }}
+                                  className="h-8 w-20 text-right text-slate-900"
+                                  placeholder="0"
+                                />
+                                <span className="text-xs text-slate-500 mt-1">{quantityLabel}</span>
+                              </div>
+                            </td>
+                          )}
+                          {visibleColumns.rate !== false && (
+                            <td className="p-2 text-right">
+                              <div className="flex flex-col">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.unitPrice && item.unitPrice > 0 ? item.unitPrice : ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                                    handleLineItemChange(item.id, 'unitPrice', val)
+                                  }}
+                                  className="h-8 w-24 text-right text-slate-900"
+                                  placeholder="0.00"
+                                />
+                                <span className="text-xs text-slate-500 mt-1">{rateLabel}</span>
+                              </div>
+                            </td>
+                          )}
+                          {visibleColumns.grossAmount !== false && (
+                            <td className="p-2 text-right text-slate-700">
+                              {(item.grossAmount || 0).toFixed(2)}
+                            </td>
+                          )}
+                          {visibleColumns.tax !== false && (
+                            <td className="p-2 text-right text-slate-700">
+                              {(item.lineTaxAmount || 0).toFixed(2)}
+                            </td>
+                          )}
+                          {visibleColumns.netAmount !== false && (
+                            <td className="p-2 text-right text-slate-700 font-semibold">
+                              {(item.lineTotal || 0).toFixed(2)}
+                            </td>
+                          )}
+                          <td className="p-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveLineItem(item.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -886,6 +1019,50 @@ export default function CreateQuotePage() {
           </Card>
         </div>
       </div>
+
+      {/* Column Customization Dialog */}
+      <Dialog open={showColumnCustomizer} onOpenChange={setShowColumnCustomizer}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Customize Columns</DialogTitle>
+            <DialogDescription>
+              Select which columns to display in the line items table
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {[
+              { key: 'serialNumber', label: 'Sl. no.' },
+              { key: 'itemName', label: 'Item name' },
+              { key: 'vehicleNumber', label: 'Vehicle number' },
+              { key: 'description', label: 'Description' },
+              { key: 'rentalBasis', label: 'Rental basis' },
+              { key: 'quantity', label: 'Qty' },
+              { key: 'rate', label: 'Rate' },
+              { key: 'grossAmount', label: 'Gross amount' },
+              { key: 'tax', label: 'Tax' },
+              { key: 'netAmount', label: 'Net amount' },
+            ].map((col) => (
+              <div key={col.key} className="flex items-center space-x-2">
+                <Checkbox
+                  id={col.key}
+                  checked={visibleColumns[col.key] !== false}
+                  onCheckedChange={(checked) => {
+                    setVisibleColumns((prev) => ({ ...prev, [col.key]: checked !== false }))
+                  }}
+                />
+                <Label htmlFor={col.key} className="font-normal cursor-pointer">
+                  {col.label}
+                </Label>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowColumnCustomizer(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -2,11 +2,27 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Plus, Trash2, FileText, Sheet, FileType } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ArrowLeft, Plus, Trash2, FileText, Sheet, FileType, Pencil } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import {
   getInvoiceById,
@@ -15,6 +31,7 @@ import {
   getAllCustomers,
   getAllQuotes,
   getAllPurchaseOrders,
+  getAllVehicles,
   generateInvoiceNumber,
   generateId,
   getAdminSettings,
@@ -25,7 +42,7 @@ import { pdfRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
 import { Invoice, InvoiceItem } from '@/lib/storage'
-import type { AdminSettings, Quote } from '@/lib/types'
+import type { AdminSettings, Quote, Vehicle } from '@/lib/types'
 import { validateInvoice, validateInvoiceForExport, ValidationError } from '@/lib/validation'
 
 export default function CreateInvoicePage() {
@@ -50,6 +67,7 @@ export default function CreateInvoicePage() {
   const [customers, setCustomers] = useState<any[]>([])
   const [quotes, setQuotes] = useState<any[]>([])
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -60,6 +78,23 @@ export default function CreateInvoicePage() {
   const [isValidForExport, setIsValidForExport] = useState(false)
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
+  const [isInvoiceNumberEditable, setIsInvoiceNumberEditable] = useState(false)
+  const [quoteNumberDisplay, setQuoteNumberDisplay] = useState('')
+  const [poNumberDisplay, setPoNumberDisplay] = useState('')
+  const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
+    serialNumber: true,
+    itemName: true,
+    vehicleNumber: true,
+    description: true,
+    rentalBasis: true,
+    quantity: true,
+    rate: true,
+    grossAmount: true,
+    tax: true,
+    netAmount: true,
+    amountReceived: true,
+  })
 
   const snapshotInvoice = (inv: Invoice) => {
     // Exclude timestamp fields so they don't cause dirty state flips
@@ -70,16 +105,18 @@ export default function CreateInvoicePage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [customersData, quotesData, posData, settingsData] = await Promise.all([
+        const [customersData, quotesData, posData, vehiclesData, settingsData] = await Promise.all([
           getAllCustomers(),
           getAllQuotes(),
           getAllPurchaseOrders(),
+          getAllVehicles(),
           getAdminSettings(),
         ])
 
         setCustomers(customersData)
         setQuotes(quotesData)
         setPurchaseOrders(posData)
+        setVehicles(vehiclesData)
         setAdminSettings(settingsData)
 
         // Check URL parameters
@@ -102,7 +139,7 @@ export default function CreateInvoicePage() {
             const quote = await getQuoteById(quoteId)
             if (quote) {
               setSourceQuote(quote)
-              const convertedInvoice = convertQuoteToInvoice(quote)
+              const convertedInvoice = await convertQuoteToInvoice(quote)
               setInvoice(convertedInvoice)
             } else {
               toast({
@@ -121,7 +158,7 @@ export default function CreateInvoicePage() {
           }
         } else {
           // New invoice
-          const newNumber = generateInvoiceNumber()
+          const newNumber = await generateInvoiceNumber()
           setInvoice((prev) => ({
             ...prev,
             id: generateId(),
@@ -142,36 +179,82 @@ export default function CreateInvoicePage() {
   }, [])
 
   const calculateTotals = (items: InvoiceItem[], tax: number) => {
-    const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice || 0), 0)
-    // If items have per-item tax, sum them up; otherwise use the provided tax value
-    const itemTaxTotal = items.reduce((sum, item) => sum + (item.tax || 0), 0)
-    const finalTax = itemTaxTotal > 0 ? itemTaxTotal : tax
-    const total = subtotal + finalTax
-    return { subtotal, total, tax: finalTax }
+    let subTotal = 0
+    let totalTax = 0
+
+    items.forEach((item, index) => {
+      // Calculate gross amount (quantity * unitPrice)
+      const grossAmount = item.quantity * item.unitPrice
+      
+      // Calculate tax: prefer taxPercent (new) over tax (legacy)
+      let itemTax = 0
+      if (item.taxPercent !== undefined && item.taxPercent !== null) {
+        itemTax = grossAmount * (item.taxPercent / 100)
+      } else if (item.tax !== undefined && item.tax !== null) {
+        itemTax = item.tax
+      }
+      
+      const lineTotal = grossAmount + itemTax
+      
+      // Update item with calculated values
+      item.grossAmount = grossAmount
+      item.lineTaxAmount = itemTax
+      item.lineTotal = lineTotal
+      item.serialNumber = index + 1
+      // Keep total for backward compatibility
+      item.total = lineTotal
+      
+      subTotal += grossAmount
+      totalTax += itemTax
+    })
+
+    // If no item-level tax, use the provided tax value
+    const finalTax = totalTax > 0 ? totalTax : tax
+    const total = subTotal + finalTax
+    
+    // Calculate total amount received from line items
+    const totalAmountReceived = items.reduce((sum, item) => sum + (item.amountReceived || 0), 0)
+    
+    return { subtotal: subTotal, total, tax: finalTax, amountReceived: totalAmountReceived }
   }
 
   const handleAddItem = () => {
-    const newItems = [
-      ...invoice.items,
-      { id: generateId(), description: '', quantity: 1, unitPrice: 0, total: 0 },
-    ]
-    const { subtotal, total } = calculateTotals(newItems, invoice.tax)
+    const newItem: InvoiceItem = {
+      id: generateId(),
+      serialNumber: invoice.items.length + 1,
+      vehicleTypeId: '',
+      vehicleTypeLabel: '',
+      vehicleNumber: '',
+      description: '',
+      rentalBasis: undefined,
+      quantity: 1,
+      unitPrice: 0,
+      taxPercent: 0,
+      grossAmount: 0,
+      lineTaxAmount: 0,
+      lineTotal: 0,
+      total: 0,
+    }
+    const newItems = [...invoice.items, newItem]
+    const { subtotal, total, amountReceived } = calculateTotals(newItems, invoice.tax)
     setInvoice({
       ...invoice,
       items: newItems,
       subtotal,
       total,
+      amountReceived,
     })
   }
 
   const handleRemoveItem = (itemId: string) => {
     const newItems = invoice.items.filter((item) => item.id !== itemId)
-    const { subtotal, total } = calculateTotals(newItems, invoice.tax)
+    const { subtotal, total, amountReceived } = calculateTotals(newItems, invoice.tax)
     setInvoice({
       ...invoice,
       items: newItems,
       subtotal,
       total,
+      amountReceived,
     })
   }
 
@@ -181,22 +264,43 @@ export default function CreateInvoicePage() {
 
       const updated = { ...item, [field]: value }
 
-      // Recalculate item total (including tax if present)
-      if (field === 'quantity' || field === 'unitPrice' || field === 'tax') {
-        const lineSubtotal = (updated.quantity || 0) * (updated.unitPrice || 0)
-        const lineTax = updated.tax || 0
-        updated.total = lineSubtotal + lineTax
+      // If changing vehicle type, update the label, vehicle number, and description
+      if (field === 'vehicleTypeId' && value) {
+        const vehicle = vehicles.find((v) => v.id === value)
+        if (vehicle) {
+          updated.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
+          updated.vehicleNumber = vehicle.vehicleNumber || ''
+          updated.description = vehicle.description || ''
+        }
+      }
+
+      // Recalculate item totals when relevant fields change
+      if (field === 'quantity' || field === 'unitPrice' || field === 'taxPercent' || field === 'tax') {
+        const grossAmount = (updated.quantity || 0) * (updated.unitPrice || 0)
+        let itemTax = 0
+        if (updated.taxPercent !== undefined && updated.taxPercent !== null) {
+          itemTax = grossAmount * (updated.taxPercent / 100)
+        } else if (updated.tax !== undefined && updated.tax !== null) {
+          itemTax = updated.tax
+        }
+        const lineTotal = grossAmount + itemTax
+        
+        updated.grossAmount = grossAmount
+        updated.lineTaxAmount = itemTax
+        updated.lineTotal = lineTotal
+        updated.total = lineTotal // Keep for backward compatibility
       }
 
       return updated
     })
 
-    const { subtotal, total, tax } = calculateTotals(newItems, invoice.tax)
+    const { subtotal, total, tax, amountReceived } = calculateTotals(newItems, invoice.tax)
     const updatedInvoice = {
       ...invoice,
       items: newItems,
       subtotal,
       tax,
+      amountReceived,
       total,
     }
     setInvoice(updatedInvoice)
@@ -475,15 +579,47 @@ export default function CreateInvoicePage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="number" className="text-slate-700">
+                  <Label htmlFor="number" className="text-slate-700 flex items-center gap-2">
                     Invoice Number
+                    {!isInvoiceNumberEditable && (
+                      <button
+                        type="button"
+                        onClick={() => setIsInvoiceNumberEditable(true)}
+                        className="text-blue-600 hover:text-blue-800"
+                        title="Edit invoice number"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
                   </Label>
                   <input
                     id="number"
                     type="text"
                     value={invoice.number}
-                    disabled
-                    className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-900"
+                    disabled={!isInvoiceNumberEditable}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Validate format: Invoice-XXX where XXX is digits
+                      if (value === '' || /^Invoice-\d+$/.test(value)) {
+                        setInvoice((prev) => ({ ...prev, number: value }))
+                      }
+                    }}
+                    onBlur={() => {
+                      // Validate on blur - if invalid, revert to previous value
+                      if (!/^Invoice-\d+$/.test(invoice.number) && invoice.number !== '') {
+                        toast({
+                          title: 'Invalid Format',
+                          description: 'Invoice number must be in format Invoice-XXX (e.g., Invoice-001)',
+                          variant: 'destructive',
+                        })
+                        // Revert to previous valid number or generate new one
+                        generateInvoiceNumber().then((newNumber) => {
+                          setInvoice((prev) => ({ ...prev, number: newNumber }))
+                        })
+                      }
+                    }}
+                    className={`w-full mt-2 px-3 py-2 border border-slate-300 rounded-md ${isInvoiceNumberEditable ? 'bg-white text-slate-900' : 'bg-slate-50 text-slate-900'}`}
+                    placeholder="Invoice-001"
                   />
                 </div>
                 <div>
@@ -556,7 +692,7 @@ export default function CreateInvoicePage() {
 
               <div>
                 <Label htmlFor="amountReceived" className="text-slate-700">
-                  Amount Received (AED)
+                  Total Amount Received (AED)
                 </Label>
                 <input
                   id="amountReceived"
@@ -565,16 +701,11 @@ export default function CreateInvoicePage() {
                   min="0"
                   max={invoice.total || 0}
                   value={invoice.amountReceived || 0}
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value) || 0
-                    if (value <= (invoice.total || 0)) {
-                      setInvoice({ ...invoice, amountReceived: value })
-                    }
-                  }}
-                  className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
+                  disabled
+                  className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900 bg-slate-50"
                 />
                 <p className="text-xs text-slate-500 mt-1">
-                  Pending: AED {((invoice.total || 0) - (invoice.amountReceived || 0)).toFixed(2)}
+                  Calculated from line items. Pending: AED {((invoice.total || 0) - (invoice.amountReceived || 0)).toFixed(2)}
                 </p>
               </div>
 
@@ -594,8 +725,8 @@ export default function CreateInvoicePage() {
                     }`}
                 >
                   <option value="">Select Customer</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
+                  {customers.map((c, idx) => (
+                    <option key={c.id ?? `customer-${idx}`} value={c.id}>
                       {c.name}
                     </option>
                   ))}
@@ -624,10 +755,20 @@ export default function CreateInvoicePage() {
                   }
                   onChange={(e) => {
                     if (e.target.value.startsWith('quote:')) {
-                      setInvoice({ ...invoice, quoteId: e.target.value.replace('quote:', ''), purchaseOrderId: '' })
+                      const quoteId = e.target.value.replace('quote:', '')
+                      const selectedQuote = quotes.find(q => q.id === quoteId)
+                      setQuoteNumberDisplay(selectedQuote?.number || '')
+                      setPoNumberDisplay('')
+                      setInvoice({ ...invoice, quoteId, purchaseOrderId: '' })
                     } else if (e.target.value.startsWith('po:')) {
-                      setInvoice({ ...invoice, purchaseOrderId: e.target.value.replace('po:', ''), quoteId: '' })
+                      const poId = e.target.value.replace('po:', '')
+                      const selectedPO = purchaseOrders.find(po => po.id === poId)
+                      setPoNumberDisplay(selectedPO?.number || '')
+                      setQuoteNumberDisplay('')
+                      setInvoice({ ...invoice, purchaseOrderId: poId, quoteId: '' })
                     } else {
+                      setQuoteNumberDisplay('')
+                      setPoNumberDisplay('')
                       setInvoice({ ...invoice, quoteId: '', purchaseOrderId: '' })
                     }
                   }}
@@ -636,8 +777,8 @@ export default function CreateInvoicePage() {
                   <option value="">None</option>
                   {quotes.length > 0 && (
                     <optgroup label="Quotes">
-                      {quotes.map((q) => (
-                        <option key={q.id} value={`quote:${q.id}`}>
+                      {quotes.map((q, idx) => (
+                        <option key={q.id ?? `quote-${idx}`} value={`quote:${q.id}`}>
                           {q.number}
                         </option>
                       ))}
@@ -645,8 +786,8 @@ export default function CreateInvoicePage() {
                   )}
                   {purchaseOrders.length > 0 && (
                     <optgroup label="Purchase Orders">
-                      {purchaseOrders.map((po) => (
-                        <option key={po.id} value={`po:${po.id}`}>
+                      {purchaseOrders.map((po, idx) => (
+                        <option key={po.id ?? `po-${idx}`} value={`po:${po.id}`}>
                           {po.number}
                         </option>
                       ))}
@@ -654,71 +795,248 @@ export default function CreateInvoicePage() {
                   )}
                 </select>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="quoteNumberDisplay" className="text-slate-700">
+                    Q# (Quote Number Reference)
+                  </Label>
+                  <input
+                    id="quoteNumberDisplay"
+                    type="text"
+                    value={quoteNumberDisplay}
+                    onChange={(e) => setQuoteNumberDisplay(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
+                    placeholder="Quote-001"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="poNumberDisplay" className="text-slate-700">
+                    PO# (Purchase Order Number Reference)
+                  </Label>
+                  <input
+                    id="poNumberDisplay"
+                    type="text"
+                    value={poNumberDisplay}
+                    onChange={(e) => setPoNumberDisplay(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 border border-slate-300 rounded-md text-slate-900"
+                    placeholder="PO-001"
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
           {/* Line Items */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle>Line Items</CardTitle>
-              <Button onClick={handleAddItem} size="sm" variant="outline">
-                <Plus className="w-4 h-4 mr-1" />
-                Add Item
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {invoice.items.map((item) => (
-                  <div key={item.id} className="grid grid-cols-12 gap-2 items-start p-3 bg-slate-50 rounded-md">
-                    <div className="col-span-5">
-                      <Label className="text-xs text-slate-600">Description</Label>
-                      <input
-                        type="text"
-                        placeholder="Item description"
-                        value={item.description}
-                        onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label className="text-xs text-slate-600">Qty</Label>
-                      <input
-                        type="number"
-                        placeholder="0"
-                        value={item.quantity || ''}
-                        onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900 text-right"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label className="text-xs text-slate-600">Unit Price</Label>
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        value={item.unitPrice || ''}
-                        onChange={(e) => handleItemChange(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                        className="w-full mt-1 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900 text-right"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label className="text-xs text-slate-600">Total</Label>
-                      <div className="mt-1 px-2 py-1 text-sm font-semibold text-slate-900">
-                        AED {item.total?.toFixed(2) || '0.00'}
-                      </div>
-                    </div>
-                    <div className="col-span-1 flex justify-end">
-                      <Button
-                        onClick={() => handleRemoveItem(item.id)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-800 mt-5"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Line Items</CardTitle>
+                  <CardDescription>Add vehicles and services to the invoice</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowColumnCustomizer(true)}
+                  className="text-sm"
+                >
+                  Customize Columns
+                </Button>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-100 border-b">
+                    <tr>
+                      {visibleColumns.serialNumber !== false && <th className="text-center p-2">Sl. no.</th>}
+                      {visibleColumns.itemName !== false && <th className="text-left p-2">Item name</th>}
+                      {visibleColumns.vehicleNumber !== false && <th className="text-left p-2">Vehicle number</th>}
+                      {visibleColumns.description !== false && <th className="text-left p-2">Description</th>}
+                      {visibleColumns.rentalBasis !== false && <th className="text-center p-2">Rental basis</th>}
+                      {visibleColumns.quantity !== false && <th className="text-right p-2">Qty</th>}
+                      {visibleColumns.rate !== false && <th className="text-right p-2">Rate</th>}
+                      {visibleColumns.grossAmount !== false && <th className="text-right p-2">Gross amount</th>}
+                      {visibleColumns.tax !== false && <th className="text-right p-2">Tax</th>}
+                      {visibleColumns.netAmount !== false && <th className="text-right p-2">Net amount</th>}
+                      {visibleColumns.amountReceived !== false && <th className="text-right p-2">Amount Received</th>}
+                      <th className="text-center p-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoice.items.map((item, index) => {
+                      const quantityLabel = item.rentalBasis === 'hourly' ? 'Qty (total hours)' : item.rentalBasis === 'monthly' ? 'Qty (total months)' : 'Qty'
+                      const rateLabel = item.rentalBasis === 'hourly' ? 'Rate per hour' : item.rentalBasis === 'monthly' ? 'Rate per month' : 'Rate'
+                      return (
+                        <tr key={item.id ?? `invoice-item-${index}`} className="border-b hover:bg-slate-50">
+                          {visibleColumns.serialNumber !== false && (
+                            <td className="p-2 text-center text-slate-700">
+                              {item.serialNumber || index + 1}
+                            </td>
+                          )}
+                          {visibleColumns.itemName !== false && (
+                            <td className="p-2">
+                              <Select
+                                value={item.vehicleTypeId || '__manual__'}
+                                onValueChange={(value) => handleItemChange(item.id, 'vehicleTypeId', value === '__manual__' ? '' : value)}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder="Select vehicle..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__manual__">Manual Entry</SelectItem>
+                                  {vehicles.map((vehicle, idx) => (
+                                    <SelectItem key={vehicle.id ?? `vehicle-${idx}`} value={vehicle.id}>
+                                      {vehicle.vehicleType || vehicle.vehicleNumber || 'Unknown Vehicle'}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                          )}
+                          {visibleColumns.vehicleNumber !== false && (
+                            <td className="p-2 text-slate-700">
+                              {item.vehicleNumber || '-'}
+                            </td>
+                          )}
+                          {visibleColumns.description !== false && (
+                            <td className="p-2">
+                              <Input
+                                type="text"
+                                value={item.description || ''}
+                                onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
+                                placeholder="Description"
+                                className="h-8 text-slate-900"
+                              />
+                            </td>
+                          )}
+                          {visibleColumns.rentalBasis !== false && (
+                            <td className="p-2">
+                              <Select
+                                value={item.rentalBasis || '__none__'}
+                                onValueChange={(value) => handleItemChange(item.id, 'rentalBasis', value === '__none__' ? undefined : value)}
+                              >
+                                <SelectTrigger className="h-8 w-32">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">None</SelectItem>
+                                  <SelectItem value="hourly">Hourly</SelectItem>
+                                  <SelectItem value="monthly">Monthly</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                          )}
+                          {visibleColumns.quantity !== false && (
+                            <td className="p-2 text-right">
+                              <div className="flex flex-col">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.quantity && item.quantity > 0 ? item.quantity : ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                                    handleItemChange(item.id, 'quantity', val)
+                                  }}
+                                  className="h-8 w-20 text-right text-slate-900"
+                                  placeholder="0"
+                                />
+                                <span className="text-xs text-slate-500 mt-1">{quantityLabel}</span>
+                              </div>
+                            </td>
+                          )}
+                          {visibleColumns.rate !== false && (
+                            <td className="p-2 text-right">
+                              <div className="flex flex-col">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.unitPrice && item.unitPrice > 0 ? item.unitPrice : ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                                    handleItemChange(item.id, 'unitPrice', val)
+                                  }}
+                                  className="h-8 w-24 text-right text-slate-900"
+                                  placeholder="0.00"
+                                />
+                                <span className="text-xs text-slate-500 mt-1">{rateLabel}</span>
+                              </div>
+                            </td>
+                          )}
+                          {visibleColumns.grossAmount !== false && (
+                            <td className="p-2 text-right text-slate-700">
+                              {(item.grossAmount || 0).toFixed(2)}
+                            </td>
+                          )}
+                          {visibleColumns.tax !== false && (
+                            <td className="p-2 text-right">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.taxPercent !== undefined && item.taxPercent !== null ? item.taxPercent : (item.tax || 0)}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                                  if (item.taxPercent !== undefined && item.taxPercent !== null) {
+                                    handleItemChange(item.id, 'taxPercent', val)
+                                  } else {
+                                    handleItemChange(item.id, 'tax', val)
+                                  }
+                                }}
+                                className="h-8 w-20 text-right text-slate-900"
+                                placeholder="0"
+                              />
+                            </td>
+                          )}
+                          {visibleColumns.netAmount !== false && (
+                            <td className="p-2 text-right text-slate-700 font-semibold">
+                              {(item.lineTotal || item.total || 0).toFixed(2)}
+                            </td>
+                          )}
+                          {visibleColumns.amountReceived !== false && (
+                            <td className="p-2 text-right">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max={item.lineTotal || item.total || 0}
+                                value={item.amountReceived && item.amountReceived > 0 ? item.amountReceived : ''}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                                  const maxAmount = item.lineTotal || item.total || 0
+                                  if (val <= maxAmount) {
+                                    handleItemChange(item.id, 'amountReceived', val)
+                                  }
+                                }}
+                                className="h-8 w-24 text-right text-slate-900"
+                                placeholder="0.00"
+                              />
+                            </td>
+                          )}
+                          <td className="p-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <Button onClick={handleAddItem} variant="outline" className="w-full">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Line Item
+              </Button>
             </CardContent>
           </Card>
 
@@ -848,6 +1166,51 @@ export default function CreateInvoicePage() {
           </Card>
         </div>
       </div>
+
+      {/* Column Customization Dialog */}
+      <Dialog open={showColumnCustomizer} onOpenChange={setShowColumnCustomizer}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Customize Columns</DialogTitle>
+            <DialogDescription>
+              Select which columns to display in the line items table
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {[
+              { key: 'serialNumber', label: 'Sl. no.' },
+              { key: 'itemName', label: 'Item name' },
+              { key: 'vehicleNumber', label: 'Vehicle number' },
+              { key: 'description', label: 'Description' },
+              { key: 'rentalBasis', label: 'Rental basis' },
+              { key: 'quantity', label: 'Qty' },
+              { key: 'rate', label: 'Rate' },
+              { key: 'grossAmount', label: 'Gross amount' },
+              { key: 'tax', label: 'Tax' },
+              { key: 'netAmount', label: 'Net amount' },
+              { key: 'amountReceived', label: 'Amount Received' },
+            ].map((col) => (
+              <div key={col.key} className="flex items-center space-x-2">
+                <Checkbox
+                  id={col.key}
+                  checked={visibleColumns[col.key] !== false}
+                  onCheckedChange={(checked) => {
+                    setVisibleColumns((prev) => ({ ...prev, [col.key]: checked !== false }))
+                  }}
+                />
+                <Label htmlFor={col.key} className="font-normal cursor-pointer">
+                  {col.label}
+                </Label>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowColumnCustomizer(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

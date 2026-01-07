@@ -1,0 +1,30 @@
+1. Home screen 
+- change the text "Car Rental Management" to "Transaportation and Maintanence"
+- "iManage Manage More. Worry Less." - remove the text. 
+
+2. Create New Quote page
+- change the text "Create New Quote" to "Create New Quotation" 
+- line item level   - ability to select hourly/monthly - add a dropdown or radio button to select hourly or monthly and show that in the line item table
+                    - ability to enter total hours / total months --vehicle level need to get this info
+                    - change the column names in the line item table to match the column names used in the sample docs
+                    - ability to see vehicle unique number, description -- add description field to vehicle master
+                    - ability to customize columns in the line item table
+
+3. Create New Invoice page
+- make the layout same like quotation page
+- ability to reference Q# and PO# in Invoice - need a text entry field for Q# and PO# in invoice page
+- ability to enter "amount received" against each line item in the line item table. i.e. an invoice will have multiple line items and each line item will have an amount received field. as the customer pays, he will update each line item's amount received field
+- ability to customize columns in the line item table (if the parent quote has)
+
+4. Salary related
+- ability to add reason/remarks for deductions for each employee
+- ability to maintain overtime rate for each employee in the employee master and use that to calculate overtime amount every month 
+
+5. pdf generation
+1. stamp size - make it larger
+2. add a footer showing the address, contact details of Almsar - english and arabic text
+
+6. common across application
+1. numeric fields showing "0" when blank. if we enter "5" it is displayed as "05". whem null, the numeric edit fields should be blank. user will click the field and enter the value. and then the entered value should be displayed
+2. quotation and invoice unique id generation logic should be changed to  "Quote-XXX" and "Invoice-XXX" where XXX is a running number. we can have a configurable parameter to enter the starting number for these unique ids. this field needs to be editable so that the user can edit if required. may be show a small edit icon near the field in the Create new quotation and Create new invoice page.
+

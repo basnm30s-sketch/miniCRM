@@ -22,6 +22,7 @@ interface WorkflowState {
   overtimeEmployees: string[]
   overtimeData: Record<string, { hours: number; rate: number; pay: number }>
   deductions: Record<string, number>
+  deductionRemarks: Record<string, string> // NEW - remarks for each employee's deductions
   standardHours: number
 }
 
@@ -43,6 +44,7 @@ export default function SalaryCalculationPage() {
     overtimeEmployees: [],
     overtimeData: {},
     deductions: {},
+    deductionRemarks: {}, // NEW - remarks for deductions
     standardHours: 160, // Default: 8 hours/day × 20 days = 160 hours/month
   })
 
@@ -203,13 +205,15 @@ export default function SalaryCalculationPage() {
           overtimeData: restData,
         }
       } else {
-        // Checking: Add to overtimeEmployees and initialize data
+        // Checking: Add to overtimeEmployees and initialize data with employee's default overtime rate
+        const employee = employees.find(e => e.id === empId)
+        const defaultRate = employee?.overtimeRate || 0
         return {
           ...prev,
           overtimeEmployees: [...prev.overtimeEmployees, empId],
           overtimeData: {
             ...prev.overtimeData,
-            [empId]: { hours: 0, rate: 0, pay: 0 },
+            [empId]: { hours: 0, rate: defaultRate, pay: 0 },
           },
         }
       }
@@ -230,10 +234,11 @@ export default function SalaryCalculationPage() {
           overtimeData: clearedData,
         }
       } else {
-        // Select all: Initialize overtime data for all available employees
+        // Select all: Initialize overtime data for all available employees with their default rates
         const newData: Record<string, { hours: number; rate: number; pay: number }> = {}
         availableEmployees.forEach(emp => {
-          newData[emp.id] = prev.overtimeData[emp.id] || { hours: 0, rate: 0, pay: 0 }
+          const defaultRate = emp.overtimeRate || 0
+          newData[emp.id] = prev.overtimeData[emp.id] || { hours: 0, rate: defaultRate, pay: 0 }
         })
         return {
           ...prev,
@@ -260,6 +265,13 @@ export default function SalaryCalculationPage() {
     setState(prev => ({
       ...prev,
       deductions: { ...prev.deductions, [empId]: value || 0 },
+    }))
+  }
+
+  const handleDeductionRemarksChange = (empId: string, value: string) => {
+    setState(prev => ({
+      ...prev,
+      deductionRemarks: { ...prev.deductionRemarks, [empId]: value },
     }))
   }
 
@@ -314,6 +326,7 @@ export default function SalaryCalculationPage() {
           overtimeRate: calc.overtimeRate,
           overtimePay: calc.overtimePay,
           deductions: calc.deductions,
+          deductionRemarks: state.deductionRemarks[calc.employeeId] || undefined,
           netPay: calc.netPay,
           status: 'processed',
           createdAt: new Date().toISOString(),
@@ -594,6 +607,7 @@ export default function SalaryCalculationPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Employee ID</TableHead>
                     <TableHead>Deductions (AED)</TableHead>
+                    <TableHead>Remarks/Reason</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -612,6 +626,15 @@ export default function SalaryCalculationPage() {
                             onChange={(e) => handleDeductionChange(emp.id, parseFloat(e.target.value) || 0)}
                             className="w-32"
                             placeholder="0.00"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="text"
+                            value={state.deductionRemarks[emp.id] || ''}
+                            onChange={(e) => handleDeductionRemarksChange(emp.id, e.target.value)}
+                            className="w-full"
+                            placeholder="Enter reason for deduction"
                           />
                         </TableCell>
                       </TableRow>
@@ -648,6 +671,7 @@ export default function SalaryCalculationPage() {
                       overtimeEmployees: [],
                       overtimeData: {},
                       deductions: {},
+                      deductionRemarks: {},
                       standardHours: 160,
                     })
                     setSavedSuccessfully(false)

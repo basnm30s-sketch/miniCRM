@@ -305,13 +305,41 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     }
   }
 
+  private buildFooterHtml(adminSettings: AdminSettings): string {
+    const footerAddressEn = adminSettings.footerAddressEnglish || '';
+    const footerAddressAr = adminSettings.footerAddressArabic || '';
+    const footerContactEn = adminSettings.footerContactEnglish || '';
+    const footerContactAr = adminSettings.footerContactArabic || '';
+    
+    if (!footerAddressEn && !footerAddressAr && !footerContactEn && !footerContactAr) {
+      return '';
+    }
+    
+    return `
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; font-size: 12px;">
+      ${footerAddressEn || footerAddressAr ? `
+        <div style="margin-bottom: 10px;">
+          ${footerAddressEn ? `<div style="margin-bottom: 5px;">${footerAddressEn}</div>` : ''}
+          ${footerAddressAr ? `<div style="margin-bottom: 5px; direction: rtl; text-align: right;">${footerAddressAr}</div>` : ''}
+        </div>
+      ` : ''}
+      ${footerContactEn || footerContactAr ? `
+        <div>
+          ${footerContactEn ? `<div style="margin-bottom: 5px;">${footerContactEn}</div>` : ''}
+          ${footerContactAr ? `<div style="margin-bottom: 5px; direction: rtl; text-align: right;">${footerContactAr}</div>` : ''}
+        </div>
+      ` : ''}
+    </div>
+    `;
+  }
+
   private buildQuoteHtml(quote: Quote, adminSettings: AdminSettings, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }): string {
   // Use branding URLs passed from caller (already loaded from fixed file locations)
   const { logoUrl, sealUrl, signatureUrl } = branding
   
   const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : ''
   // Seal and signature are rendered in the footer so they move dynamically with document content
-  const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 100px; object-fit: contain;" />` : ''
+  const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : ''
   const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : ''
 
     const itemsHtml = quote.items
@@ -347,7 +375,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         </div>
 
         <!-- Title -->
-        <h2 style="text-align: center; margin: 20px 0; font-size: 20px;">QUOTE</h2>
+        <h2 style="text-align: center; margin: 20px 0; font-size: 20px;">QUOTATION</h2>
 
         <!-- Quote Meta -->
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;">
@@ -375,12 +403,16 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse;">
           <thead>
             <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
+              <th style="padding: 8px; text-align: center;">Sl. no.</th>
+              <th style="padding: 8px; text-align: left;">Item name</th>
+              <th style="padding: 8px; text-align: left;">Vehicle number</th>
               <th style="padding: 8px; text-align: left;">Description</th>
+              <th style="padding: 8px; text-align: center;">Rental basis</th>
               <th style="padding: 8px; text-align: right;">Qty</th>
-              <th style="padding: 8px; text-align: right;">Unit Price (${quote.currency})</th>
-              <th style="padding: 8px; text-align: right;">Tax %</th>
-              <th style="padding: 8px; text-align: right;">Tax (${quote.currency})</th>
-              <th style="padding: 8px; text-align: right;">Total (${quote.currency})</th>
+              <th style="padding: 8px; text-align: right;">Rate</th>
+              <th style="padding: 8px; text-align: right;">Gross amount</th>
+              <th style="padding: 8px; text-align: right;">Tax</th>
+              <th style="padding: 8px; text-align: right;">Net amount</th>
             </tr>
           </thead>
           <tbody>
@@ -452,6 +484,9 @@ export class ClientSidePDFRenderer implements PDFRenderer {
               <div style="margin-top: 18px;"> <p style="margin: 0;">Date: ${quote.date}</p> </div>
           </div>
         </div>
+        
+        <!-- Footer with Address and Contact Details -->
+        ${this.buildFooterHtml(adminSettings)}
           <!-- Terms -->
       </div>
     `
@@ -462,7 +497,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     const { logoUrl, sealUrl, signatureUrl } = branding
     
     const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : ''
-    const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 100px; object-fit: contain;" />` : ''
+    const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : ''
     const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : ''
 
     const itemsHtml = po.items
@@ -555,6 +590,9 @@ export class ClientSidePDFRenderer implements PDFRenderer {
             <div style="margin-top: 18px;"><p style="margin: 0;">Date: ${po.date}</p></div>
           </div>
         </div>
+        
+        <!-- Footer with Address and Contact Details -->
+        ${this.buildFooterHtml(adminSettings)}
       </div>
     `
   }
@@ -564,7 +602,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     const { logoUrl, sealUrl, signatureUrl } = branding
     
     const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : ''
-    const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 100px; object-fit: contain;" />` : ''
+    const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : ''
     const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : ''
 
     const itemsHtml = invoice.items
@@ -663,6 +701,9 @@ export class ClientSidePDFRenderer implements PDFRenderer {
             <div style="margin-top: 18px;"><p style="margin: 0;">Date: ${invoice.date}</p></div>
           </div>
         </div>
+        
+        <!-- Footer with Address and Contact Details -->
+        ${this.buildFooterHtml(adminSettings)}
       </div>
     `
   }

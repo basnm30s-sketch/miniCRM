@@ -25,6 +25,10 @@ export interface AdminSettings {
   showBusinessOverview?: boolean; // Show/hide Business Overview section on home page
   showTopCustomers?: boolean; // Show/hide Top Customers by Value card on home page
   showActivitySummary?: boolean; // Show/hide Activity Summary card on home page
+  footerAddressEnglish?: string; // Footer address in English
+  footerAddressArabic?: string; // Footer address in Arabic
+  footerContactEnglish?: string; // Footer contact details in English
+  footerContactArabic?: string; // Footer contact details in Arabic
   createdAt?: string; // ISO8601
   updatedAt?: string; // ISO8601
 }
@@ -76,13 +80,18 @@ export interface Vehicle {
 
 export interface QuoteLineItem {
   id: string;
+  serialNumber?: number; // Auto-generated
   vehicleTypeId: string;
-  vehicleTypeLabel: string; // display name
-  quantity: number; // integer >= 1
-  unitPrice: number; // AED
+  vehicleTypeLabel: string; // display name (Item name)
+  vehicleNumber?: string; // NEW - from vehicle master
+  description?: string; // NEW - from vehicle master
+  rentalBasis?: 'hourly' | 'monthly'; // NEW - rental basis selection
+  quantity: number; // integer >= 1 (now represents hours or months)
+  unitPrice: number; // AED (Rate per hour or per month)
   taxPercent: number; // 0-100
-  lineTaxAmount?: number; // auto-computed
-  lineTotal?: number; // auto-computed
+  grossAmount?: number; // NEW - calculated (quantity * unitPrice)
+  lineTaxAmount?: number; // auto-computed (Tax)
+  lineTotal?: number; // auto-computed (Net amount)
 }
 
 export interface Quote {
@@ -136,6 +145,7 @@ export interface Employee {
   paymentType?: 'hourly' | 'monthly';
   hourlyRate?: number;
   salary?: number;
+  overtimeRate?: number; // NEW - default overtime rate per hour
   bankDetails?: string;
   createdAt?: string;
 }
@@ -185,6 +195,7 @@ export interface Payslip {
   overtimeRate?: number;
   overtimePay?: number;
   deductions: number;
+  deductionRemarks?: string; // NEW - reason for deductions
   netPay: number;
   status: 'draft' | 'processed' | 'paid';
   notes?: string;
