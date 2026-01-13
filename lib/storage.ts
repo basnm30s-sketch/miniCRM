@@ -3,7 +3,7 @@
  * Provides same interface as before but uses backend API instead of localStorage
  */
 
-import { AdminSettings, Quote, Customer, Vehicle, Vendor, Employee, PurchaseOrder, Payslip } from '@/lib/types'
+import { AdminSettings, Quote, Customer, Vehicle, Vendor, Employee, PurchaseOrder, Payslip, Invoice, InvoiceItem } from '@/lib/types'
 import * as apiClient from './api-client'
 
 // Helper to generate unique IDs
@@ -15,11 +15,11 @@ export function generateId(): string {
 export async function getNextQuoteNumber(): Promise<string> {
   const settings = await getAdminSettings()
   const startingNumber = settings?.quoteStartingNumber || 1
-  
+
   // Get all existing quotes to find the highest number
   const allQuotes = await getAllQuotes()
   let maxNumber = startingNumber - 1
-  
+
   // Extract numbers from existing quote numbers (format: Quote-XXX)
   allQuotes.forEach(quote => {
     const match = quote.number.match(/^Quote-(\d+)$/i)
@@ -30,7 +30,7 @@ export async function getNextQuoteNumber(): Promise<string> {
       }
     }
   })
-  
+
   const nextNumber = maxNumber + 1
   return `Quote-${String(nextNumber).padStart(3, '0')}`
 }
@@ -202,43 +202,9 @@ export async function deletePurchaseOrder(id: string): Promise<void> {
 }
 
 // --- Invoices ---
-export interface Invoice {
-  id: string
-  number: string
-  date: string
-  dueDate?: string
-  customerId?: string
-  vendorId?: string
-  purchaseOrderId?: string
-  quoteId?: string
-  items: InvoiceItem[]
-  subtotal: number
-  tax: number
-  total: number
-  amountReceived?: number // Amount received from customer (defaults to 0)
-  status?: string // draft, invoice_sent, payment_received
-  notes?: string
-  createdAt?: string
-}
+// --- Invoices ---
+// Invoice and InvoiceItem are imported from @/lib/types
 
-export interface InvoiceItem {
-  id: string
-  serialNumber?: number // Auto-generated, matches quotation
-  vehicleTypeId?: string // Optional - reference to vehicle master (for backward compatibility)
-  vehicleTypeLabel?: string // Display name (Item name)
-  vehicleNumber?: string // From vehicle master
-  description?: string // Optional - can be auto-filled from vehicle or manually entered
-  rentalBasis?: 'hourly' | 'monthly' // Rental basis selection
-  quantity: number
-  unitPrice: number
-  taxPercent?: number // NEW - percentage-based tax (0-100)
-  tax?: number // Keep for backward compatibility (flat tax amount)
-  grossAmount?: number // Calculated: quantity * unitPrice
-  lineTaxAmount?: number // Calculated: grossAmount * (taxPercent / 100) or use tax if provided
-  lineTotal?: number // Calculated: grossAmount + lineTaxAmount
-  total: number // Keep for backward compatibility
-  amountReceived?: number // Invoice-specific - per line item payment tracking
-}
 
 export async function getAllInvoices(): Promise<Invoice[]> {
   return apiClient.getAllInvoices()
@@ -260,11 +226,11 @@ export async function deleteInvoice(id: string): Promise<void> {
 export async function getNextInvoiceNumber(): Promise<string> {
   const settings = await getAdminSettings()
   const startingNumber = settings?.invoiceStartingNumber || 1
-  
+
   // Get all existing invoices to find the highest number
   const allInvoices = await getAllInvoices()
   let maxNumber = startingNumber - 1
-  
+
   // Extract numbers from existing invoice numbers (format: Invoice-XXX)
   allInvoices.forEach(invoice => {
     const match = invoice.number.match(/^Invoice-(\d+)$/i)
@@ -275,7 +241,7 @@ export async function getNextInvoiceNumber(): Promise<string> {
       }
     }
   })
-  
+
   const nextNumber = maxNumber + 1
   return `Invoice-${String(nextNumber).padStart(3, '0')}`
 }

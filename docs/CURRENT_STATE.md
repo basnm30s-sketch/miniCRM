@@ -713,6 +713,11 @@ miniCRM/
 - DevTools in development mode
 - Debug page at `/debug`
 - PDF test page at `/debug/pdf-test`
+- Database Cleanup Tools
+  - Module-wise deletion script (`npm run delete:module-data`)
+    - Interactive tool for selective data deletion
+    - Useful for cleaning up test data from automation test runs
+    - See NPM_COMMANDS.md for detailed usage
 
 ### Data Management
 - Data management UI component

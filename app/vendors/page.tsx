@@ -145,8 +145,8 @@ export default function VendorsPage() {
               </TableHeader>
               <TableBody>
                 {vendors.length > 0 ? (
-                  vendors.map((vendor) => (
-                    <TableRow key={vendor.id}>
+                  vendors.map((vendor, index) => (
+                    <TableRow key={vendor.id || `vendor-${index}`}>
                       {renderCell(vendor.name)}
                       {renderCell(vendor.contactPerson)}
                       {renderCell(vendor.email)}
@@ -155,7 +155,7 @@ export default function VendorsPage() {
                         <button onClick={() => handleEdit(vendor)} className="text-primary hover:text-primary/90">
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(vendor.id)} className="text-destructive hover:text-destructive/90">
+                        <button onClick={() => handleDelete(vendor.id || `vendor-${index}`)} className="text-destructive hover:text-destructive/90">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </TableCell>
@@ -178,18 +178,22 @@ export default function VendorsPage() {
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/40" onClick={() => { setShowAdd(false); setEditingId(null) }} />
-          <div className="bg-white rounded p-6 z-10 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">{editingId ? 'Edit' : 'Add'} Vendor</h3>
-            <div className="space-y-2">
-              <input className="w-full border px-2 py-1" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-              <input className="w-full border px-2 py-1" placeholder="Contact Person" value={newContactPerson} onChange={(e) => setNewContactPerson(e.target.value)} />
-              <input className="w-full border px-2 py-1" placeholder="Email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
-              <input className="w-full border px-2 py-1" placeholder="Phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
-              <textarea className="w-full border px-2 py-1" placeholder="Address" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} />
-              <textarea className="w-full border px-2 py-1" placeholder="Bank Details" value={newBankDetails} onChange={(e) => setNewBankDetails(e.target.value)} />
-              <textarea className="w-full border px-2 py-1" placeholder="Payment Terms" value={newPaymentTerms} onChange={(e) => setNewPaymentTerms(e.target.value)} />
+          <div className="bg-white rounded-lg shadow-xl z-10 w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-slate-200 sticky top-0 bg-white z-10 rounded-t-lg">
+              <h3 className="text-lg font-semibold">{editingId ? 'Edit' : 'Add'} Vendor</h3>
             </div>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="overflow-y-auto flex-1 p-6">
+              <div className="space-y-2">
+                <input className="w-full border px-2 py-1" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
+                <input className="w-full border px-2 py-1" placeholder="Contact Person" value={newContactPerson} onChange={(e) => setNewContactPerson(e.target.value)} />
+                <input className="w-full border px-2 py-1" placeholder="Email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+                <input className="w-full border px-2 py-1" placeholder="Phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+                <textarea className="w-full border px-2 py-1" placeholder="Address" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} />
+                <textarea className="w-full border px-2 py-1" placeholder="Bank Details" value={newBankDetails} onChange={(e) => setNewBankDetails(e.target.value)} />
+                <textarea className="w-full border px-2 py-1" placeholder="Payment Terms" value={newPaymentTerms} onChange={(e) => setNewPaymentTerms(e.target.value)} />
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-200 flex justify-end gap-2 sticky bottom-0 bg-white z-10 rounded-b-lg">
               <button className="px-3 py-1 border rounded" onClick={() => { setShowAdd(false); setEditingId(null); setNewName(''); setNewContactPerson(''); setNewEmail(''); setNewPhone(''); setNewAddress(''); setNewBankDetails(''); setNewPaymentTerms('') }}>Cancel</button>
               <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={handleSave}>{editingId ? 'Update' : 'Create'}</button>
             </div>

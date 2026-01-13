@@ -38,6 +38,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateId = generateId;
+exports.getNextQuoteNumber = getNextQuoteNumber;
 exports.generateQuoteNumber = generateQuoteNumber;
 exports.getAdminSettings = getAdminSettings;
 exports.saveAdminSettings = saveAdminSettings;
@@ -76,6 +77,7 @@ exports.getAllInvoices = getAllInvoices;
 exports.getInvoiceById = getInvoiceById;
 exports.saveInvoice = saveInvoice;
 exports.deleteInvoice = deleteInvoice;
+exports.getNextInvoiceNumber = getNextInvoiceNumber;
 exports.generateInvoiceNumber = generateInvoiceNumber;
 exports.convertQuoteToInvoice = convertQuoteToInvoice;
 exports.initializeSampleData = initializeSampleData;
@@ -94,21 +96,29 @@ const apiClient = __importStar(require("./api-client"));
 function generateId() {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
-// Helper to generate quote number from pattern
-function generateQuoteNumber(pattern) {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const timestamp = `${year}${month}${day}`;
-    // Simple counter per day; in production, use server-backed counter
-    const randomSuffix = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-    return pattern
-        .replace('YYYY', String(year))
-        .replace('MM', month)
-        .replace('DD', day)
-        .replace('YYYYMMDD', timestamp)
-        .replace('NNNN', randomSuffix);
+// Helper to get and increment quote counter
+async function getNextQuoteNumber() {
+    const settings = await getAdminSettings();
+    const startingNumber = settings?.quoteStartingNumber || 1;
+    // Get all existing quotes to find the highest number
+    const allQuotes = await getAllQuotes();
+    let maxNumber = startingNumber - 1;
+    // Extract numbers from existing quote numbers (format: Quote-XXX)
+    allQuotes.forEach(quote => {
+        const match = quote.number.match(/^Quote-(\d+)$/i);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNumber) {
+                maxNumber = num;
+            }
+        }
+    });
+    const nextNumber = maxNumber + 1;
+    return `Quote-${String(nextNumber).padStart(3, '0')}`;
+}
+// Legacy function for backward compatibility - now uses sequential counter
+async function generateQuoteNumber(pattern) {
+    return getNextQuoteNumber();
 }
 // --- AdminSettings ---
 async function getAdminSettings() {
@@ -133,17 +143,8 @@ async function initializeAdminSettings() {
         currency: 'AED',
         defaultTerms: `1. This quotation is valid for 30 days from the date of issue.\n2. Goods remain the property of the company until full payment is received.\n3. Any additional costs such as tolls, fines or damages are not included unless stated.\n4. Payment terms: as agreed in the contract.`,
         showRevenueTrend: false,
-        showQuickActions: true,
+        showQuickActions: false,
         showReports: false,
-        showVehicleFinances: false,
-        showQuotationsInvoicesCard: false,
-        showEmployeeSalariesCard: false,
-        showVehicleRevenueExpensesCard: false,
-        showActivityThisMonth: false,
-        showFinancialHealth: false,
-        showBusinessOverview: false,
-        showTopCustomers: false,
-        showActivitySummary: false,
         createdAt: new Date().toISOString(),
     };
     await saveAdminSettings(defaults);
@@ -246,6 +247,9 @@ async function savePurchaseOrder(po) {
 async function deletePurchaseOrder(id) {
     await apiClient.deletePurchaseOrder(id);
 }
+// --- Invoices ---
+// --- Invoices ---
+// Invoice and InvoiceItem are imported from @/lib/types
 async function getAllInvoices() {
     return apiClient.getAllInvoices();
 }
@@ -258,23 +262,32 @@ async function saveInvoice(invoice) {
 async function deleteInvoice(id) {
     await apiClient.deleteInvoice(id);
 }
-// Helper to generate invoice number
-function generateInvoiceNumber(pattern = 'INV-YYYYMMDD-NNNN') {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const timestamp = `${year}${month}${day}`;
-    const randomSuffix = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-    return pattern
-        .replace('YYYY', String(year))
-        .replace('MM', month)
-        .replace('DD', day)
-        .replace('YYYYMMDD', timestamp)
-        .replace('NNNN', randomSuffix);
+// Helper to get and increment invoice counter
+async function getNextInvoiceNumber() {
+    const settings = await getAdminSettings();
+    const startingNumber = settings?.invoiceStartingNumber || 1;
+    // Get all existing invoices to find the highest number
+    const allInvoices = await getAllInvoices();
+    let maxNumber = startingNumber - 1;
+    // Extract numbers from existing invoice numbers (format: Invoice-XXX)
+    allInvoices.forEach(invoice => {
+        const match = invoice.number.match(/^Invoice-(\d+)$/i);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNumber) {
+                maxNumber = num;
+            }
+        }
+    });
+    const nextNumber = maxNumber + 1;
+    return `Invoice-${String(nextNumber).padStart(3, '0')}`;
+}
+// Legacy function for backward compatibility - now uses sequential counter
+async function generateInvoiceNumber(pattern) {
+    return getNextInvoiceNumber();
 }
 // Convert Quote to Invoice format
-function convertQuoteToInvoice(quote) {
+async function convertQuoteToInvoice(quote) {
     // Validate quote has required data
     if (!quote.customer || !quote.customer.id || quote.customer.id.trim() === '') {
         throw new Error('Quote must have a valid customer to convert to invoice. The customer may have been deleted from the database.');
@@ -301,9 +314,10 @@ function convertQuoteToInvoice(quote) {
     const tax = invoiceItems.reduce((sum, item) => sum + (item.tax || 0), 0);
     const total = subtotal + tax;
     // Create invoice
+    const invoiceNumber = await getNextInvoiceNumber();
     const invoice = {
         id: generateId(),
-        number: generateInvoiceNumber(),
+        number: invoiceNumber,
         date: new Date().toISOString().split('T')[0],
         dueDate: quote.validUntil || undefined,
         customerId: quote.customer.id,
@@ -318,7 +332,7 @@ function convertQuoteToInvoice(quote) {
     };
     return invoice;
 }
-// Initialize sample vehicles on first load
+// Initialize sample data on first load
 async function initializeSampleData() {
     const vehicles = await getAllVehicles();
     if (vehicles.length === 0) {
@@ -331,6 +345,30 @@ async function initializeSampleData() {
         ];
         for (const vehicle of sampleVehicles) {
             await saveVehicle(vehicle);
+        }
+    }
+    const customers = await getAllCustomers();
+    if (customers.length === 0) {
+        const sampleCustomers = [
+            {
+                id: generateId(),
+                name: 'Ahmed Al Mansouri',
+                company: 'Al Mansouri Trading',
+                email: 'ahmed@almansouri.ae',
+                phone: '+971 4 1234567',
+                address: 'Dubai, UAE',
+            },
+            {
+                id: generateId(),
+                name: 'Fatima Al Maktoum',
+                company: 'Al Maktoum Logistics',
+                email: 'fatima@almaktoum.ae',
+                phone: '+971 4 7654321',
+                address: 'Abu Dhabi, UAE',
+            },
+        ];
+        for (const customer of sampleCustomers) {
+            await saveCustomer(customer);
         }
     }
 }

@@ -10,9 +10,12 @@ import type { VehicleProfitabilitySummary } from '@/lib/types'
 interface VehicleFinanceCardProps {
   vehicle: Vehicle
   profitability: VehicleProfitabilitySummary | null
+  onClick?: () => void
+  isSelected?: boolean
 }
 
-export function VehicleFinanceCard({ vehicle, profitability }: VehicleFinanceCardProps) {
+export function VehicleFinanceCard({ vehicle, profitability, onClick, isSelected }: VehicleFinanceCardProps) {
+  // ... existing logic ...
   const hasData = profitability && (profitability.allTimeRevenue > 0 || profitability.allTimeExpenses > 0)
   const isProfitable = profitability && profitability.allTimeProfit > 0
   const profitMargin = profitability && profitability.allTimeRevenue > 0
@@ -31,17 +34,24 @@ export function VehicleFinanceCard({ vehicle, profitability }: VehicleFinanceCar
   const borderColor = !hasData
     ? 'border-slate-200'
     : isProfitable
-    ? 'border-green-300'
-    : 'border-red-300'
+      ? 'border-green-300'
+      : 'border-red-300'
 
   const bgColor = !hasData
     ? 'bg-slate-50'
     : isProfitable
-    ? 'bg-green-50'
-    : 'bg-red-50'
+      ? 'bg-green-50'
+      : 'bg-red-50'
+
+  const selectionStyles = isSelected
+    ? 'ring-2 ring-blue-600 ring-offset-2 scale-[1.02]'
+    : ''
 
   return (
-    <Card className={`hover:shadow-lg transition-all ${borderColor} ${bgColor}`}>
+    <Card
+      className={`hover:shadow-lg transition-all ${borderColor} ${bgColor} cursor-pointer ${selectionStyles}`}
+      onClick={onClick}
+    >
       <CardContent className="p-4">
         <div className="space-y-3">
           {/* Header */}
@@ -94,13 +104,11 @@ export function VehicleFinanceCard({ vehicle, profitability }: VehicleFinanceCar
             </div>
           )}
 
-          {/* Action Button */}
-          <Link href={`/vehicle-finances/${vehicle.id}`}>
-            <Button variant="outline" className="w-full" size="sm">
-              View Details
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </Link>
+          {/* Action Button - Visual only now since entire card is clickable */}
+          <Button variant="outline" className="w-full" size="sm">
+            View Details
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
         </div>
       </CardContent>
     </Card>

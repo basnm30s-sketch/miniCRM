@@ -343,18 +343,25 @@ export class ClientSidePDFRenderer implements PDFRenderer {
   const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : ''
 
     const itemsHtml = quote.items
-      .map(
-        (item) => `
+      .map((item, index) => {
+        // Calculate grossAmount if not present
+        const grossAmount = item.grossAmount ?? (item.quantity * item.unitPrice)
+        
+        return `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc;">${item.vehicleTypeLabel}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: center;">${item.serialNumber ?? index + 1}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: left;">${item.vehicleTypeLabel || ''}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: left;">${item.vehicleNumber || ''}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: left;">${item.description || ''}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: center;">${item.rentalBasis || ''}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.quantity}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.unitPrice.toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.taxPercent}%</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${grossAmount.toFixed(2)}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${(item.lineTaxAmount || 0).toFixed(2)}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${(item.lineTotal || 0).toFixed(2)}</td>
       </tr>
     `
-      )
+      })
       .join('')
 
     return `
@@ -400,7 +407,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse;">
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse; table-layout: fixed;">
           <thead>
             <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
               <th style="padding: 8px; text-align: center;">Sl. no.</th>

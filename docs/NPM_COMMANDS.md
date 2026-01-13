@@ -204,6 +204,34 @@ npm run demo:populate
 Populates the database with demo/test data.  
 **Use this for:** Setting up test environment, demonstrating features, or resetting to known state.
 
+### Delete Module Data (Debugging Tool)
+```bash
+npm run delete:module-data
+```
+Interactive script for selective deletion of database entries by module.  
+**Use this for:** Cleaning up test data created during automation test runs, debugging, or resetting specific modules without affecting other data.
+
+**Features:**
+- Interactive menu to select which modules to delete
+- Shows record counts before deletion
+- Handles foreign key relationships automatically
+- Requires confirmation before deletion
+- Supports selective deletion (e.g., delete only quotations while keeping invoices)
+
+**Available Modules:**
+- Quotations (and quote items)
+- Invoices (and invoice items)
+- Purchase Orders (and PO items)
+- Customers
+- Vendors
+- Vehicles (and vehicle transactions)
+- Employees
+- Payslips
+- Vehicle Transactions
+- Expense Categories (custom only)
+
+**Note:** This is a debugging tool. Use with caution in production environments.
+
 ---
 
 ## Code Quality

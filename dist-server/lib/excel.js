@@ -137,7 +137,7 @@ class ClientSideExcelRenderer {
         }
         currentRow++; // Empty row
         // Title
-        worksheet.getCell(currentRow, 1).value = 'QUOTE';
+        worksheet.getCell(currentRow, 1).value = 'QUOTATION';
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
             fontSize: 16,
@@ -743,6 +743,269 @@ class ClientSideExcelRenderer {
             });
         }
         worksheet.getCell(footerRow + 2, 4).value = `Date: ${invoice.date}`;
+        this.applyCellStyle(worksheet.getCell(footerRow + 2, 4), {
+            alignment: { horizontal: 'right' },
+            fontSize: 10,
+        });
+        // Set column widths
+        worksheet.getColumn(1).width = 30; // Description
+        worksheet.getColumn(2).width = 10; // Quantity
+        worksheet.getColumn(3).width = 12; // Unit Price
+        worksheet.getColumn(4).width = 12; // Total
+        // Generate Excel file as buffer
+        const buffer = await workbook.xlsx.writeBuffer();
+        return new Blob([buffer], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+    }
+    async renderPurchaseOrderToExcel(po, adminSettings, vendorName) {
+        const workbook = new exceljs_1.default.Workbook();
+        const worksheet = workbook.addWorksheet('Purchase Order');
+        let currentRow = 1;
+        // Load branding URLs from fixed file locations
+        const brandingUrls = await (0, api_client_1.loadBrandingUrls)();
+        // Load images
+        const logoImage = await this.loadImageAsBuffer(brandingUrls.logoUrl);
+        const sealImage = await this.loadImageAsBuffer(brandingUrls.sealUrl);
+        const signatureImage = await this.loadImageAsBuffer(brandingUrls.signatureUrl);
+        // Header section with logo
+        if (logoImage) {
+            const logoId = workbook.addImage({
+                buffer: logoImage.buffer,
+                extension: logoImage.extension,
+            });
+            worksheet.addImage(logoId, {
+                tl: { col: 0, row: 0 },
+                ext: { width: 250, height: 80 },
+            });
+        }
+        // Company name (row 1, column 2 if logo exists, else column 1)
+        const companyNameCol = logoImage ? 2 : 1;
+        worksheet.getCell(currentRow, companyNameCol).value = adminSettings.companyName;
+        this.applyCellStyle(worksheet.getCell(currentRow, companyNameCol), {
+            bold: true,
+            fontSize: 14,
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        currentRow++;
+        if (adminSettings.address) {
+            worksheet.getCell(currentRow, companyNameCol).value = adminSettings.address;
+            this.applyCellStyle(worksheet.getCell(currentRow, companyNameCol), {
+                alignment: { horizontal: 'left', vertical: 'middle' },
+            });
+            currentRow++;
+        }
+        if (adminSettings.vatNumber) {
+            worksheet.getCell(currentRow, companyNameCol).value = `VAT: ${adminSettings.vatNumber}`;
+            this.applyCellStyle(worksheet.getCell(currentRow, companyNameCol), {
+                alignment: { horizontal: 'left', vertical: 'middle' },
+            });
+            currentRow++;
+        }
+        currentRow++; // Empty row
+        // Title
+        worksheet.getCell(currentRow, 1).value = 'PURCHASE ORDER';
+        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
+            bold: true,
+            fontSize: 16,
+            alignment: { horizontal: 'center' },
+        });
+        worksheet.mergeCells(currentRow, 1, currentRow, 4);
+        currentRow++;
+        // Document metadata
+        currentRow++; // Empty row
+        worksheet.getCell(currentRow, 1).value = 'PO #:';
+        worksheet.getCell(currentRow, 2).value = po.number;
+        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
+            bold: true,
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        this.applyCellStyle(worksheet.getCell(currentRow, 2), {
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        currentRow++;
+        worksheet.getCell(currentRow, 1).value = 'Date:';
+        worksheet.getCell(currentRow, 2).value = po.date;
+        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
+            bold: true,
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        this.applyCellStyle(worksheet.getCell(currentRow, 2), {
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        currentRow++;
+        const statusDisplay = po.status === 'accepted'
+            ? 'Accepted'
+            : po.status === 'sent'
+                ? 'Sent'
+                : po.status === 'draft'
+                    ? 'Draft'
+                    : po.status || 'Draft';
+        worksheet.getCell(currentRow, 1).value = 'Status:';
+        worksheet.getCell(currentRow, 2).value = statusDisplay;
+        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
+            bold: true,
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        this.applyCellStyle(worksheet.getCell(currentRow, 2), {
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        currentRow++;
+        // Vendor info section
+        currentRow++; // Empty row
+        worksheet.getCell(currentRow, 1).value = 'VENDOR';
+        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
+            bold: true,
+            fontSize: 12,
+            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } },
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        currentRow++;
+        worksheet.getCell(currentRow, 1).value = 'Name:';
+        worksheet.getCell(currentRow, 2).value = vendorName;
+        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
+            bold: true,
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        this.applyCellStyle(worksheet.getCell(currentRow, 2), {
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        currentRow++;
+        // Line items table header
+        currentRow++; // Empty row
+        const headerRow = currentRow;
+        worksheet.getCell(currentRow, 1).value = 'Description';
+        worksheet.getCell(currentRow, 2).value = 'Quantity';
+        worksheet.getCell(currentRow, 3).value = 'Unit Price';
+        worksheet.getCell(currentRow, 4).value = 'Total';
+        // Format header row
+        for (let col = 1; col <= 4; col++) {
+            const cell = worksheet.getCell(currentRow, col);
+            this.applyCellStyle(cell, {
+                bold: true,
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } },
+                alignment: { horizontal: col === 1 ? 'left' : 'right', vertical: 'middle' },
+                border: {
+                    top: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    left: { style: 'thin' },
+                    right: { style: 'thin' },
+                },
+            });
+        }
+        currentRow++;
+        // Line items with formulas
+        const firstItemRow = currentRow;
+        po.items.forEach((item, index) => {
+            const row = currentRow + index;
+            const qtyCol = 2;
+            const unitPriceCol = 3;
+            const totalCol = 4;
+            const description = item.description || item.vehicleNumber || '';
+            worksheet.getCell(row, 1).value = description;
+            worksheet.getCell(row, qtyCol).value = item.quantity || 0;
+            worksheet.getCell(row, unitPriceCol).value = item.unitPrice || 0;
+            // Formula for total: Quantity * Unit Price (tax is added at document level)
+            worksheet.getCell(row, totalCol).value = {
+                formula: `${this.getCellRef(row, qtyCol)}*${this.getCellRef(row, unitPriceCol)}`,
+            };
+            // Format number cells and set alignment
+            worksheet.getCell(row, 1).alignment = { horizontal: 'left', vertical: 'middle' }; // Description
+            worksheet.getCell(row, qtyCol).numFmt = '#,##0';
+            worksheet.getCell(row, qtyCol).alignment = { horizontal: 'right', vertical: 'middle' };
+            worksheet.getCell(row, unitPriceCol).numFmt = '#,##0.00';
+            worksheet.getCell(row, unitPriceCol).alignment = { horizontal: 'right', vertical: 'middle' };
+            worksheet.getCell(row, totalCol).numFmt = '#,##0.00';
+            worksheet.getCell(row, totalCol).alignment = { horizontal: 'right', vertical: 'middle' };
+            // Apply borders
+            for (let col = 1; col <= 4; col++) {
+                const cell = worksheet.getCell(row, col);
+                this.applyCellStyle(cell, {
+                    border: {
+                        bottom: { style: 'thin' },
+                        left: { style: 'thin' },
+                        right: { style: 'thin' },
+                    },
+                });
+            }
+        });
+        currentRow += po.items.length;
+        // Totals section
+        currentRow++; // Empty row
+        const lastItemRow = currentRow - 1;
+        const qtyRange = `${this.getCellRef(firstItemRow, 2)}:${this.getCellRef(lastItemRow, 2)}`;
+        const priceRange = `${this.getCellRef(firstItemRow, 3)}:${this.getCellRef(lastItemRow, 3)}`;
+        const taxRow = currentRow;
+        worksheet.getCell(currentRow, 1).value = 'Tax:';
+        worksheet.getCell(currentRow, 4).value = po.tax || 0;
+        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
+            bold: true,
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        this.applyCellStyle(worksheet.getCell(currentRow, 4), {
+            numFmt: '#,##0.00',
+            bold: true,
+            alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+        currentRow++;
+        const totalRow = currentRow;
+        worksheet.getCell(currentRow, 1).value = 'TOTAL:';
+        worksheet.getCell(currentRow, 4).value = {
+            formula: `SUMPRODUCT(${qtyRange},${priceRange})+${this.getCellRef(taxRow, 4)}`,
+        };
+        this.applyCellStyle(worksheet.getCell(currentRow, 1), {
+            bold: true,
+            fontSize: 12,
+            alignment: { horizontal: 'left', vertical: 'middle' },
+        });
+        this.applyCellStyle(worksheet.getCell(currentRow, 4), {
+            numFmt: '#,##0.00',
+            bold: true,
+            fontSize: 12,
+            alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+        currentRow++;
+        // Notes section
+        if (po.notes) {
+            currentRow++; // Empty row
+            worksheet.getCell(currentRow, 1).value = 'Notes:';
+            this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true });
+            currentRow++;
+            worksheet.getCell(currentRow, 1).value = po.notes;
+            worksheet.mergeCells(currentRow, 1, currentRow, 4);
+            currentRow++;
+        }
+        // Footer with signature and seal
+        currentRow += 2; // Extra space
+        const footerRow = currentRow;
+        // Signature
+        if (signatureImage) {
+            const sigId = workbook.addImage({
+                buffer: signatureImage.buffer,
+                extension: signatureImage.extension,
+            });
+            worksheet.addImage(sigId, {
+                tl: { col: 0, row: footerRow - 1 },
+                ext: { width: 180, height: 80 },
+            });
+        }
+        worksheet.getCell(footerRow, 1).value = 'Authorized By:';
+        this.applyCellStyle(worksheet.getCell(footerRow, 1), { fontSize: 10 });
+        if (signatureImage) {
+            worksheet.getRow(footerRow).height = 60;
+        }
+        // Seal (right side)
+        if (sealImage) {
+            const sealId = workbook.addImage({
+                buffer: sealImage.buffer,
+                extension: sealImage.extension,
+            });
+            worksheet.addImage(sealId, {
+                tl: { col: 3, row: footerRow - 1 },
+                ext: { width: 150, height: 100 },
+            });
+        }
+        worksheet.getCell(footerRow + 2, 4).value = `Date: ${po.date}`;
         this.applyCellStyle(worksheet.getCell(footerRow + 2, 4), {
             alignment: { horizontal: 'right' },
             fontSize: 10,

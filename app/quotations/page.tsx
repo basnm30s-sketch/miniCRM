@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-// top-of-page alerts replaced by toast notifications
 import { toast } from '@/hooks/use-toast'
+import QuoteForm from '@/app/quotations/QuoteForm'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,28 +16,49 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Eye, Trash2, Plus, FileText, Sheet, FileType } from 'lucide-react'
-import { Edit3 } from 'lucide-react'
-import { getAllQuotes, deleteQuote, getAdminSettings, convertQuoteToInvoice } from '@/lib/storage'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import {
+  Trash2,
+  Plus,
+  FileText,
+  Edit3,
+  ChevronDown,
+  Share2,
+  Download,
+  FileSpreadsheet,
+  File as FileIcon
+} from 'lucide-react'
+import { getAllQuotes, deleteQuote, getAdminSettings } from '@/lib/storage'
 import { ClientSidePDFRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
 import type { Quote } from '@/lib/types'
+import { Badge } from '@/components/ui/badge'
 
 export default function QuotationsPage() {
   const router = useRouter()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [previewQuote, setPreviewQuote] = useState<Quote | null>(null)
-  const [previewShowTerms, setPreviewShowTerms] = useState(false)
-  // notifications now use toasts
+  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
+  const [showTerms, setShowTerms] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
     const loadQuotes = async () => {
       try {
         const allQuotes = await getAllQuotes()
         setQuotes(allQuotes)
+        // Auto-select first quote if available
+        if (allQuotes.length > 0) {
+          setSelectedQuote((prev) => prev || allQuotes[0])
+        }
       } catch (error) {
         console.error('Error loading quotes:', error)
         toast({ title: 'Error', description: 'Failed to load quotations', variant: 'destructive' })
@@ -54,7 +74,13 @@ export default function QuotationsPage() {
     if (!deleteId) return
     try {
       await deleteQuote(deleteId)
-      setQuotes(quotes.filter((q) => q.id !== deleteId))
+      const updatedQuotes = quotes.filter((q) => q.id !== deleteId)
+      setQuotes(updatedQuotes)
+      // Clear selection if deleted quote was selected
+      if (selectedQuote?.id === deleteId) {
+        setSelectedQuote(updatedQuotes.length > 0 ? updatedQuotes[0] : null)
+        setIsEditing(false)
+      }
       toast({ title: 'Deleted', description: 'Quotation deleted successfully' })
       setDeleteId(null)
     } catch (error) {
@@ -114,12 +140,6 @@ export default function QuotationsPage() {
     }
   }
 
-  const handlePreview = (quote: Quote) => {
-    setPreviewShowTerms(false)
-    setPreviewQuote(quote)
-  }
-
-  const closePreview = () => setPreviewQuote(null)
 
   const handleCreateInvoice = (quote: Quote) => {
     try {
@@ -154,221 +174,340 @@ export default function QuotationsPage() {
     }
   }
 
+  const handleQuoteSave = (savedQuote: Quote) => {
+    setQuotes((prev) => prev.map((q) => (q.id === savedQuote.id ? savedQuote : q)))
+    setSelectedQuote(savedQuote)
+    setIsEditing(false)
+  }
+
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="text-slate-500">Loading quotations...</div>
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="text-slate-500 animate-pulse">Loading quotations...</div>
       </div>
     )
   }
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-start mb-8">
+    <div className="flex h-[calc(100vh-4rem)] flex-col">
+      {/* Top Bar */}
+      <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 bg-white">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Quotations</h1>
-          <p className="text-slate-500">Manage your quotations</p>
+          <h1 className="text-2xl font-bold text-slate-900">Quotations</h1>
+          <p className="text-sm text-slate-500">Manage and track your customer quotations</p>
         </div>
         <Link href="/quotes/create">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
             <Plus className="w-4 h-4 mr-2" />
             New Quotation
           </Button>
         </Link>
       </div>
 
-      {/* toasts will show notifications; no top-of-page alerts */}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>All Quotations ({quotes.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Quote #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Vehicle Type</TableHead>
-                  <TableHead className="text-right">Total (AED)</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {quotes.length > 0 ? (
-                  quotes.map((quote) => {
-                    const vehicleTypes = quote.items.map((item) => item.vehicleTypeLabel).filter(Boolean)
-                    const uniqueVehicles = [...new Set(vehicleTypes)].join(', ')
-
-                    return (
-                      <TableRow key={quote.id}>
-                        <TableCell className="font-mono font-semibold text-slate-900">{quote.number}</TableCell>
-                        <TableCell className="text-slate-900">{quote.customer?.name || 'N/A'}</TableCell>
-                        <TableCell className="text-slate-600">{quote.date}</TableCell>
-                        <TableCell className="text-slate-600">{uniqueVehicles || 'N/A'}</TableCell>
-                        <TableCell className="text-right font-semibold text-slate-900">
-                          AED {quote.total.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-2 justify-end">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              title="Preview"
-                              onClick={() => handlePreview(quote)}
-                              className="p-2 h-8 w-8"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Link href={{ pathname: '/quotes/create', query: { id: quote.id } }}>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                title="Edit"
-                                className="p-2 h-8 w-8"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </Button>
-                            </Link>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDownloadPDF(quote)}
-                              title="Save PDF"
-                              className="p-2 h-8 w-8 text-action-pdf hover:text-action-pdf hover:bg-action-pdf/10 border-action-pdf/20"
-                            >
-                              <FileText className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDownloadExcel(quote)}
-                              title="Save Excel"
-                              className="p-2 h-8 w-8 text-action-excel hover:text-action-excel hover:bg-action-excel/10 border-action-excel/20"
-                            >
-                              <Sheet className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDownloadDocx(quote)}
-                              title="Save Word"
-                              className="p-2 h-8 w-8 text-action-word hover:text-action-word hover:bg-action-word/10 border-action-word/20"
-                            >
-                              <FileType className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleCreateInvoice(quote)}
-                              title="Create Invoice"
-                              className="p-2 h-8 w-8 text-green-600 hover:text-green-700"
-                            >
-                              <FileText className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setDeleteId(quote.id)}
-                              title="Delete"
-                              className="p-2 h-8 w-8 text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-slate-500 py-8">
-                      No quotations yet. <Link href="/quotes/create" className="text-blue-600 hover:underline">Create one</Link>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Pane - List View */}
+        <div className="w-[380px] border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
+          <div className="p-3 bg-slate-50/50 border-b border-slate-200 sticky top-0 z-10 backdrop-blur-sm">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">
+              All Quotations ({quotes.length})
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Preview Modal (simple) */}
-      {previewQuote && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-6">
-          <div className="fixed inset-0 bg-black/40" onClick={closePreview} />
-          <div className="relative bg-white w-full max-w-4xl rounded shadow-lg p-6 overflow-auto max-h-[90vh]">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h2 className="text-xl font-bold">Preview - {previewQuote.number}</h2>
-                <p className="text-sm text-gray-600">{previewQuote.customer?.name || 'N/A'}</p>
+          <div className="divide-y divide-slate-100">
+            {quotes.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">
+                <p className="text-sm">No quotations found.</p>
+                <Link href="/quotes/create" className="text-blue-600 hover:underline mt-2 text-sm inline-block">
+                  Create your first quotation
+                </Link>
               </div>
-              <div>
-                <Button variant="ghost" onClick={closePreview}>Close</Button>
-              </div>
-            </div>
+            ) : (
+              quotes.map((quote) => {
+                const vehicleTypes = quote.items.map((item) => item.vehicleTypeLabel).filter(Boolean)
+                const uniqueVehicles = [...new Set(vehicleTypes)].join(', ')
+                const isSelected = selectedQuote?.id === quote.id
 
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold">Items</h3>
-                <table className="w-full text-sm mt-2">
-                  <thead className="bg-gray-100 border-b">
-                    <tr>
-                      <th className="text-left p-2">Vehicle Type</th>
-                      <th className="text-right p-2">Qty</th>
-                      <th className="text-right p-2">Unit</th>
-                      <th className="text-right p-2">Tax %</th>
-                      <th className="text-right p-2">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewQuote.items.map((item) => (
-                      <tr key={item.id} className="border-b">
-                        <td className="p-2">{item.vehicleTypeLabel || 'N/A'}</td>
-                        <td className="p-2 text-right">{item.quantity}</td>
-                        <td className="p-2 text-right">{item.unitPrice.toFixed(2)}</td>
-                        <td className="p-2 text-right">{item.taxPercent}</td>
-                        <td className="p-2 text-right">{(item.quantity * item.unitPrice + (item.quantity * item.unitPrice * item.taxPercent) / 100).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div>
-                <h3 className="font-semibold">Totals</h3>
-                <div className="mt-2">
-                  <div className="flex justify-between"><span>Subtotal</span><span>AED {previewQuote.subTotal.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span>Total Tax</span><span>AED {previewQuote.totalTax.toFixed(2)}</span></div>
-                  <div className="flex justify-between font-bold"><span>Total</span><span>AED {previewQuote.total.toFixed(2)}</span></div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold">Terms &amp; Conditions</h3>
-                {/* Collapsible terms: show small preview and let user expand */}
-                {!previewShowTerms ? (
-                  <div className="mt-2">
-                    <div className="max-h-24 overflow-hidden prose prose-sm" dangerouslySetInnerHTML={{ __html: (previewQuote.terms || '').slice(0, 600) }} />
-                    <div className="mt-2">
-                      <button className="text-blue-600 hover:underline" onClick={() => setPreviewShowTerms(true)}>Show full Terms &amp; Conditions</button>
+                return (
+                  <div
+                    key={quote.id}
+                    className={`group px-4 py-3 cursor-pointer transition-all duration-200 border-l-[3px] hover:bg-slate-50 ${isSelected
+                      ? 'bg-blue-50/60 border-blue-600'
+                      : 'border-transparent hover:border-slate-300'
+                      }`}
+                    onClick={() => {
+                      setSelectedQuote(quote)
+                      setIsEditing(false)
+                    }}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <span className={`font-mono text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-slate-900'}`}>
+                        {quote.number}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-900">
+                        AED {quote.total.toFixed(2)}
+                      </span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="mt-2 prose prose-sm">
-                    <div dangerouslySetInnerHTML={{ __html: previewQuote.terms || '' }} />
-                    <div className="mt-2">
-                      <button className="text-sm text-gray-600 hover:underline" onClick={() => setPreviewShowTerms(false)}>Collapse</button>
+
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="text-sm text-slate-700 font-medium truncate pr-2">
+                        {quote.customer?.name || 'Unknown Customer'}
+                      </div>
+                      <div className="text-xs text-slate-400 whitespace-nowrap">
+                        {quote.date}
+                      </div>
                     </div>
+
+                    {uniqueVehicles && (
+                      <div className="text-xs text-slate-500 truncate mt-1 bg-slate-100 inline-block px-1.5 py-0.5 rounded">
+                        {uniqueVehicles}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+                )
+              })
+            )}
           </div>
         </div>
-      )}
+
+        {/* Right Pane - Detail View */}
+        <div className="flex-1 bg-slate-50 overflow-hidden flex flex-col">
+          {selectedQuote ? (
+            isEditing ? (
+              <div className="h-full overflow-y-auto bg-white">
+                <QuoteForm
+                  initialData={selectedQuote}
+                  onSave={handleQuoteSave}
+                  onCancel={() => setIsEditing(false)}
+                />
+              </div>
+            ) : (
+              <>
+                {/* Header Actions */}
+                <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-start shadow-sm z-10">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-2xl font-bold text-slate-900">{selectedQuote.number}</h2>
+                      <Badge variant="outline" className="text-slate-600 border-slate-300 font-normal">
+                        {selectedQuote.date}
+                      </Badge>
+                    </div>
+                    <p className="text-slate-600 mt-1 font-medium">{selectedQuote.customer?.name || 'N/A'}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-9">
+                          <Download className="w-4 h-4 mr-2 text-slate-500" />
+                          Download
+                          <ChevronDown className="w-3 h-3 ml-2 opacity-50" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => handleDownloadPDF(selectedQuote)}>
+                          <FileText className="w-4 h-4 mr-2 text-red-500" />
+                          PDF Document
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownloadExcel(selectedQuote)}>
+                          <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" />
+                          Excel Spreadsheet
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownloadDocx(selectedQuote)}>
+                          <FileIcon className="w-4 h-4 mr-2 text-blue-600" />
+                          Word Document
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => setIsEditing(true)}
+                    >
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => handleCreateInvoice(selectedQuote)}
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Convert to Invoice
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      onClick={() => setDeleteId(selectedQuote.id)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
+
+
+                  </div>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+                  {/* Customer Card */}
+                  <Card className="shadow-sm border-slate-200">
+                    <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                      <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Customer Details</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4 grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="block text-slate-500 text-xs mb-1">Customer Name</span>
+                        <span className="font-medium text-slate-900">{selectedQuote.customer?.name || 'N/A'}</span>
+                      </div>
+                      {selectedQuote.customer?.company && (
+                        <div>
+                          <span className="block text-slate-500 text-xs mb-1">Company</span>
+                          <span className="font-medium text-slate-900">{selectedQuote.customer.company}</span>
+                        </div>
+                      )}
+                      {selectedQuote.customer?.email && (
+                        <div>
+                          <span className="block text-slate-500 text-xs mb-1">Email</span>
+                          <span className="text-slate-900">{selectedQuote.customer.email}</span>
+                        </div>
+                      )}
+                      {selectedQuote.customer?.phone && (
+                        <div>
+                          <span className="block text-slate-500 text-xs mb-1">Phone</span>
+                          <span className="text-slate-900">{selectedQuote.customer.phone}</span>
+                        </div>
+                      )}
+                      {selectedQuote.customer?.address && (
+                        <div className="col-span-2">
+                          <span className="block text-slate-500 text-xs mb-1">Details</span>
+                          <span className="text-slate-900">{selectedQuote.customer.address}</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Items & Totals Group */}
+                  <div className="grid grid-cols-3 gap-6">
+                    {/* Items Table */}
+                    <Card className="col-span-2 shadow-sm border-slate-200">
+                      <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Line Items</CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100">
+                            <tr>
+                              <th className="text-left py-3 px-4 font-medium">Description</th>
+                              <th className="text-right py-3 px-4 font-medium">Qty</th>
+                              <th className="text-right py-3 px-4 font-medium">Price</th>
+                              <th className="text-right py-3 px-4 font-medium">Tax</th>
+                              <th className="text-right py-3 px-4 font-medium">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {selectedQuote.items.map((item) => {
+                              const lineTotal = item.quantity * item.unitPrice + (item.quantity * item.unitPrice * item.taxPercent) / 100
+                              return (
+                                <tr key={item.id} className="hover:bg-slate-50/50">
+                                  <td className="py-3 px-4 font-medium text-slate-700">{item.vehicleTypeLabel || 'Item'}</td>
+                                  <td className="py-3 px-4 text-right text-slate-600">{item.quantity}</td>
+                                  <td className="py-3 px-4 text-right text-slate-600">{item.unitPrice.toFixed(2)}</td>
+                                  <td className="py-3 px-4 text-right text-slate-500 text-xs">{item.taxPercent}%</td>
+                                  <td className="py-3 px-4 text-right font-semibold text-slate-900">{lineTotal.toFixed(2)}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </CardContent>
+                    </Card>
+
+                    {/* Financial Summary */}
+                    <Card className="shadow-sm border-slate-200 h-fit">
+                      <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Summary</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4 space-y-3">
+                        <div className="flex justify-between text-sm text-slate-600">
+                          <span>Subtotal</span>
+                          <span>AED {selectedQuote.subTotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-slate-600">
+                          <span>Tax</span>
+                          <span>AED {selectedQuote.totalTax.toFixed(2)}</span>
+                        </div>
+                        <div className="pt-3 mt-3 border-t border-slate-100 flex justify-between items-baseline">
+                          <span className="font-semibold text-slate-900">Total</span>
+                          <span className="text-xl font-bold text-slate-900">AED {selectedQuote.total.toFixed(2)}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Additional Info (Terms/Notes) */}
+                  {(selectedQuote.terms || selectedQuote.notes) && (
+                    <div className="grid grid-cols-1 gap-6">
+                      {selectedQuote.notes && (
+                        <Card className="shadow-sm border-slate-200">
+                          <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-4">
+                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedQuote.notes}</p>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {selectedQuote.terms && (
+                        <Card className="shadow-sm border-slate-200">
+                          <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Terms & Conditions</CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-4">
+                            <div className={`prose prose-sm max-w-none text-slate-600 ${!showTerms ? 'line-clamp-4' : ''}`}
+                              dangerouslySetInnerHTML={{ __html: selectedQuote.terms }}
+                            />
+                            {selectedQuote.terms.length > 200 && (
+                              <button
+                                className="text-blue-600 hover:text-blue-700 text-xs font-medium mt-2 flex items-center"
+                                onClick={() => setShowTerms(!showTerms)}
+                              >
+                                {showTerms ? 'Show Less' : 'Read More'}
+                                <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showTerms ? 'rotate-180' : ''}`} />
+                              </button>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-50/50">
+              <div className="w-16 h-16 mb-4 rounded-full bg-slate-100 flex items-center justify-center">
+                <FileText className="w-8 h-8 text-slate-300" />
+              </div>
+              <p className="text-lg font-medium text-slate-600">No quotation selected</p>
+              <p className="text-sm max-w-xs text-center mt-2">
+                Select a quotation from the list to view details or create a new one.
+              </p>
+              <Link href="/quotes/create" className="mt-6">
+                <Button variant="outline">Create New Quotation</Button>
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
@@ -379,13 +518,13 @@ export default function QuotationsPage() {
               Are you sure you want to delete this quotation? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex gap-4">
+          <div className="flex justify-end gap-3 mt-4">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              Delete
+              Delete Quote
             </AlertDialogAction>
           </div>
         </AlertDialogContent>

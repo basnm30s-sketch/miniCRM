@@ -3,7 +3,7 @@
  * Provides DOCX export functionality for invoices and quotes with formatting, images, and tables
  */
 
-import { Quote, AdminSettings } from '@/lib/types'
+import { Quote, AdminSettings, PurchaseOrder } from '@/lib/types'
 import type { Invoice } from '@/lib/storage'
 import {
   Document,
@@ -49,6 +49,15 @@ export interface DOCXRenderer {
    * @returns Promise<Blob> - DOCX file as blob
    */
   renderInvoiceToDocx(invoice: Invoice, adminSettings: AdminSettings, customerName: string): Promise<Blob>
+
+  /**
+   * Render a purchase order to DOCX blob
+   * @param po - Purchase Order object
+   * @param adminSettings - Admin company settings
+   * @param vendorName - Vendor name for display
+   * @returns Promise<Blob> - DOCX file as blob
+   */
+  renderPurchaseOrderToDocx(po: PurchaseOrder, adminSettings: AdminSettings, vendorName: string): Promise<Blob>
 
   /**
    * Trigger download of a DOCX blob in the browser
@@ -1370,6 +1379,508 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
                   children: [
                     new TextRun({
                       text: `Date: ${invoice.date}`,
+                      size: 20, // 10pt
+                    }),
+                  ],
+                  alignment: AlignmentType.RIGHT,
+                  spacing: { before: 100 },
+                }),
+              ],
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 0, left: 0, right: 0 },
+            }),
+          ],
+        }),
+      ],
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: TableBorders.NONE,
+    })
+
+    children.push(footerTable)
+
+    // Create document with proper margins
+    const doc = new Document({
+      sections: [
+        {
+          properties: {
+            page: {
+              margin: {
+                top: 1440, // 1 inch
+                right: 1440,
+                bottom: 1440,
+                left: 1440,
+              },
+            },
+          },
+          children,
+        },
+      ],
+    })
+
+    // Generate DOCX file as buffer
+    const buffer = await Packer.toBuffer(doc)
+    return new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+  }
+
+  async renderPurchaseOrderToDocx(po: PurchaseOrder, adminSettings: AdminSettings, vendorName: string): Promise<Blob> {
+    const children: (Paragraph | Table)[] = []
+
+    // Load branding URLs from fixed file locations
+    const brandingUrls = await loadBrandingUrls()
+    
+    // Load images with type detection
+    const logoData = await this.loadImageAsBuffer(brandingUrls.logoUrl)
+    const sealData = await this.loadImageAsBuffer(brandingUrls.sealUrl)
+    const signatureData = await this.loadImageAsBuffer(brandingUrls.signatureUrl)
+
+    // Logo - centered at top
+    if (logoData) {
+      children.push(
+        new Paragraph({
+          children: [
+            new ImageRun({
+              type: logoData.type,
+              data: logoData.buffer,
+              transformation: {
+                width: 250,
+                height: 80,
+              },
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        })
+      )
+    }
+
+    // Company name - centered, bold
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: adminSettings.companyName,
+            bold: true,
+            size: 40, // 20pt
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 100 },
+      })
+    )
+
+    // Address and VAT - centered
+    if (adminSettings.address) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: adminSettings.address,
+              size: 22, // 11pt
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 50 },
+        })
+      )
+    }
+
+    if (adminSettings.vatNumber) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `VAT: ${adminSettings.vatNumber}`,
+              size: 22, // 11pt
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        })
+      )
+    }
+
+    // Bottom border line
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: '' })],
+        border: {
+          bottom: {
+            color: '333333',
+            size: 24, // 12pt
+            style: BorderStyle.SINGLE,
+          },
+        },
+        spacing: { after: 200 },
+      })
+    )
+
+    // Title - centered, bold, larger
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'PURCHASE ORDER',
+            bold: true,
+            size: 36, // 18pt
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 200, after: 200 },
+      })
+    )
+
+    // Document metadata
+    const statusDisplay =
+      po.status === 'accepted'
+        ? 'Accepted'
+        : po.status === 'sent'
+          ? 'Sent'
+          : po.status === 'draft'
+            ? 'Draft'
+            : po.status || 'Draft'
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'PO #: ', bold: true }),
+          new TextRun({ text: po.number }),
+        ],
+        spacing: { after: 100 },
+      })
+    )
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Date: ', bold: true }),
+          new TextRun({ text: po.date }),
+        ],
+        spacing: { after: 100 },
+      })
+    )
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Status: ', bold: true }),
+          new TextRun({ text: statusDisplay }),
+        ],
+        spacing: { after: 400 },
+      })
+    )
+
+    // Vendor info section
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'VENDOR',
+            bold: true,
+            size: 26, // 13pt
+            color: '0066CC', // Blue color
+          }),
+        ],
+        spacing: { before: 200, after: 100 },
+        shading: {
+          type: ShadingType.SOLID,
+          color: 'F9F9F9',
+          fill: 'F9F9F9',
+        },
+      })
+    )
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: vendorName, bold: true }),
+        ],
+        spacing: { after: 200 },
+      })
+    )
+
+    // Line items table
+    const lineItemRows: TableRow[] = [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: 'Description', bold: true })],
+              }),
+            ],
+            shading: {
+              type: ShadingType.SOLID,
+              color: 'E0E0E0',
+              fill: 'E0E0E0',
+            },
+            width: { size: 30, type: WidthType.PERCENTAGE },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: 'Quantity', bold: true })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            shading: {
+              type: ShadingType.SOLID,
+              color: 'E0E0E0',
+              fill: 'E0E0E0',
+            },
+            width: { size: 10, type: WidthType.PERCENTAGE },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: 'Unit Price', bold: true })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            shading: {
+              type: ShadingType.SOLID,
+              color: 'E0E0E0',
+              fill: 'E0E0E0',
+            },
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: 'Total', bold: true })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            shading: {
+              type: ShadingType.SOLID,
+              color: 'E0E0E0',
+              fill: 'E0E0E0',
+            },
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+        ],
+      }),
+    ]
+
+    po.items.forEach((item) => {
+      const lineTotal = (item.quantity || 0) * (item.unitPrice || 0)
+
+      lineItemRows.push(
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [new TextRun({ text: item.description || item.vehicleNumber || '' })],
+                }),
+              ],
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+            }),
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [new TextRun({ text: (item.quantity || 0).toString() })],
+                  alignment: AlignmentType.RIGHT,
+                }),
+              ],
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+            }),
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [new TextRun({ text: (item.unitPrice || 0).toFixed(2) })],
+                  alignment: AlignmentType.RIGHT,
+                }),
+              ],
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+            }),
+            new TableCell({
+              children: [
+                new Paragraph({
+                  children: [new TextRun({ text: lineTotal.toFixed(2) })],
+                  alignment: AlignmentType.RIGHT,
+                }),
+              ],
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+            }),
+          ],
+        })
+      )
+    })
+
+    // Add totals rows to the same table for proper alignment
+    lineItemRows.push(
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: 'Tax:' })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: (po.tax || 0).toFixed(2) })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+        ],
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [new Paragraph({ text: '' })],
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'TOTAL:',
+                    bold: true,
+                    size: 28, // 14pt
+                  }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: (po.amount || 0).toFixed(2),
+                    bold: true,
+                    size: 28, // 14pt
+                  }),
+                ],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+          }),
+        ],
+      })
+    )
+
+    children.push(
+      new Table({
+        rows: lineItemRows,
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: {
+          top: { style: BorderStyle.SINGLE, size: 12, color: '333333' },
+          bottom: { style: BorderStyle.SINGLE, size: 12, color: '333333' },
+          left: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+          right: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+          insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
+          insideVertical: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
+        },
+        margins: { marginUnitType: WidthType.DXA, top: 0, bottom: 200, left: 0, right: 0 },
+      })
+    )
+
+    // Notes section
+    if (po.notes) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: 'Notes:',
+              bold: true,
+            }),
+          ],
+          spacing: { before: 200 },
+        })
+      )
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: po.notes })],
+          spacing: { after: 200 },
+        })
+      )
+    }
+
+    // Footer with signature and seal
+    const footerTable = new Table({
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [
+                signatureData
+                  ? new Paragraph({
+                      children: [
+                        new ImageRun({
+                          type: signatureData.type,
+                          data: signatureData.buffer,
+                          transformation: {
+                            width: 180,
+                            height: 80,
+                          },
+                        }),
+                      ],
+                    })
+                  : new Paragraph({ text: '' }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: 'Authorized By:',
+                      size: 20, // 10pt
+                    }),
+                  ],
+                  spacing: { before: 100 },
+                }),
+              ],
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              margins: { marginUnitType: WidthType.DXA, top: 200, bottom: 0, left: 0, right: 0 },
+            }),
+            new TableCell({
+              children: [
+                sealData
+                  ? new Paragraph({
+                      children: [
+                        new ImageRun({
+                          type: sealData.type,
+                          data: sealData.buffer,
+                          transformation: {
+                            width: 150,
+                            height: 100,
+                          },
+                        }),
+                      ],
+                      alignment: AlignmentType.RIGHT,
+                    })
+                  : new Paragraph({ text: '' }),
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: `Date: ${po.date}`,
                       size: 20, // 10pt
                     }),
                   ],

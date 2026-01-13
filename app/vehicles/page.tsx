@@ -389,8 +389,8 @@ export default function VehiclesPage() {
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/40" onClick={closeModal} />
-          <div className="bg-white rounded-lg shadow-xl z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200">
+          <div className="bg-white rounded-lg shadow-xl z-10 w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-slate-200 sticky top-0 bg-white z-10 rounded-t-lg">
               <h3 className="text-xl font-semibold text-slate-900">
                 {editingId ? 'Edit' : 'Add'} Vehicle
               </h3>
@@ -399,14 +399,15 @@ export default function VehiclesPage() {
               </p>
             </div>
 
-            {error && (
-              <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-                <AlertCircle className="w-4 h-4" />
-                <span className="text-sm">{error}</span>
-              </div>
-            )}
+            <div className="overflow-y-auto flex-1">
+              {error && (
+                <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm">{error}</span>
+                </div>
+              )}
 
-            <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4">
               {/* Vehicle Identification Section */}
               <div className="border border-slate-200 rounded-lg">
                 <button
@@ -678,9 +679,10 @@ export default function VehiclesPage() {
                   </div>
                 )}
               </div>
+              </div>
             </div>
 
-            <div className="p-6 border-t border-slate-200 flex justify-end gap-3">
+            <div className="p-6 border-t border-slate-200 flex justify-end gap-3 sticky bottom-0 bg-white z-10 rounded-b-lg">
               <button
                 className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50"
                 onClick={closeModal}

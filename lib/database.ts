@@ -427,6 +427,35 @@ function createTables(database: any): void {
     )
   `)
 
+  // Migrate po_items table to add new columns for vehicle and rental basis support
+  const poItemsNewColumns = [
+    { name: 'serialNumber', type: 'INTEGER' },
+    { name: 'vehicleTypeId', type: 'TEXT' },
+    { name: 'vehicleTypeLabel', type: 'TEXT' },
+    { name: 'vehicleNumber', type: 'TEXT' },
+    { name: 'rentalBasis', type: 'TEXT' },
+    { name: 'taxPercent', type: 'REAL' },
+    { name: 'grossAmount', type: 'REAL' },
+    { name: 'lineTaxAmount', type: 'REAL' },
+    { name: 'lineTotal', type: 'REAL' },
+  ]
+
+  poItemsNewColumns.forEach(({ name, type }) => {
+    try {
+      database.prepare(`SELECT ${name} FROM po_items LIMIT 1`).get()
+    } catch (error: any) {
+      try {
+        database.exec(`ALTER TABLE po_items ADD COLUMN ${name} ${type}`)
+        console.log(`Added ${name} column to po_items table`)
+      } catch (alterError: any) {
+        const errorMsg = alterError?.message || String(alterError)
+        if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+          console.warn(`Migration warning for ${name}:`, errorMsg)
+        }
+      }
+    }
+  })
+
   // Invoices
   database.exec(`
     CREATE TABLE IF NOT EXISTS invoices (

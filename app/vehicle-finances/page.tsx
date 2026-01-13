@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
-import { VehicleFinanceDashboard } from '@/components/vehicle-finance-dashboard'
 import { VehicleFinanceCard } from '@/components/vehicle-finance-card'
 import { VehicleFinanceSearch } from '@/components/vehicle-finance-search'
-import { getAllVehicles, getVehicleProfitability, getVehicleFinanceDashboard } from '@/lib/storage'
+import { VehicleFinanceDetailView } from '@/components/vehicle-finance-detail-view'
+import { getAllVehicles, getVehicleProfitability } from '@/lib/storage'
+import { Button } from '@/components/ui/button'
+import { ArrowLeft } from 'lucide-react'
 import type { Vehicle } from '@/lib/types'
 import type { VehicleProfitabilitySummary } from '@/lib/types'
 
@@ -13,8 +16,11 @@ interface VehicleWithProfitability extends Vehicle {
   profitability: VehicleProfitabilitySummary | null
 }
 
-export default function VehicleFinancesPage() {
-  const [dashboardData, setDashboardData] = useState<any>(null)
+function VehicleFinancesContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const selectedVehicleId = searchParams?.get('vehicleId')
+
   const [vehicles, setVehicles] = useState<VehicleWithProfitability[]>([])
   const [filteredVehicles, setFilteredVehicles] = useState<VehicleWithProfitability[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -36,27 +42,16 @@ export default function VehicleFinancesPage() {
     try {
       if (isMounted.current) setLoading(true)
 
-      // Load dashboard and vehicles in parallel, but don't fail if dashboard fails
-      const [dashboardResult, allVehicles] = await Promise.allSettled([
-        getVehicleFinanceDashboard(),
-        getAllVehicles(),
-      ])
+      const allVehicles = await getAllVehicles()
 
       if (!isMounted.current) return
 
-      // Set dashboard data if successful
-      if (dashboardResult.status === 'fulfilled') {
-        setDashboardData(dashboardResult.value)
-      } else {
-        console.warn('Failed to load dashboard data:', dashboardResult.reason)
-        setDashboardData(null)
-      }
-
-      // Load vehicles
-      if (allVehicles.status === 'fulfilled') {
+      if (allVehicles) {
         // Load profitability for each vehicle
+        // Optimization: We could lazy load this, but for the list card we need it.
+        // If performance issues arise, we can paginate or simplify the list card.
         const vehiclesWithData = await Promise.all(
-          allVehicles.value.map(async (vehicle) => {
+          allVehicles.map(async (vehicle) => {
             try {
               const profitability = await getVehicleProfitability(vehicle.id)
               return { ...vehicle, profitability }
@@ -68,7 +63,6 @@ export default function VehicleFinancesPage() {
 
         if (isMounted.current) setVehicles(vehiclesWithData)
       } else {
-        console.error('Failed to load vehicles:', allVehicles.reason)
         if (isMounted.current) setVehicles([])
       }
     } catch (error) {
@@ -144,70 +138,98 @@ export default function VehicleFinancesPage() {
     setFilteredVehicles(filtered)
   }
 
+  const handleVehicleSelect = (vehicleId: string) => {
+    // Update URL without full reload
+    const params = new URLSearchParams(searchParams?.toString() || '')
+    params.set('vehicleId', vehicleId)
+    router.replace(`/vehicle-finances?${params.toString()}`)
+  }
+
+  const handleBackToList = () => {
+    const params = new URLSearchParams(searchParams?.toString() || '')
+    params.delete('vehicleId')
+    router.replace(`/vehicle-finances?${params.toString()}`)
+  }
+
   if (loading) {
     return (
       <div className="p-8">
-        <div className="text-slate-500">Loading vehicle finances...</div>
+        <div className="text-slate-500">Loading vehicles...</div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">Vehicle Finances</h1>
-        <p className="text-slate-600 mt-1">Track expenses and revenue for each vehicle</p>
+    <div className="h-[calc(100vh-theme(spacing.header))] flex flex-col md:flex-row overflow-hidden bg-slate-50/50">
+
+      {/* Left Sidebar - Vehicle List */}
+      <div className={`
+        w-full md:w-1/3 lg:w-[400px] border-r border-slate-200 bg-white flex flex-col h-full
+        ${selectedVehicleId ? 'hidden md:flex' : 'flex'}
+      `}>
+        <div className="p-4 border-b border-slate-200 bg-white z-10 space-y-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Fleet Management</h1>
+            <p className="text-xs text-slate-500">Select a vehicle to view details</p>
+          </div>
+
+          <VehicleFinanceSearch
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            profitabilityFilter={profitabilityFilter}
+            onProfitabilityFilterChange={setProfitabilityFilter}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            resultCount={filteredVehicles.length}
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+          {filteredVehicles.length === 0 ? (
+            <div className="text-center py-8 text-slate-500 text-sm">
+              {searchQuery ? 'No vehicles match your filters.' : 'No vehicles found.'}
+            </div>
+          ) : (
+            filteredVehicles.map((vehicle) => (
+              <div key={vehicle.id}>
+                <VehicleFinanceCard
+                  vehicle={vehicle}
+                  profitability={vehicle.profitability}
+                  onClick={() => handleVehicleSelect(vehicle.id)}
+                  isSelected={selectedVehicleId === vehicle.id}
+                />
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
-      {/* Dashboard Section */}
-      {dashboardData ? (
-        <div>
-          <VehicleFinanceDashboard data={dashboardData} />
-        </div>
-      ) : (
-        <Card className="mb-8">
-          <CardContent className="p-4">
-            <p className="text-sm text-slate-500">Dashboard data unavailable. Vehicle list is still available below.</p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Right Content - Detail View */}
+      <div className={`
+        flex-1 bg-slate-50 h-full overflow-hidden flex flex-col
+        ${!selectedVehicleId ? 'hidden md:flex' : 'flex'}
+      `}>
+        {selectedVehicleId ? (
+          <div className="h-full flex flex-col">
+            {/* Mobile Back Button */}
+            <div className="md:hidden p-4 border-b border-slate-200 bg-white flex items-center">
+              <Button variant="ghost" size="sm" onClick={handleBackToList} className="gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                Back to List
+              </Button>
+            </div>
 
-      {/* Vehicle List Section */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-4">Vehicles</h2>
-
-        <VehicleFinanceSearch
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
-          profitabilityFilter={profitabilityFilter}
-          onProfitabilityFilterChange={setProfitabilityFilter}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          resultCount={filteredVehicles.length}
-        />
-
-        {filteredVehicles.length === 0 ? (
-          <Card className="mt-4">
-            <CardContent className="p-8 text-center">
-              <p className="text-slate-500">
-                {searchQuery || statusFilter !== '__all__' || profitabilityFilter !== '__all__'
-                  ? 'No vehicles match your filters.'
-                  : 'No vehicles found.'}
-              </p>
-            </CardContent>
-          </Card>
+            <VehicleFinanceDetailView vehicleId={selectedVehicleId} />
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-            {filteredVehicles.map((vehicle) => (
-              <VehicleFinanceCard
-                key={vehicle.id}
-                vehicle={vehicle}
-                profitability={vehicle.profitability}
-              />
-            ))}
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">
+            <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center mb-4">
+              <div className="w-8 h-8 rounded-full bg-slate-300" />
+            </div>
+            <p className="font-medium">Select a vehicle from the list</p>
+            <p className="text-sm mt-1">View financial details, charts, and transactions</p>
           </div>
         )}
       </div>
@@ -215,3 +237,14 @@ export default function VehicleFinancesPage() {
   )
 }
 
+export default function VehicleFinancesPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-8">
+        <div className="text-slate-500">Loading vehicles...</div>
+      </div>
+    }>
+      <VehicleFinancesContent />
+    </Suspense>
+  )
+}

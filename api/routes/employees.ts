@@ -27,6 +27,16 @@ router.get('/:id', (req: Request, res: Response) => {
 
 router.post('/', (req: Request, res: Response) => {
   try {
+    // Validate that ID exists
+    if (!req.body.id) {
+      return res.status(400).json({ error: 'Employee ID is required' })
+    }
+    
+    // Validate ID is not null/undefined/empty
+    if (!req.body.id || req.body.id.trim() === '') {
+      return res.status(400).json({ error: 'Employee ID cannot be empty' })
+    }
+    
     const employee = employeesAdapter.create(req.body)
     res.status(201).json(employee)
   } catch (error: any) {

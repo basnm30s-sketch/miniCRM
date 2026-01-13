@@ -90,3 +90,5 @@ TC-088,UI/UX,Verify rental basis selector is user-friendly,1. Create quotation,2
 TC-089,Accessibility,Verify keyboard navigation for column customization,1. Use keyboard only,2. Navigate to column customization,3. Toggle columns,All functionality should be accessible via keyboard,Low,Accessibility,TC-014
 TC-090,Accessibility,Verify screen reader support for new fields,1. Use screen reader,2. Navigate quotation/invoice forms,3. Verify announcements,Screen reader should announce all new fields correctly,Low,Accessibility,TC-004,TC-020
 
+
+

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface VehicleFinanceSearchProps {
   searchQuery: string
@@ -29,13 +30,14 @@ export function VehicleFinanceSearch({
   resultCount,
 }: VehicleFinanceSearchProps) {
   return (
-    <div className="space-y-4">
+    <Card>
+    <CardContent className="space-y-4">
       {/* Search Bar */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
         <Input
           type="text"
-          placeholder="Search by vehicle number, make, or model..."
+          placeholder="Search by vehicle number, mak  e, or model..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="pl-10 pr-10"
@@ -88,7 +90,7 @@ export function VehicleFinanceSearch({
         <div className="flex items-center gap-2">
           <label className="text-sm text-slate-600 whitespace-nowrap">Sort by:</label>
           <Select value={sortBy} onValueChange={onSortChange}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Sort" />
             </SelectTrigger>
             <SelectContent>
@@ -104,7 +106,8 @@ export function VehicleFinanceSearch({
           {resultCount} {resultCount === 1 ? 'vehicle' : 'vehicles'}
         </div>
       </div>
-    </div>
+    </CardContent>
+    </Card>
   )
 }
 

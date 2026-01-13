@@ -83,17 +83,21 @@ exports.customersAdapter = {
         if (!db) {
             throw new Error('Database is not available. App is using client-side storage.');
         }
+        // Validate ID before inserting
+        if (!data.id || typeof data.id !== 'string' || data.id.trim() === '') {
+            throw new Error('Employee ID is required and must be a non-empty string');
+        }
         try {
             const now = new Date().toISOString();
             const stmt = db.prepare(`
-        INSERT INTO customers (id, name, company, email, phone, address, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO employees (id, name, employeeId, role, paymentType, hourlyRate, salary, bankDetails, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-            stmt.run(data.id, data.name, data.company || '', data.email || '', data.phone || '', data.address || '', now, now);
-            return exports.customersAdapter.getById(data.id);
+            stmt.run(data.id, data.name, data.employeeId || '', data.role || '', data.paymentType != null ? data.paymentType : null, data.hourlyRate || 0, data.salary || 0, data.bankDetails || '', now);
+            return exports.employeesAdapter.getById(data.id);
         }
         catch (error) {
-            console.error('Error in customersAdapter.create:', error);
+            console.error('Error in employeesAdapter.create:', error);
             throw error;
         }
     },
@@ -428,6 +432,8 @@ exports.payslipsAdapter = {
     getById: (id) => {
         try {
             const db = getDb();
+            if (!db)
+                return null;
             const row = db.prepare('SELECT * FROM payslips WHERE id = ?').get(id);
             if (!row)
                 return null;
@@ -456,6 +462,8 @@ exports.payslipsAdapter = {
     getByMonth: (month) => {
         try {
             const db = getDb();
+            if (!db)
+                return [];
             const rows = db.prepare('SELECT * FROM payslips WHERE month = ? ORDER BY createdAt DESC').all(month);
             return rows.map((row) => ({
                 id: row.id,
@@ -482,6 +490,9 @@ exports.payslipsAdapter = {
     create: (data) => {
         try {
             const db = getDb();
+            if (!db) {
+                throw new Error('Database is not available. App is using client-side storage.');
+            }
             const now = new Date().toISOString();
             // Validate required fields
             if (!data.id) {
@@ -508,6 +519,9 @@ exports.payslipsAdapter = {
     },
     update: (id, data) => {
         const db = getDb();
+        if (!db) {
+            throw new Error('Database is not available. App is using client-side storage.');
+        }
         const now = new Date().toISOString();
         const stmt = db.prepare(`
       UPDATE payslips 
@@ -519,6 +533,9 @@ exports.payslipsAdapter = {
     },
     delete: (id) => {
         const db = getDb();
+        if (!db) {
+            throw new Error('Database is not available. App is using client-side storage.');
+        }
         db.prepare('DELETE FROM payslips WHERE id = ?').run(id);
     },
 };
@@ -698,6 +715,8 @@ exports.vehiclesAdapter = {
 exports.adminAdapter = {
     get: () => {
         const db = getDb();
+        if (!db)
+            return null;
         // Ensure migration runs - check and add columns if needed
         try {
             const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all();
@@ -833,6 +852,9 @@ exports.adminAdapter = {
     },
     save: (data) => {
         const db = getDb();
+        if (!db) {
+            throw new Error('Database is not available. App is using client-side storage.');
+        }
         // Ensure migration runs before save
         try {
             const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all();
@@ -1174,11 +1196,21 @@ exports.purchaseOrdersAdapter = {
                     vendorId: po.vendorId,
                     items: items.map(item => ({
                         id: item.id,
-                        description: item.description || '',
+                        serialNumber: item.serialNumber || undefined,
+                        vehicleTypeId: item.vehicleTypeId || undefined,
+                        vehicleTypeLabel: item.vehicleTypeLabel || undefined,
+                        vehicleNumber: item.vehicleNumber || undefined,
+                        description: item.description || undefined,
+                        rentalBasis: item.rentalBasis || undefined,
                         quantity: item.quantity || 0,
                         unitPrice: item.unitPrice || 0,
-                        tax: item.tax || 0,
+                        taxPercent: item.taxPercent || undefined,
+                        tax: item.tax || undefined,
+                        grossAmount: item.grossAmount || undefined,
+                        lineTaxAmount: item.lineTaxAmount || undefined,
+                        lineTotal: item.lineTotal || undefined,
                         total: item.total || 0,
+                        amountReceived: item.amountReceived || undefined,
                     })),
                     subtotal: po.subtotal || 0,
                     tax: po.tax || 0,
@@ -1197,6 +1229,8 @@ exports.purchaseOrdersAdapter = {
     },
     getById: (id) => {
         const db = getDb();
+        if (!db)
+            return null;
         const po = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(id);
         if (!po)
             return null;
@@ -1208,10 +1242,19 @@ exports.purchaseOrdersAdapter = {
             vendorId: po.vendorId,
             items: items.map(item => ({
                 id: item.id,
-                description: item.description || '',
+                serialNumber: item.serialNumber || undefined,
+                vehicleTypeId: item.vehicleTypeId || undefined,
+                vehicleTypeLabel: item.vehicleTypeLabel || undefined,
+                vehicleNumber: item.vehicleNumber || undefined,
+                description: item.description || undefined,
+                rentalBasis: item.rentalBasis || undefined,
                 quantity: item.quantity || 0,
                 unitPrice: item.unitPrice || 0,
-                tax: item.tax || 0,
+                taxPercent: item.taxPercent || undefined,
+                tax: item.tax || undefined,
+                grossAmount: item.grossAmount || undefined,
+                lineTaxAmount: item.lineTaxAmount || undefined,
+                lineTotal: item.lineTotal || undefined,
                 total: item.total || 0,
             })),
             subtotal: po.subtotal || 0,
@@ -1225,6 +1268,9 @@ exports.purchaseOrdersAdapter = {
     },
     create: (data) => {
         const db = getDb();
+        if (!db) {
+            throw new Error('Database is not available. App is using client-side storage.');
+        }
         const now = new Date().toISOString();
         // Insert purchase order
         const poStmt = db.prepare(`
@@ -1235,12 +1281,14 @@ exports.purchaseOrdersAdapter = {
         // Insert items
         if (data.items && data.items.length > 0) {
             const itemStmt = db.prepare(`
-        INSERT INTO po_items (id, purchaseOrderId, description, quantity, unitPrice, tax, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO po_items (id, purchaseOrderId, serialNumber, vehicleTypeId, vehicleTypeLabel, vehicleNumber, 
+                              description, rentalBasis, quantity, unitPrice, taxPercent, tax, 
+                              grossAmount, lineTaxAmount, lineTotal, total)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
             const insertItems = db.transaction((items) => {
                 for (const item of items) {
-                    itemStmt.run(item.id, data.id, item.description || '', item.quantity || 0, item.unitPrice || 0, item.tax || 0, item.total || 0);
+                    itemStmt.run(item.id, data.id, item.serialNumber || null, item.vehicleTypeId || null, item.vehicleTypeLabel || null, item.vehicleNumber || null, item.description || null, item.rentalBasis || null, item.quantity || 0, item.unitPrice || 0, item.taxPercent || null, item.tax || null, item.grossAmount || null, item.lineTaxAmount || null, item.lineTotal || null, item.total || 0);
                 }
             });
             insertItems(data.items);
@@ -1249,6 +1297,9 @@ exports.purchaseOrdersAdapter = {
     },
     update: (id, data) => {
         const db = getDb();
+        if (!db) {
+            throw new Error('Database is not available. App is using client-side storage.');
+        }
         // Update purchase order
         const poStmt = db.prepare(`
       UPDATE purchase_orders 
@@ -1275,6 +1326,9 @@ exports.purchaseOrdersAdapter = {
     },
     delete: (id) => {
         const db = getDb();
+        if (!db) {
+            throw new Error('Database is not available. App is using client-side storage.');
+        }
         // Check for related invoices
         const invoices = db.prepare('SELECT number FROM invoices WHERE purchaseOrderId = ?').all(id);
         // Build references array
@@ -1311,11 +1365,21 @@ exports.invoicesAdapter = {
                     quoteId: invoice.quoteId || '',
                     items: items.map(item => ({
                         id: item.id,
-                        description: item.description || '',
+                        serialNumber: item.serialNumber || undefined,
+                        vehicleTypeId: item.vehicleTypeId || undefined,
+                        vehicleTypeLabel: item.vehicleTypeLabel || undefined,
+                        vehicleNumber: item.vehicleNumber || undefined,
+                        description: item.description || undefined,
+                        rentalBasis: item.rentalBasis || undefined,
                         quantity: item.quantity || 0,
                         unitPrice: item.unitPrice || 0,
-                        tax: item.tax || 0,
+                        taxPercent: item.taxPercent || undefined,
+                        tax: item.tax || undefined,
+                        grossAmount: item.grossAmount || undefined,
+                        lineTaxAmount: item.lineTaxAmount || undefined,
+                        lineTotal: item.lineTotal || undefined,
                         total: item.total || 0,
+                        amountReceived: item.amountReceived || undefined,
                     })),
                     subtotal: invoice.subtotal || 0,
                     tax: invoice.tax || 0,
@@ -1334,6 +1398,8 @@ exports.invoicesAdapter = {
     },
     getById: (id) => {
         const db = getDb();
+        if (!db)
+            return null;
         const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id);
         if (!invoice)
             return null;
@@ -1366,6 +1432,9 @@ exports.invoicesAdapter = {
     },
     create: (data) => {
         const db = getDb();
+        if (!db) {
+            throw new Error('Database is not available. App is using client-side storage.');
+        }
         const now = new Date().toISOString();
         // Validate required fields
         if (!data.number || data.number.trim() === '') {
@@ -1434,13 +1503,15 @@ exports.invoicesAdapter = {
         // Insert items
         if (data.items && data.items.length > 0) {
             const itemStmt = db.prepare(`
-        INSERT INTO invoice_items (id, invoiceId, description, quantity, unitPrice, tax, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO invoice_items (id, invoiceId, serialNumber, vehicleTypeId, vehicleTypeLabel, vehicleNumber, 
+                                   description, rentalBasis, quantity, unitPrice, taxPercent, tax, 
+                                   grossAmount, lineTaxAmount, lineTotal, total, amountReceived)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
             try {
                 const insertItems = db.transaction((items) => {
                     for (const item of items) {
-                        itemStmt.run(item.id, data.id, item.description || '', item.quantity || 0, item.unitPrice || 0, item.tax || 0, item.total || 0);
+                        itemStmt.run(item.id, data.id, item.serialNumber || null, item.vehicleTypeId || null, item.vehicleTypeLabel || null, item.vehicleNumber || null, item.description || null, item.rentalBasis || null, item.quantity || 0, item.unitPrice || 0, item.taxPercent || null, item.tax || null, item.grossAmount || null, item.lineTaxAmount || null, item.lineTotal || null, item.total || 0, item.amountReceived || null);
                     }
                 });
                 insertItems(data.items);
@@ -1457,6 +1528,9 @@ exports.invoicesAdapter = {
     },
     update: (id, data) => {
         const db = getDb();
+        if (!db) {
+            throw new Error('Database is not available. App is using client-side storage.');
+        }
         // Check if invoice exists first
         const existing = exports.invoicesAdapter.getById(id);
         if (!existing) {
@@ -1531,12 +1605,14 @@ exports.invoicesAdapter = {
         db.prepare('DELETE FROM invoice_items WHERE invoiceId = ?').run(id);
         if (data.items && data.items.length > 0) {
             const itemStmt = db.prepare(`
-        INSERT INTO invoice_items (id, invoiceId, description, quantity, unitPrice, tax, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO invoice_items (id, invoiceId, serialNumber, vehicleTypeId, vehicleTypeLabel, vehicleNumber, 
+                                   description, rentalBasis, quantity, unitPrice, taxPercent, tax, 
+                                   grossAmount, lineTaxAmount, lineTotal, total, amountReceived)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
             const insertItems = db.transaction((items) => {
                 for (const item of items) {
-                    itemStmt.run(item.id, id, item.description || '', item.quantity || 0, item.unitPrice || 0, item.tax || 0, item.total || 0);
+                    itemStmt.run(item.id, id, item.serialNumber || null, item.vehicleTypeId || null, item.vehicleTypeLabel || null, item.vehicleNumber || null, item.description || null, item.rentalBasis || null, item.quantity || 0, item.unitPrice || 0, item.taxPercent || null, item.tax || null, item.grossAmount || null, item.lineTaxAmount || null, item.lineTotal || null, item.total || 0, item.amountReceived || null);
                 }
             });
             insertItems(data.items);

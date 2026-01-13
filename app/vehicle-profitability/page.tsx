@@ -350,21 +350,23 @@ export default function VehicleProfitabilityPage() {
       )}
 
       <Dialog open={showTransactionForm} onOpenChange={setShowTransactionForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 border-b border-slate-200 sticky top-0 bg-white z-10 rounded-t-lg">
             <DialogTitle>
               {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
             </DialogTitle>
           </DialogHeader>
-          <VehicleTransactionForm
-            vehicleId={selectedVehicleId}
-            transaction={editingTransaction || undefined}
-            onSave={handleTransactionSave}
-            onCancel={() => {
-              setShowTransactionForm(false)
-              setEditingTransaction(null)
-            }}
-          />
+          <div className="overflow-y-auto flex-1 p-6">
+            <VehicleTransactionForm
+              vehicleId={selectedVehicleId}
+              transaction={editingTransaction || undefined}
+              onSave={handleTransactionSave}
+              onCancel={() => {
+                setShowTransactionForm(false)
+                setEditingTransaction(null)
+              }}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

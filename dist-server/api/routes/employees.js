@@ -27,6 +27,14 @@ router.get('/:id', (req, res) => {
 });
 router.post('/', (req, res) => {
     try {
+        // Validate that ID exists
+        if (!req.body.id) {
+            return res.status(400).json({ error: 'Employee ID is required' });
+        }
+        // Validate ID is not null/undefined/empty
+        if (!req.body.id || req.body.id.trim() === '') {
+            return res.status(400).json({ error: 'Employee ID cannot be empty' });
+        }
         const employee = sqlite_1.employeesAdapter.create(req.body);
         res.status(201).json(employee);
     }

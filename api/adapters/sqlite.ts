@@ -83,25 +83,32 @@ export const customersAdapter = {
     if (!db) {
       throw new Error('Database is not available. App is using client-side storage.')
     }
+    
+    // Validate ID before inserting
+    if (!data.id || typeof data.id !== 'string' || data.id.trim() === '') {
+      throw new Error('Employee ID is required and must be a non-empty string')
+    }
+    
     try {
       const now = new Date().toISOString()
       const stmt = db.prepare(`
-        INSERT INTO customers (id, name, company, email, phone, address, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO employees (id, name, employeeId, role, paymentType, hourlyRate, salary, bankDetails, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         data.id,
         data.name,
-        data.company || '',
-        data.email || '',
-        data.phone || '',
-        data.address || '',
-        now,
+        data.employeeId || '',
+        data.role || '',
+        data.paymentType != null ? data.paymentType : null,
+        data.hourlyRate || 0,
+        data.salary || 0,
+        data.bankDetails || '',
         now
       )
-      return customersAdapter.getById(data.id)
+      return employeesAdapter.getById(data.id)
     } catch (error) {
-      console.error('Error in customersAdapter.create:', error)
+      console.error('Error in employeesAdapter.create:', error)
       throw error
     }
   },
@@ -1497,10 +1504,19 @@ export const purchaseOrdersAdapter = {
       vendorId: po.vendorId,
       items: items.map(item => ({
         id: item.id,
-        description: item.description || '',
+        serialNumber: item.serialNumber || undefined,
+        vehicleTypeId: item.vehicleTypeId || undefined,
+        vehicleTypeLabel: item.vehicleTypeLabel || undefined,
+        vehicleNumber: item.vehicleNumber || undefined,
+        description: item.description || undefined,
+        rentalBasis: item.rentalBasis || undefined,
         quantity: item.quantity || 0,
         unitPrice: item.unitPrice || 0,
-        tax: item.tax || 0,
+        taxPercent: item.taxPercent || undefined,
+        tax: item.tax || undefined,
+        grossAmount: item.grossAmount || undefined,
+        lineTaxAmount: item.lineTaxAmount || undefined,
+        lineTotal: item.lineTotal || undefined,
         total: item.total || 0,
       })),
       subtotal: po.subtotal || 0,
@@ -1542,18 +1558,29 @@ export const purchaseOrdersAdapter = {
     // Insert items
     if (data.items && data.items.length > 0) {
       const itemStmt = db.prepare(`
-        INSERT INTO po_items (id, purchaseOrderId, description, quantity, unitPrice, tax, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO po_items (id, purchaseOrderId, serialNumber, vehicleTypeId, vehicleTypeLabel, vehicleNumber, 
+                              description, rentalBasis, quantity, unitPrice, taxPercent, tax, 
+                              grossAmount, lineTaxAmount, lineTotal, total)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       const insertItems = db.transaction((items: any[]) => {
         for (const item of items) {
           itemStmt.run(
             item.id,
             data.id,
-            item.description || '',
+            item.serialNumber || null,
+            item.vehicleTypeId || null,
+            item.vehicleTypeLabel || null,
+            item.vehicleNumber || null,
+            item.description || null,
+            item.rentalBasis || null,
             item.quantity || 0,
             item.unitPrice || 0,
-            item.tax || 0,
+            item.taxPercent || null,
+            item.tax || null,
+            item.grossAmount || null,
+            item.lineTaxAmount || null,
+            item.lineTotal || null,
             item.total || 0
           )
         }

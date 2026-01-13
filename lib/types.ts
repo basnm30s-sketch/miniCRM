@@ -177,11 +177,20 @@ export interface PurchaseOrder {
 
 export interface POItem {
   id: string;
-  description: string;
+  serialNumber?: number; // Auto-generated, matches quotation/invoice
+  vehicleTypeId?: string; // Optional - reference to vehicle master (for backward compatibility)
+  vehicleTypeLabel?: string; // Display name (Item name)
+  vehicleNumber?: string; // From vehicle master
+  description?: string; // Optional - can be auto-filled from vehicle or manually entered
+  rentalBasis?: 'hourly' | 'monthly'; // Rental basis selection
   quantity: number;
   unitPrice: number;
-  tax?: number;
-  total: number;
+  taxPercent?: number; // NEW - percentage-based tax (0-100)
+  tax?: number; // Keep for backward compatibility (flat tax amount)
+  grossAmount?: number; // Calculated: quantity * unitPrice
+  lineTaxAmount?: number; // Calculated: grossAmount * (taxPercent / 100) or use tax if provided
+  lineTotal?: number; // Calculated: grossAmount + lineTaxAmount
+  total: number; // Keep for backward compatibility
 }
 
 export interface Payslip {
@@ -255,4 +264,45 @@ export interface VehicleProfitabilitySummary {
   allTimeExpenses: number;
   allTimeProfit: number;
   months: VehicleProfitability[];
+}
+
+export interface InvoiceItem {
+  id: string
+  serialNumber?: number // Auto-generated, matches quotation
+  vehicleTypeId?: string // Optional - reference to vehicle master (for backward compatibility)
+  vehicleTypeLabel?: string // Display name (Item name)
+  vehicleNumber?: string // From vehicle master
+  description?: string // Optional - can be auto-filled from vehicle or manually entered
+  rentalBasis?: 'hourly' | 'monthly' // Rental basis selection
+  quantity: number
+  unitPrice: number
+  taxPercent?: number // NEW - percentage-based tax (0-100)
+  tax?: number // Keep for backward compatibility (flat tax amount)
+  grossAmount?: number // Calculated: quantity * unitPrice
+  lineTaxAmount?: number // Calculated: grossAmount * (taxPercent / 100) or use tax if provided
+  lineTotal?: number // Calculated: grossAmount + lineTaxAmount
+  total: number // Keep for backward compatibility
+  amountReceived?: number // Invoice-specific - per line item payment tracking
+}
+
+export interface Invoice {
+  id: string
+  number: string
+  date: string
+  dueDate?: string
+  customerId?: string
+  vendorId?: string
+  purchaseOrderId?: string
+  quoteNumber?: string
+  purchaseOrderNumber?: string
+  quoteId?: string
+  items: InvoiceItem[]
+  subtotal: number
+  tax: number
+  total: number
+  amountReceived?: number // Amount received from customer (defaults to 0)
+  status?: string // draft, invoice_sent, payment_received
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
 }

@@ -9,7 +9,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   
   // Sidebar always visible like in inspiration design
   return (
-    <div className="flex">
+    <div className="flex min-h-screen">
       <Sidebar />
       <main className="flex-1 ml-64">
         <ErrorBoundary>

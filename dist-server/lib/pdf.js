@@ -273,24 +273,57 @@ class ClientSidePDFRenderer {
             document.body.removeChild(container);
         }
     }
+    buildFooterHtml(adminSettings) {
+        const footerAddressEn = adminSettings.footerAddressEnglish || '';
+        const footerAddressAr = adminSettings.footerAddressArabic || '';
+        const footerContactEn = adminSettings.footerContactEnglish || '';
+        const footerContactAr = adminSettings.footerContactArabic || '';
+        if (!footerAddressEn && !footerAddressAr && !footerContactEn && !footerContactAr) {
+            return '';
+        }
+        return `
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; font-size: 12px;">
+      ${footerAddressEn || footerAddressAr ? `
+        <div style="margin-bottom: 10px;">
+          ${footerAddressEn ? `<div style="margin-bottom: 5px;">${footerAddressEn}</div>` : ''}
+          ${footerAddressAr ? `<div style="margin-bottom: 5px; direction: rtl; text-align: right;">${footerAddressAr}</div>` : ''}
+        </div>
+      ` : ''}
+      ${footerContactEn || footerContactAr ? `
+        <div>
+          ${footerContactEn ? `<div style="margin-bottom: 5px;">${footerContactEn}</div>` : ''}
+          ${footerContactAr ? `<div style="margin-bottom: 5px; direction: rtl; text-align: right;">${footerContactAr}</div>` : ''}
+        </div>
+      ` : ''}
+    </div>
+    `;
+    }
     buildQuoteHtml(quote, adminSettings, branding) {
         // Use branding URLs passed from caller (already loaded from fixed file locations)
         const { logoUrl, sealUrl, signatureUrl } = branding;
         const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
         // Seal and signature are rendered in the footer so they move dynamically with document content
-        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 100px; object-fit: contain;" />` : '';
+        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : '';
         const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : '';
         const itemsHtml = quote.items
-            .map((item) => `
+            .map((item, index) => {
+            // Calculate grossAmount if not present
+            const grossAmount = item.grossAmount ?? (item.quantity * item.unitPrice);
+            return `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc;">${item.vehicleTypeLabel}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: center;">${item.serialNumber ?? index + 1}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: left;">${item.vehicleTypeLabel || ''}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: left;">${item.vehicleNumber || ''}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: left;">${item.description || ''}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: center;">${item.rentalBasis || ''}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.quantity}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.unitPrice.toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.taxPercent}%</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${grossAmount.toFixed(2)}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${(item.lineTaxAmount || 0).toFixed(2)}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${(item.lineTotal || 0).toFixed(2)}</td>
       </tr>
-    `)
+    `;
+        })
             .join('');
         return `
       <div style="font-family: Arial, sans-serif; color: #333;">
@@ -310,7 +343,7 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Title -->
-        <h2 style="text-align: center; margin: 20px 0; font-size: 20px;">QUOTE</h2>
+        <h2 style="text-align: center; margin: 20px 0; font-size: 20px;">QUOTATION</h2>
 
         <!-- Quote Meta -->
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;">
@@ -335,15 +368,19 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse;">
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse; table-layout: fixed;">
           <thead>
             <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
+              <th style="padding: 8px; text-align: center;">Sl. no.</th>
+              <th style="padding: 8px; text-align: left;">Item name</th>
+              <th style="padding: 8px; text-align: left;">Vehicle number</th>
               <th style="padding: 8px; text-align: left;">Description</th>
+              <th style="padding: 8px; text-align: center;">Rental basis</th>
               <th style="padding: 8px; text-align: right;">Qty</th>
-              <th style="padding: 8px; text-align: right;">Unit Price (${quote.currency})</th>
-              <th style="padding: 8px; text-align: right;">Tax %</th>
-              <th style="padding: 8px; text-align: right;">Tax (${quote.currency})</th>
-              <th style="padding: 8px; text-align: right;">Total (${quote.currency})</th>
+              <th style="padding: 8px; text-align: right;">Rate</th>
+              <th style="padding: 8px; text-align: right;">Gross amount</th>
+              <th style="padding: 8px; text-align: right;">Tax</th>
+              <th style="padding: 8px; text-align: right;">Net amount</th>
             </tr>
           </thead>
           <tbody>
@@ -412,6 +449,9 @@ class ClientSidePDFRenderer {
               <div style="margin-top: 18px;"> <p style="margin: 0;">Date: ${quote.date}</p> </div>
           </div>
         </div>
+        
+        <!-- Footer with Address and Contact Details -->
+        ${this.buildFooterHtml(adminSettings)}
           <!-- Terms -->
       </div>
     `;
@@ -420,7 +460,7 @@ class ClientSidePDFRenderer {
         // Use branding URLs passed from caller (already loaded from fixed file locations)
         const { logoUrl, sealUrl, signatureUrl } = branding;
         const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
-        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 100px; object-fit: contain;" />` : '';
+        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : '';
         const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : '';
         const itemsHtml = po.items
             .map((item) => `
@@ -509,6 +549,9 @@ class ClientSidePDFRenderer {
             <div style="margin-top: 18px;"><p style="margin: 0;">Date: ${po.date}</p></div>
           </div>
         </div>
+        
+        <!-- Footer with Address and Contact Details -->
+        ${this.buildFooterHtml(adminSettings)}
       </div>
     `;
     }
@@ -516,7 +559,7 @@ class ClientSidePDFRenderer {
         // Use branding URLs passed from caller (already loaded from fixed file locations)
         const { logoUrl, sealUrl, signatureUrl } = branding;
         const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
-        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 100px; object-fit: contain;" />` : '';
+        const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : '';
         const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : '';
         const itemsHtml = invoice.items
             .map((item) => `
@@ -611,6 +654,9 @@ class ClientSidePDFRenderer {
             <div style="margin-top: 18px;"><p style="margin: 0;">Date: ${invoice.date}</p></div>
           </div>
         </div>
+        
+        <!-- Footer with Address and Contact Details -->
+        ${this.buildFooterHtml(adminSettings)}
       </div>
     `;
     }

@@ -169,12 +169,30 @@ function createTables(database) {
     try {
         const tableInfo = database.prepare("PRAGMA table_info(admin_settings)").all();
         const columnNames = tableInfo.map((col) => col.name);
-        if (!columnNames.includes('showRevenueTrend')) {
-            database.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 1');
-        }
-        if (!columnNames.includes('showQuickActions')) {
-            database.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 1');
-        }
+        const adminSettingsNewColumns = [
+            { name: 'showRevenueTrend', type: 'INTEGER DEFAULT 1' },
+            { name: 'showQuickActions', type: 'INTEGER DEFAULT 1' },
+            { name: 'footerAddressEnglish', type: 'TEXT' },
+            { name: 'footerAddressArabic', type: 'TEXT' },
+            { name: 'footerContactEnglish', type: 'TEXT' },
+            { name: 'footerContactArabic', type: 'TEXT' },
+            { name: 'quoteStartingNumber', type: 'INTEGER DEFAULT 1' },
+            { name: 'invoiceStartingNumber', type: 'INTEGER DEFAULT 1' }
+        ];
+        adminSettingsNewColumns.forEach(col => {
+            if (!columnNames.includes(col.name)) {
+                try {
+                    database.exec(`ALTER TABLE admin_settings ADD COLUMN ${col.name} ${col.type}`);
+                    console.log(`Added ${col.name} column to admin_settings table`);
+                }
+                catch (alterError) {
+                    const errorMsg = alterError?.message || String(alterError);
+                    if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+                        console.warn(`Migration warning for ${col.name}:`, errorMsg);
+                    }
+                }
+            }
+        });
     }
     catch (error) {
         // Ignore errors if columns already exist
@@ -221,9 +239,9 @@ function createTables(database) {
       createdAt TEXT
     )
   `);
-    // Migrate existing employees table to add paymentType column if it doesn't exist
+    // Migrate existing employees table to add paymentType and overtimeRate columns if they don't exist
     try {
-        // Check if column exists by trying to query it
+        // Check if paymentType column exists by trying to query it
         database.prepare('SELECT paymentType FROM employees LIMIT 1').get();
     }
     catch (error) {
@@ -236,6 +254,22 @@ function createTables(database) {
             const errorMsg = alterError?.message || String(alterError);
             if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
                 console.warn('Migration warning:', errorMsg);
+            }
+        }
+    }
+    // Add overtimeRate column to employees table
+    try {
+        database.prepare('SELECT overtimeRate FROM employees LIMIT 1').get();
+    }
+    catch (error) {
+        try {
+            database.exec(`ALTER TABLE employees ADD COLUMN overtimeRate REAL`);
+            console.log('Added overtimeRate column to employees table');
+        }
+        catch (alterError) {
+            const errorMsg = alterError?.message || String(alterError);
+            if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+                console.warn('Migration warning for overtimeRate:', errorMsg);
             }
         }
     }
@@ -336,14 +370,48 @@ function createTables(database) {
       quoteId TEXT NOT NULL,
       vehicleTypeId TEXT,
       vehicleTypeLabel TEXT,
+      vehicleNumber TEXT,
+      description TEXT,
+      rentalBasis TEXT,
+      serialNumber INTEGER,
       quantity INTEGER,
       unitPrice REAL,
       taxPercent REAL,
+      grossAmount REAL,
       lineTaxAmount REAL,
       lineTotal REAL,
       FOREIGN KEY (quoteId) REFERENCES quotes(id) ON DELETE CASCADE
     )
   `);
+    // Migrate existing quote_items table to add new columns if they don't exist
+    try {
+        const quoteItemsTableInfo = database.prepare("PRAGMA table_info(quote_items)").all();
+        const quoteItemsColumnNames = quoteItemsTableInfo.map((col) => col.name);
+        const newQuoteItemColumns = [
+            { name: 'vehicleNumber', type: 'TEXT' },
+            { name: 'description', type: 'TEXT' },
+            { name: 'rentalBasis', type: 'TEXT' },
+            { name: 'serialNumber', type: 'INTEGER' },
+            { name: 'grossAmount', type: 'REAL' }
+        ];
+        newQuoteItemColumns.forEach(col => {
+            if (!quoteItemsColumnNames.includes(col.name)) {
+                try {
+                    database.exec(`ALTER TABLE quote_items ADD COLUMN ${col.name} ${col.type}`);
+                    console.log(`Added ${col.name} column to quote_items table`);
+                }
+                catch (alterError) {
+                    const errorMsg = alterError?.message || String(alterError);
+                    if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+                        console.warn(`Migration warning for ${col.name}:`, errorMsg);
+                    }
+                }
+            }
+        });
+    }
+    catch (error) {
+        console.log('Quote items migration note:', error.message);
+    }
     // Purchase Orders
     database.exec(`
     CREATE TABLE IF NOT EXISTS purchase_orders (
@@ -374,6 +442,35 @@ function createTables(database) {
       FOREIGN KEY (purchaseOrderId) REFERENCES purchase_orders(id) ON DELETE CASCADE
     )
   `);
+    // Migrate po_items table to add new columns for vehicle and rental basis support
+    const poItemsNewColumns = [
+        { name: 'serialNumber', type: 'INTEGER' },
+        { name: 'vehicleTypeId', type: 'TEXT' },
+        { name: 'vehicleTypeLabel', type: 'TEXT' },
+        { name: 'vehicleNumber', type: 'TEXT' },
+        { name: 'rentalBasis', type: 'TEXT' },
+        { name: 'taxPercent', type: 'REAL' },
+        { name: 'grossAmount', type: 'REAL' },
+        { name: 'lineTaxAmount', type: 'REAL' },
+        { name: 'lineTotal', type: 'REAL' },
+    ];
+    poItemsNewColumns.forEach(({ name, type }) => {
+        try {
+            database.prepare(`SELECT ${name} FROM po_items LIMIT 1`).get();
+        }
+        catch (error) {
+            try {
+                database.exec(`ALTER TABLE po_items ADD COLUMN ${name} ${type}`);
+                console.log(`Added ${name} column to po_items table`);
+            }
+            catch (alterError) {
+                const errorMsg = alterError?.message || String(alterError);
+                if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+                    console.warn(`Migration warning for ${name}:`, errorMsg);
+                }
+            }
+        }
+    });
     // Invoices
     database.exec(`
     CREATE TABLE IF NOT EXISTS invoices (
@@ -408,9 +505,55 @@ function createTables(database) {
       unitPrice REAL,
       tax REAL,
       total REAL,
+      amountReceived REAL,
       FOREIGN KEY (invoiceId) REFERENCES invoices(id) ON DELETE CASCADE
     )
   `);
+    // Migrate existing invoice_items table to add amountReceived column if it doesn't exist
+    try {
+        database.prepare('SELECT amountReceived FROM invoice_items LIMIT 1').get();
+    }
+    catch (error) {
+        try {
+            database.exec(`ALTER TABLE invoice_items ADD COLUMN amountReceived REAL`);
+            console.log('Added amountReceived column to invoice_items table');
+        }
+        catch (alterError) {
+            const errorMsg = alterError?.message || String(alterError);
+            if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+                console.warn('Migration warning for amountReceived:', errorMsg);
+            }
+        }
+    }
+    // Migrate invoice_items table to add new columns for vehicle and rental basis support
+    const newColumns = [
+        { name: 'serialNumber', type: 'INTEGER' },
+        { name: 'vehicleTypeId', type: 'TEXT' },
+        { name: 'vehicleTypeLabel', type: 'TEXT' },
+        { name: 'vehicleNumber', type: 'TEXT' },
+        { name: 'rentalBasis', type: 'TEXT' },
+        { name: 'taxPercent', type: 'REAL' },
+        { name: 'grossAmount', type: 'REAL' },
+        { name: 'lineTaxAmount', type: 'REAL' },
+        { name: 'lineTotal', type: 'REAL' },
+    ];
+    newColumns.forEach(({ name, type }) => {
+        try {
+            database.prepare(`SELECT ${name} FROM invoice_items LIMIT 1`).get();
+        }
+        catch (error) {
+            try {
+                database.exec(`ALTER TABLE invoice_items ADD COLUMN ${name} ${type}`);
+                console.log(`Added ${name} column to invoice_items table`);
+            }
+            catch (alterError) {
+                const errorMsg = alterError?.message || String(alterError);
+                if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+                    console.warn(`Migration warning for ${name}:`, errorMsg);
+                }
+            }
+        }
+    });
     // Payslips
     database.exec(`
     CREATE TABLE IF NOT EXISTS payslips (
@@ -432,7 +575,7 @@ function createTables(database) {
     )
   `);
     // Migrate existing payslips table to add new columns if they don't exist
-    const newColumns = [
+    const payslipNewColumns = [
         { name: 'year', type: 'INTEGER' },
         { name: 'overtimeHours', type: 'REAL' },
         { name: 'overtimeRate', type: 'REAL' },
@@ -440,7 +583,7 @@ function createTables(database) {
         { name: 'notes', type: 'TEXT' },
         { name: 'updatedAt', type: 'TEXT' }
     ];
-    newColumns.forEach(col => {
+    payslipNewColumns.forEach(col => {
         try {
             database.prepare(`SELECT ${col.name} FROM payslips LIMIT 1`).get();
         }
@@ -458,6 +601,22 @@ function createTables(database) {
             }
         }
     });
+    // Add deductionRemarks column to payslips table
+    try {
+        database.prepare('SELECT deductionRemarks FROM payslips LIMIT 1').get();
+    }
+    catch (error) {
+        try {
+            database.exec(`ALTER TABLE payslips ADD COLUMN deductionRemarks TEXT`);
+            console.log('Added deductionRemarks column to payslips table');
+        }
+        catch (alterError) {
+            const errorMsg = alterError?.message || String(alterError);
+            if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+                console.warn('Migration warning for deductionRemarks:', errorMsg);
+            }
+        }
+    }
     // Expense Categories
     database.exec(`
     CREATE TABLE IF NOT EXISTS expense_categories (

@@ -454,8 +454,8 @@ export default function Home() {
   ]
 
   return (
-    <div className="min-h-screen relative">
-      {/* Background Image - only covers the main content area, not sidebar */}
+    <div className="min-h-screen relative bg-slate-200">
+      {/* Background Image - only covers the main content area, not sidebar
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
@@ -463,17 +463,16 @@ export default function Home() {
           zIndex: 0,
         }}
       />
-      {/* Overlay for better readability - reduced opacity and blur */}
+      {/* Overlay for better readability - reduced opacity and blur 
       <div
         className="absolute inset-0 bg-slate-50/40"
         style={{ zIndex: 1 }}
-      />
+      /> */}
 
       {/* Content Container */}
       <div className="relative z-10">
-        {/* Header */}
-        <div className="relative bg-white/90 backdrop-blur-sm border-b border-slate-200 px-8 py-6 overflow-hidden">
-          {/* Watermark logo in header background */}
+        
+        {/* Watermark logo in header background
           <div className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 opacity-[0.10]">
             <Image
               src="/almsar-logo.png"
@@ -481,15 +480,17 @@ export default function Home() {
               width={220}
               height={220}
               className="w-[180px] md:w-[220px] h-auto object-contain"
-              style={{ width: 'auto', height: 'auto' }}
               priority
             />
           </div>
 
-          <div className="relative">
+           <div className="relative">
             <h1 className="text-2xl font-bold text-slate-900">iManage</h1>
-          </div>
-        </div>
+            <p className="mt-1 text-base md:text-lg font-medium text-slate-700">
+              Manage More. Worry Less.
+            </p>
+          </div> 
+        </div> */}
 
         {/* Main Content */}
         <div className="p-8 space-y-6 max-w-7xl mx-auto">

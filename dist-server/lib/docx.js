@@ -208,7 +208,7 @@ class ClientSideDOCXRenderer {
         children.push(new docx_1.Paragraph({
             children: [
                 new docx_1.TextRun({
-                    text: 'QUOTE',
+                    text: 'QUOTATION',
                     bold: true,
                     size: 36, // 18pt
                 }),
@@ -1178,6 +1178,449 @@ class ClientSideDOCXRenderer {
                                     children: [
                                         new docx_1.TextRun({
                                             text: `Date: ${invoice.date}`,
+                                            size: 20, // 10pt
+                                        }),
+                                    ],
+                                    alignment: docx_1.AlignmentType.RIGHT,
+                                    spacing: { before: 100 },
+                                }),
+                            ],
+                            width: { size: 50, type: docx_1.WidthType.PERCENTAGE },
+                            margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 0, left: 0, right: 0 },
+                        }),
+                    ],
+                }),
+            ],
+            width: { size: 100, type: docx_1.WidthType.PERCENTAGE },
+            borders: docx_1.TableBorders.NONE,
+        });
+        children.push(footerTable);
+        // Create document with proper margins
+        const doc = new docx_1.Document({
+            sections: [
+                {
+                    properties: {
+                        page: {
+                            margin: {
+                                top: 1440, // 1 inch
+                                right: 1440,
+                                bottom: 1440,
+                                left: 1440,
+                            },
+                        },
+                    },
+                    children,
+                },
+            ],
+        });
+        // Generate DOCX file as buffer
+        const buffer = await docx_1.Packer.toBuffer(doc);
+        return new Blob([buffer], {
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+    }
+    async renderPurchaseOrderToDocx(po, adminSettings, vendorName) {
+        const children = [];
+        // Load branding URLs from fixed file locations
+        const brandingUrls = await (0, api_client_1.loadBrandingUrls)();
+        // Load images with type detection
+        const logoData = await this.loadImageAsBuffer(brandingUrls.logoUrl);
+        const sealData = await this.loadImageAsBuffer(brandingUrls.sealUrl);
+        const signatureData = await this.loadImageAsBuffer(brandingUrls.signatureUrl);
+        // Logo - centered at top
+        if (logoData) {
+            children.push(new docx_1.Paragraph({
+                children: [
+                    new docx_1.ImageRun({
+                        type: logoData.type,
+                        data: logoData.buffer,
+                        transformation: {
+                            width: 250,
+                            height: 80,
+                        },
+                    }),
+                ],
+                alignment: docx_1.AlignmentType.CENTER,
+                spacing: { after: 200 },
+            }));
+        }
+        // Company name - centered, bold
+        children.push(new docx_1.Paragraph({
+            children: [
+                new docx_1.TextRun({
+                    text: adminSettings.companyName,
+                    bold: true,
+                    size: 40, // 20pt
+                }),
+            ],
+            alignment: docx_1.AlignmentType.CENTER,
+            spacing: { after: 100 },
+        }));
+        // Address and VAT - centered
+        if (adminSettings.address) {
+            children.push(new docx_1.Paragraph({
+                children: [
+                    new docx_1.TextRun({
+                        text: adminSettings.address,
+                        size: 22, // 11pt
+                    }),
+                ],
+                alignment: docx_1.AlignmentType.CENTER,
+                spacing: { after: 50 },
+            }));
+        }
+        if (adminSettings.vatNumber) {
+            children.push(new docx_1.Paragraph({
+                children: [
+                    new docx_1.TextRun({
+                        text: `VAT: ${adminSettings.vatNumber}`,
+                        size: 22, // 11pt
+                    }),
+                ],
+                alignment: docx_1.AlignmentType.CENTER,
+                spacing: { after: 200 },
+            }));
+        }
+        // Bottom border line
+        children.push(new docx_1.Paragraph({
+            children: [new docx_1.TextRun({ text: '' })],
+            border: {
+                bottom: {
+                    color: '333333',
+                    size: 24, // 12pt
+                    style: docx_1.BorderStyle.SINGLE,
+                },
+            },
+            spacing: { after: 200 },
+        }));
+        // Title - centered, bold, larger
+        children.push(new docx_1.Paragraph({
+            children: [
+                new docx_1.TextRun({
+                    text: 'PURCHASE ORDER',
+                    bold: true,
+                    size: 36, // 18pt
+                }),
+            ],
+            alignment: docx_1.AlignmentType.CENTER,
+            spacing: { before: 200, after: 200 },
+        }));
+        // Document metadata
+        const statusDisplay = po.status === 'accepted'
+            ? 'Accepted'
+            : po.status === 'sent'
+                ? 'Sent'
+                : po.status === 'draft'
+                    ? 'Draft'
+                    : po.status || 'Draft';
+        children.push(new docx_1.Paragraph({
+            children: [
+                new docx_1.TextRun({ text: 'PO #: ', bold: true }),
+                new docx_1.TextRun({ text: po.number }),
+            ],
+            spacing: { after: 100 },
+        }));
+        children.push(new docx_1.Paragraph({
+            children: [
+                new docx_1.TextRun({ text: 'Date: ', bold: true }),
+                new docx_1.TextRun({ text: po.date }),
+            ],
+            spacing: { after: 100 },
+        }));
+        children.push(new docx_1.Paragraph({
+            children: [
+                new docx_1.TextRun({ text: 'Status: ', bold: true }),
+                new docx_1.TextRun({ text: statusDisplay }),
+            ],
+            spacing: { after: 400 },
+        }));
+        // Vendor info section
+        children.push(new docx_1.Paragraph({
+            children: [
+                new docx_1.TextRun({
+                    text: 'VENDOR',
+                    bold: true,
+                    size: 26, // 13pt
+                    color: '0066CC', // Blue color
+                }),
+            ],
+            spacing: { before: 200, after: 100 },
+            shading: {
+                type: docx_1.ShadingType.SOLID,
+                color: 'F9F9F9',
+                fill: 'F9F9F9',
+            },
+        }));
+        children.push(new docx_1.Paragraph({
+            children: [
+                new docx_1.TextRun({ text: vendorName, bold: true }),
+            ],
+            spacing: { after: 200 },
+        }));
+        // Line items table
+        const lineItemRows = [
+            new docx_1.TableRow({
+                children: [
+                    new docx_1.TableCell({
+                        children: [
+                            new docx_1.Paragraph({
+                                children: [new docx_1.TextRun({ text: 'Description', bold: true })],
+                            }),
+                        ],
+                        shading: {
+                            type: docx_1.ShadingType.SOLID,
+                            color: 'E0E0E0',
+                            fill: 'E0E0E0',
+                        },
+                        width: { size: 30, type: docx_1.WidthType.PERCENTAGE },
+                        margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                    }),
+                    new docx_1.TableCell({
+                        children: [
+                            new docx_1.Paragraph({
+                                children: [new docx_1.TextRun({ text: 'Quantity', bold: true })],
+                                alignment: docx_1.AlignmentType.RIGHT,
+                            }),
+                        ],
+                        shading: {
+                            type: docx_1.ShadingType.SOLID,
+                            color: 'E0E0E0',
+                            fill: 'E0E0E0',
+                        },
+                        width: { size: 10, type: docx_1.WidthType.PERCENTAGE },
+                        margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                    }),
+                    new docx_1.TableCell({
+                        children: [
+                            new docx_1.Paragraph({
+                                children: [new docx_1.TextRun({ text: 'Unit Price', bold: true })],
+                                alignment: docx_1.AlignmentType.RIGHT,
+                            }),
+                        ],
+                        shading: {
+                            type: docx_1.ShadingType.SOLID,
+                            color: 'E0E0E0',
+                            fill: 'E0E0E0',
+                        },
+                        width: { size: 12, type: docx_1.WidthType.PERCENTAGE },
+                        margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                    }),
+                    new docx_1.TableCell({
+                        children: [
+                            new docx_1.Paragraph({
+                                children: [new docx_1.TextRun({ text: 'Total', bold: true })],
+                                alignment: docx_1.AlignmentType.RIGHT,
+                            }),
+                        ],
+                        shading: {
+                            type: docx_1.ShadingType.SOLID,
+                            color: 'E0E0E0',
+                            fill: 'E0E0E0',
+                        },
+                        width: { size: 12, type: docx_1.WidthType.PERCENTAGE },
+                        margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                    }),
+                ],
+            }),
+        ];
+        po.items.forEach((item) => {
+            const lineTotal = (item.quantity || 0) * (item.unitPrice || 0);
+            lineItemRows.push(new docx_1.TableRow({
+                children: [
+                    new docx_1.TableCell({
+                        children: [
+                            new docx_1.Paragraph({
+                                children: [new docx_1.TextRun({ text: item.description || item.vehicleNumber || '' })],
+                            }),
+                        ],
+                        margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                    }),
+                    new docx_1.TableCell({
+                        children: [
+                            new docx_1.Paragraph({
+                                children: [new docx_1.TextRun({ text: (item.quantity || 0).toString() })],
+                                alignment: docx_1.AlignmentType.RIGHT,
+                            }),
+                        ],
+                        margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                    }),
+                    new docx_1.TableCell({
+                        children: [
+                            new docx_1.Paragraph({
+                                children: [new docx_1.TextRun({ text: (item.unitPrice || 0).toFixed(2) })],
+                                alignment: docx_1.AlignmentType.RIGHT,
+                            }),
+                        ],
+                        margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                    }),
+                    new docx_1.TableCell({
+                        children: [
+                            new docx_1.Paragraph({
+                                children: [new docx_1.TextRun({ text: lineTotal.toFixed(2) })],
+                                alignment: docx_1.AlignmentType.RIGHT,
+                            }),
+                        ],
+                        margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                    }),
+                ],
+            }));
+        });
+        // Add totals rows to the same table for proper alignment
+        lineItemRows.push(new docx_1.TableRow({
+            children: [
+                new docx_1.TableCell({
+                    children: [new docx_1.Paragraph({ text: '' })],
+                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                }),
+                new docx_1.TableCell({
+                    children: [new docx_1.Paragraph({ text: '' })],
+                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                }),
+                new docx_1.TableCell({
+                    children: [
+                        new docx_1.Paragraph({
+                            children: [new docx_1.TextRun({ text: 'Tax:' })],
+                            alignment: docx_1.AlignmentType.RIGHT,
+                        }),
+                    ],
+                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                }),
+                new docx_1.TableCell({
+                    children: [
+                        new docx_1.Paragraph({
+                            children: [new docx_1.TextRun({ text: (po.tax || 0).toFixed(2) })],
+                            alignment: docx_1.AlignmentType.RIGHT,
+                        }),
+                    ],
+                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                }),
+            ],
+        }), new docx_1.TableRow({
+            children: [
+                new docx_1.TableCell({
+                    children: [new docx_1.Paragraph({ text: '' })],
+                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                }),
+                new docx_1.TableCell({
+                    children: [new docx_1.Paragraph({ text: '' })],
+                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                }),
+                new docx_1.TableCell({
+                    children: [
+                        new docx_1.Paragraph({
+                            children: [
+                                new docx_1.TextRun({
+                                    text: 'TOTAL:',
+                                    bold: true,
+                                    size: 28, // 14pt
+                                }),
+                            ],
+                            alignment: docx_1.AlignmentType.RIGHT,
+                        }),
+                    ],
+                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                }),
+                new docx_1.TableCell({
+                    children: [
+                        new docx_1.Paragraph({
+                            children: [
+                                new docx_1.TextRun({
+                                    text: (po.amount || 0).toFixed(2),
+                                    bold: true,
+                                    size: 28, // 14pt
+                                }),
+                            ],
+                            alignment: docx_1.AlignmentType.RIGHT,
+                        }),
+                    ],
+                    margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 200, left: 200, right: 200 },
+                }),
+            ],
+        }));
+        children.push(new docx_1.Table({
+            rows: lineItemRows,
+            width: { size: 100, type: docx_1.WidthType.PERCENTAGE },
+            borders: {
+                top: { style: docx_1.BorderStyle.SINGLE, size: 12, color: '333333' },
+                bottom: { style: docx_1.BorderStyle.SINGLE, size: 12, color: '333333' },
+                left: { style: docx_1.BorderStyle.SINGLE, size: 1, color: '000000' },
+                right: { style: docx_1.BorderStyle.SINGLE, size: 1, color: '000000' },
+                insideHorizontal: { style: docx_1.BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
+                insideVertical: { style: docx_1.BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
+            },
+            margins: { marginUnitType: docx_1.WidthType.DXA, top: 0, bottom: 200, left: 0, right: 0 },
+        }));
+        // Notes section
+        if (po.notes) {
+            children.push(new docx_1.Paragraph({
+                children: [
+                    new docx_1.TextRun({
+                        text: 'Notes:',
+                        bold: true,
+                    }),
+                ],
+                spacing: { before: 200 },
+            }));
+            children.push(new docx_1.Paragraph({
+                children: [new docx_1.TextRun({ text: po.notes })],
+                spacing: { after: 200 },
+            }));
+        }
+        // Footer with signature and seal
+        const footerTable = new docx_1.Table({
+            rows: [
+                new docx_1.TableRow({
+                    children: [
+                        new docx_1.TableCell({
+                            children: [
+                                signatureData
+                                    ? new docx_1.Paragraph({
+                                        children: [
+                                            new docx_1.ImageRun({
+                                                type: signatureData.type,
+                                                data: signatureData.buffer,
+                                                transformation: {
+                                                    width: 180,
+                                                    height: 80,
+                                                },
+                                            }),
+                                        ],
+                                    })
+                                    : new docx_1.Paragraph({ text: '' }),
+                                new docx_1.Paragraph({
+                                    children: [
+                                        new docx_1.TextRun({
+                                            text: 'Authorized By:',
+                                            size: 20, // 10pt
+                                        }),
+                                    ],
+                                    spacing: { before: 100 },
+                                }),
+                            ],
+                            width: { size: 50, type: docx_1.WidthType.PERCENTAGE },
+                            margins: { marginUnitType: docx_1.WidthType.DXA, top: 200, bottom: 0, left: 0, right: 0 },
+                        }),
+                        new docx_1.TableCell({
+                            children: [
+                                sealData
+                                    ? new docx_1.Paragraph({
+                                        children: [
+                                            new docx_1.ImageRun({
+                                                type: sealData.type,
+                                                data: sealData.buffer,
+                                                transformation: {
+                                                    width: 150,
+                                                    height: 100,
+                                                },
+                                            }),
+                                        ],
+                                        alignment: docx_1.AlignmentType.RIGHT,
+                                    })
+                                    : new docx_1.Paragraph({ text: '' }),
+                                new docx_1.Paragraph({
+                                    children: [
+                                        new docx_1.TextRun({
+                                            text: `Date: ${po.date}`,
                                             size: 20, // 10pt
                                         }),
                                     ],

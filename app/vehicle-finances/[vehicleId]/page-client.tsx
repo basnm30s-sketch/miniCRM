@@ -50,14 +50,6 @@ export default function VehicleFinanceDetailPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="p-8">
-        <div className="text-slate-500">Loading vehicle details...</div>
-      </div>
-    )
-  }
-
   // Transform profitability data for charts
   const chartData = useMemo(() => {
     if (!profitability || !vehicle) return null
@@ -92,6 +84,14 @@ export default function VehicleFinanceDetailPage() {
       expensesByCategory,
     }
   }, [profitability, vehicle, transactions])
+
+  if (loading) {
+    return (
+      <div className="p-8">
+        <div className="text-slate-500">Loading vehicle details...</div>
+      </div>
+    )
+  }
 
   if (!vehicle) {
     return (

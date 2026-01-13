@@ -29,7 +29,8 @@
     "prebuild": "node scripts/test-runner.js",
     "rebuild:electron": "electron-rebuild --force --only better-sqlite3",
     "rebuild:electron:optional": "electron-rebuild --force --only better-sqlite3 || echo \"Rebuild skipped (file may be locked - electron-builder will handle rebuild automatically)\"",
-    "demo:populate": "tsx scripts/populate-demo-data.ts"
+    "demo:populate": "tsx scripts/populate-demo-data.ts",
+    "delete:module-data": "tsx scripts/delete-module-data.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
