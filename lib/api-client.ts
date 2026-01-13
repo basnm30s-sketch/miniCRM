@@ -156,7 +156,9 @@ export async function getAllCustomers(): Promise<any[]> {
 
 export async function getCustomerById(id: string): Promise<any | null> {
   try {
-    const url = `${API_BASE_URL}/customers/${id}`
+    // Remove trailing slash if present and ensure no double slashes
+    const cleanId = id.replace(/\/$/, '')
+    const url = `${API_BASE_URL}/customers/${cleanId}`
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
@@ -190,11 +192,20 @@ export async function getCustomerById(id: string): Promise<any | null> {
   }
 }
 
-export async function saveCustomer(customer: any): Promise<void> {
+export async function saveCustomer(customer: any, isUpdate?: boolean): Promise<void> {
   try {
-    // Check if customer exists by trying to get it
+    // If isUpdate flag is provided, use it directly
+    // Otherwise, check if customer exists by trying to get it
     let existingCustomer = null
-    if (customer.id) {
+    
+    if (isUpdate === true) {
+      // Explicitly an update
+      existingCustomer = { id: customer.id } // Dummy object to trigger update path
+    } else if (isUpdate === false) {
+      // Explicitly a create - skip existence check
+      existingCustomer = null
+    } else if (customer.id) {
+      // Auto-detect: silently check if customer exists (don't log 404 errors)
       try {
         existingCustomer = await getCustomerById(customer.id)
       } catch (error) {
@@ -205,7 +216,8 @@ export async function saveCustomer(customer: any): Promise<void> {
 
     if (existingCustomer) {
       // Update existing customer
-      await apiRequest(`/customers/${customer.id}`, {
+      const cleanId = customer.id.replace(/\/$/, '')
+      await apiRequest(`/customers/${cleanId}`, {
         method: 'PUT',
         body: JSON.stringify(customer),
       })

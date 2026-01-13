@@ -100,8 +100,8 @@ export async function getCustomerById(id: string): Promise<Customer | null> {
   return apiClient.getCustomerById(id)
 }
 
-export async function saveCustomer(customer: Customer): Promise<void> {
-  await apiClient.saveCustomer(customer)
+export async function saveCustomer(customer: Customer, isUpdate?: boolean): Promise<void> {
+  await apiClient.saveCustomer(customer, isUpdate)
 }
 
 export async function deleteCustomer(id: string): Promise<void> {

@@ -85,19 +85,19 @@ exports.customersAdapter = {
         }
         // Validate ID before inserting
         if (!data.id || typeof data.id !== 'string' || data.id.trim() === '') {
-            throw new Error('Employee ID is required and must be a non-empty string');
+            throw new Error('Customer ID is required and must be a non-empty string');
         }
         try {
             const now = new Date().toISOString();
             const stmt = db.prepare(`
-        INSERT INTO employees (id, name, employeeId, role, paymentType, hourlyRate, salary, bankDetails, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO customers (id, name, company, email, phone, address, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-            stmt.run(data.id, data.name, data.employeeId || '', data.role || '', data.paymentType != null ? data.paymentType : null, data.hourlyRate || 0, data.salary || 0, data.bankDetails || '', now);
-            return exports.employeesAdapter.getById(data.id);
+            stmt.run(data.id, data.name, data.company || '', data.email || '', data.phone || '', data.address || '', now, now);
+            return exports.customersAdapter.getById(data.id);
         }
         catch (error) {
-            console.error('Error in employeesAdapter.create:', error);
+            console.error('Error in customersAdapter.create:', error);
             throw error;
         }
     },
