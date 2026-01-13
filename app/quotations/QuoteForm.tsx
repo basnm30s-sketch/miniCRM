@@ -840,8 +840,11 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                                 type="number"
                                                                 min="0"
                                                                 max="100"
-                                                                value={item.taxPercent}
-                                                                onChange={(e) => handleLineItemChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0)}
+                                                                value={item.taxPercent && item.taxPercent > 0 ? item.taxPercent : ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value
+                                                                    handleLineItemChange(item.id, 'taxPercent', val === '' ? 0 : parseFloat(val) || 0)
+                                                                }}
                                                                 className="h-7 text-xs text-right px-1"
                                                             />
                                                         </td>

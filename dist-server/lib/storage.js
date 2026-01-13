@@ -170,8 +170,8 @@ async function getAllCustomers() {
 async function getCustomerById(id) {
     return apiClient.getCustomerById(id);
 }
-async function saveCustomer(customer) {
-    await apiClient.saveCustomer(customer);
+async function saveCustomer(customer, isUpdate) {
+    await apiClient.saveCustomer(customer, isUpdate);
 }
 async function deleteCustomer(id) {
     await apiClient.deleteCustomer(id);

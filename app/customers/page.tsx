@@ -69,6 +69,7 @@ export default function CustomersPage() {
   }
 
   const handleSave = async () => {
+    const isUpdate = editingId !== null
     const customer = {
       id: editingId || generateId(),
       name: newName.trim(),
@@ -79,7 +80,8 @@ export default function CustomersPage() {
       createdAt: new Date().toISOString(),
     }
     try {
-      await saveCustomer(customer)
+      // Pass isUpdate flag to avoid unnecessary existence check for new customers
+      await saveCustomer(customer, isUpdate)
       const updated = await getAllCustomers()
       setCustomers(updated)
       // reset
