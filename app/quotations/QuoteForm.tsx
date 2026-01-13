@@ -237,6 +237,21 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
         const newItems = quote.items.map((item) => {
             if (item.id === itemId) {
                 const updated = { ...item, [field]: value }
+                console.log('[Quote Line Item Validation]', {
+                    itemId: item.id,
+                    fieldBeingChanged: field,
+                    currentValues: {
+                      description: item.description || 'MISSING',
+                      vehicleNumber: item.vehicleNumber || 'MISSING',
+                      rentalBasis: item.rentalBasis || 'MISSING',
+                      quantity: item.quantity || 'MISSING',
+                      unitPrice: item.unitPrice || 'MISSING',
+                      taxPercent: item.taxPercent || 'MISSING',
+                      grossAmount: item.grossAmount || 'MISSING',
+                      lineTaxAmount: item.lineTaxAmount || 'MISSING',
+                      lineTotal: item.lineTotal || 'MISSING',
+                    }
+                  })
 
                 // If changing vehicle number, find vehicle and update related fields
                 if (field === 'vehicleNumber' && value) {
@@ -757,6 +772,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                     <tbody>
                                         {quote.items.map((item, index) => {
                                             return (
+                                                
                                                 <tr key={item.id ?? `quote-item-${index}`} className="border-b hover:bg-slate-50">
                                                     {visibleColumns.serialNumber !== false && (
                                                         <td className="p-2 text-center text-slate-700">
