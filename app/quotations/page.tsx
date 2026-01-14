@@ -97,8 +97,45 @@ export default function QuotationsPage() {
         return
       }
 
+      // Load persisted column preferences (per-quote, fallback to global)
+      let visibleColumns: Record<string, boolean> | undefined
+      if (typeof window !== 'undefined') {
+        // Try per-quote setting first
+        const perQuoteKey = `quote-visible-columns-${quote.id}`
+        let stored = localStorage.getItem(perQuoteKey)
+
+        // Fallback to global if no per-quote setting
+        if (!stored) {
+          stored = localStorage.getItem('quote-visible-columns-global')
+        }
+
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+
+            if (!parsed || typeof parsed !== 'object') return null
+
+            const validated: Record<string, boolean> = {}
+
+            for (const [key, val] of Object.entries(parsed)) {
+              if (typeof key === 'string' && typeof val === 'boolean') {
+                console.warn('Visile column:', key, val)
+                validated[key] = val
+              }
+            }
+
+            if (parsed && typeof parsed === 'object') {
+              visibleColumns = parsed
+            }
+          } catch {
+            // ignore invalid stored data
+          }
+        }
+      }
+
+
       const pdfRenderer = new ClientSidePDFRenderer()
-      const blob = await pdfRenderer.renderQuoteToPdf(quote, adminSettings)
+      const blob = await pdfRenderer.renderQuoteToPdf(quote, adminSettings, { visibleColumns })
       pdfRenderer.downloadPdf(blob, `quote-${quote.number}.pdf`)
     } catch (error) {
       console.error('Error generating PDF:', error)

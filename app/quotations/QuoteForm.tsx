@@ -71,6 +71,8 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     const [isDirty, setIsDirty] = useState(false)
     const [isQuoteNumberEditable, setIsQuoteNumberEditable] = useState(false)
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
+    const getVisibleColumnsStorageKey = (quoteId: string | undefined) => 
+        quoteId ? `quote-visible-columns-${quoteId}` : 'quote-visible-columns-global'
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
         serialNumber: true,
         vehicleNumber: true,
@@ -117,6 +119,32 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     }
 
     useEffect(() => {
+        // Restore column preferences from localStorage (per-quote if editing, global if creating)
+        if (typeof window !== 'undefined') {
+            const quoteId = initialData?.id || quote.id
+            const storageKey = getVisibleColumnsStorageKey(quoteId)
+            
+            // Try per-quote setting first
+            let stored = localStorage.getItem(storageKey)
+            
+            // If editing and no per-quote setting exists, try global fallback
+            if (!stored && initialData) {
+                stored = localStorage.getItem('quote-visible-columns-global')
+            }
+            
+            // If still nothing, use defaults
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored)
+                    if (parsed && typeof parsed === 'object') {
+                        setVisibleColumns((prev) => ({ ...prev, ...parsed }))
+                    }
+                } catch {
+                    // ignore invalid stored data
+                }
+            }
+        }
+
         async function loadData() {
             try {
                 // Load admin settings
@@ -163,6 +191,20 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
 
         loadData()
     }, []) // Remove initialData dependency to prevent resetting on every render if parent passes new obj ref
+
+    useEffect(() => {
+        // Persist column preferences (per-quote if editing, global if creating)
+        if (typeof window !== 'undefined') {
+            const quoteId = quote.id
+            const storageKey = getVisibleColumnsStorageKey(quoteId)
+            localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
+            
+            // Also update global setting for new quotes
+            if (!initialData && !quote.createdAt) {
+                localStorage.setItem('quote-visible-columns-global', JSON.stringify(visibleColumns))
+            }
+        }
+    }, [visibleColumns, quote.id, initialData, quote.createdAt])
 
     const calculateTotals = (items: QuoteLineItem[]): { subTotal: number; totalTax: number; total: number } => {
         let subTotal = 0
@@ -400,6 +442,13 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
             setQuote(quoteToSave)
             setSavedSnapshot(snapshotQuote(quoteToSave))
             setIsDirty(false)
+            
+            // Persist column preferences for this specific quote
+            if (typeof window !== 'undefined') {
+                const storageKey = getVisibleColumnsStorageKey(quoteToSave.id)
+                localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
+            }
+            
             toast({ title: 'Saved', description: `Quote ${quote.number} saved successfully` })
             setValidationErrors([])
 
@@ -454,7 +503,26 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
 
         setGenerating(true)
         try {
-            const pdfBlob = await pdfRenderer.renderQuoteToPdf(quote, adminSettings)
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a2d24118-0d4e-4bd9-9024-cfa44163c9ac', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: 'debug-session',
+                    runId: 'pre-fix-1',
+                    hypothesisId: 'H1',
+                    location: 'QuoteForm.tsx:handleDownloadPDF',
+                    message: 'Download PDF from QuoteForm with visibleColumns',
+                    data: {
+                        quoteId: quote.id,
+                        visibleColumns,
+                    },
+                    timestamp: Date.now(),
+                }),
+            }).catch(() => {})
+            // #endregion agent log
+
+            const pdfBlob = await pdfRenderer.renderQuoteToPdf(quote, adminSettings, { visibleColumns })
             const filename = `quote-${quote.number}.pdf`
             pdfRenderer.downloadPdf(pdfBlob, filename)
             toast({ title: 'Success', description: 'PDF downloaded successfully' })
