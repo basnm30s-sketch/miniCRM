@@ -690,4 +690,3 @@ export function isDatabaseInitialized(): boolean {
 export function getInitError(): Error | null {
   return initError
 }
-
