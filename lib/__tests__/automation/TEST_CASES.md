@@ -269,9 +269,7 @@ This document lists all the automation test cases implemented in the project.
 | | `handle general errors` | Verifies 500 response for general errors. | **Vehicle Finances:** Graceful error handling for DB failures. |
 
 ## Module 16: Vehicle Finances Dashboard Metrics
-**File:** `api/__tests__/vehicle-finances.test.ts`
-
-| Test Group | Test Case | Description | Functional Explanation (Impact Area) |
+**File:** `api/__tests__/vehicle-finances.test.ts`| Test Group | Test Case | Description | Functional Explanation (Impact Area) |
 | :--- | :--- | :--- | :--- |
 | **getDashboardMetrics()** | `return dashboard metrics structure` | Verifies dashboard metrics structure (overall, timeBased, vehicleBased, customerBased, categoryBased, operational). | **Vehicle Finances Dashboard:** Ensuring correct data structure for frontend. |
 | | `calculate overall metrics correctly` | Verifies calculation of total revenue, expenses, net profit, and profit margin. | **Vehicle Finances Dashboard:** Displaying overall financial summary. |
