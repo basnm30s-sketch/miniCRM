@@ -1179,11 +1179,16 @@ export const quotesAdapter = {
         customer: customer || { id: '', name: '', company: '', email: '', phone: '', address: '' },
         items: items.map(item => ({
           id: item.id,
+          serialNumber: item.serialNumber || undefined,
           vehicleTypeId: item.vehicleTypeId || '',
           vehicleTypeLabel: item.vehicleTypeLabel || '',
+          vehicleNumber: item.vehicleNumber || undefined,
+          description: item.description || undefined,
+          rentalBasis: item.rentalBasis || undefined,
           quantity: item.quantity || 0,
           unitPrice: item.unitPrice || 0,
           taxPercent: item.taxPercent || 0,
+          grossAmount: item.grossAmount || undefined,
           lineTaxAmount: item.lineTaxAmount || 0,
           lineTotal: item.lineTotal || 0,
         })),
@@ -1225,11 +1230,16 @@ export const quotesAdapter = {
         customer: customer || null,
       items: items.map(item => ({
         id: item.id,
+        serialNumber: item.serialNumber || undefined,
         vehicleTypeId: item.vehicleTypeId || '',
         vehicleTypeLabel: item.vehicleTypeLabel || '',
+        vehicleNumber: item.vehicleNumber || undefined,
+        description: item.description || undefined,
+        rentalBasis: item.rentalBasis || undefined,
         quantity: item.quantity || 0,
         unitPrice: item.unitPrice || 0,
         taxPercent: item.taxPercent || 0,
+        grossAmount: item.grossAmount || undefined,
         lineTaxAmount: item.lineTaxAmount || 0,
         lineTotal: item.lineTotal || 0,
       })),
@@ -1301,8 +1311,8 @@ export const quotesAdapter = {
     // Insert items
     if (data.items && data.items.length > 0) {
       const itemStmt = db.prepare(`
-        INSERT INTO quote_items (id, quoteId, vehicleTypeId, vehicleTypeLabel, quantity, unitPrice, taxPercent, lineTaxAmount, lineTotal)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO quote_items (id, quoteId, vehicleTypeId, vehicleTypeLabel, vehicleNumber, description, rentalBasis, serialNumber, quantity, unitPrice, taxPercent, grossAmount, lineTaxAmount, lineTotal)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       const insertItems = db.transaction((items: any[]) => {
         for (const item of items) {
@@ -1311,9 +1321,14 @@ export const quotesAdapter = {
             data.id,
             item.vehicleTypeId || '',
             item.vehicleTypeLabel || '',
+            item.vehicleNumber || null,
+            item.description || null,
+            item.rentalBasis || null,
+            item.serialNumber || null,
             item.quantity || 0,
             item.unitPrice || 0,
             item.taxPercent || 0,
+            item.grossAmount || null,
             item.lineTaxAmount || 0,
             item.lineTotal || 0
           )
@@ -1385,8 +1400,8 @@ export const quotesAdapter = {
     db.prepare('DELETE FROM quote_items WHERE quoteId = ?').run(id)
     if (data.items && data.items.length > 0) {
       const itemStmt = db.prepare(`
-        INSERT INTO quote_items (id, quoteId, vehicleTypeId, vehicleTypeLabel, quantity, unitPrice, taxPercent, lineTaxAmount, lineTotal)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO quote_items (id, quoteId, vehicleTypeId, vehicleTypeLabel, vehicleNumber, description, rentalBasis, serialNumber, quantity, unitPrice, taxPercent, grossAmount, lineTaxAmount, lineTotal)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       const insertItems = db.transaction((items: any[]) => {
         for (const item of items) {
@@ -1395,9 +1410,14 @@ export const quotesAdapter = {
             id,
             item.vehicleTypeId || '',
             item.vehicleTypeLabel || '',
+            item.vehicleNumber || null,
+            item.description || null,
+            item.rentalBasis || null,
+            item.serialNumber || null,
             item.quantity || 0,
             item.unitPrice || 0,
             item.taxPercent || 0,
+            item.grossAmount || null,
             item.lineTaxAmount || 0,
             item.lineTotal || 0
           )
