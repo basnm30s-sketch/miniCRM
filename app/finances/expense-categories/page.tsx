@@ -1,6 +1,6 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import ExpenseCategoryManager from '@/components/expense-category-manager'
 
 export default function ExpenseCategoriesPage() {
@@ -12,9 +12,6 @@ export default function ExpenseCategoriesPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Categories</CardTitle>
-        </CardHeader>
         <CardContent>
           <ExpenseCategoryManager />
         </CardContent>

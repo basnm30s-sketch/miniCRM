@@ -121,9 +121,37 @@ export default function EmployeesPage() {
   }
 
   const handleSave = async () => {
-    if (!paymentType) {
-      toast({ title: 'Validation Error', description: 'Please select a payment type (Hourly or Monthly)', variant: 'destructive' })
+    // Validate name field
+    if (!newName.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Employee name is required',
+        variant: 'destructive',
+      })
       return
+    }
+
+    // If payment type is selected, validate corresponding pay field
+    if (paymentType === 'hourly') {
+      if (!newHourlyRate.trim() || isNaN(parseFloat(newHourlyRate)) || parseFloat(newHourlyRate) <= 0) {
+        toast({
+          title: 'Validation Error',
+          description: 'Hourly Pay is required when Hourly payment type is selected',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
+    if (paymentType === 'monthly') {
+      if (!newSalary.trim() || isNaN(parseFloat(newSalary)) || parseFloat(newSalary) <= 0) {
+        toast({
+          title: 'Validation Error',
+          description: 'Monthly Pay is required when Monthly payment type is selected',
+          variant: 'destructive',
+        })
+        return
+      }
     }
 
     // Ensure ID is always generated
@@ -138,7 +166,7 @@ export default function EmployeesPage() {
       name: newName.trim(),
       employeeId: newEmployeeId.trim(),
       role: newRole.trim(),
-      paymentType: paymentType as 'hourly' | 'monthly',
+      paymentType: paymentType ? (paymentType as 'hourly' | 'monthly') : undefined,
       hourlyRate: paymentType === 'hourly' ? (parseFloat(newHourlyRate) || undefined) : undefined,
       salary: paymentType === 'monthly' ? (parseFloat(newSalary) || undefined) : undefined,
       overtimeRate: newOvertimeRate ? (parseFloat(newOvertimeRate) || undefined) : undefined,
@@ -309,13 +337,40 @@ export default function EmployeesPage() {
               <h3 className="text-lg font-semibold">{editingId ? 'Edit' : 'Add'} Employee</h3>
             </div>
             <div className="overflow-y-auto flex-1 p-6">
-              <div className="space-y-2">
-                <input className="w-full border px-2 py-1 rounded" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-                <input className="w-full border px-2 py-1 rounded" placeholder="Employee ID" value={newEmployeeId} onChange={(e) => setNewEmployeeId(e.target.value)} />
-                <input className="w-full border px-2 py-1 rounded" placeholder="Role" value={newRole} onChange={(e) => setNewRole(e.target.value)} />
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="employee-name" className="text-slate-700 text-sm mb-1 block">Name <span className="text-red-500">*</span></Label>
+                  <input 
+                    id="employee-name"
+                    className="w-full border px-2 py-1 rounded" 
+                    placeholder="Name" 
+                    value={newName} 
+                    onChange={(e) => setNewName(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="employee-id" className="text-slate-700 text-sm mb-1 block">Employee ID</Label>
+                  <input 
+                    id="employee-id"
+                    className="w-full border px-2 py-1 rounded" 
+                    placeholder="Employee ID" 
+                    value={newEmployeeId} 
+                    onChange={(e) => setNewEmployeeId(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="employee-role" className="text-slate-700 text-sm mb-1 block">Role</Label>
+                  <input 
+                    id="employee-role"
+                    className="w-full border px-2 py-1 rounded" 
+                    placeholder="Role" 
+                    value={newRole} 
+                    onChange={(e) => setNewRole(e.target.value)} 
+                  />
+                </div>
 
                 <div className="space-y-2">
-                  <Label>Payment Type</Label>
+                  <Label className="text-slate-700 text-sm mb-1 block">Payment Type</Label>
                   <RadioGroup value={paymentType} onValueChange={(value) => setPaymentType(value as 'hourly' | 'monthly')}>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="hourly" id="hourly" />
@@ -329,37 +384,58 @@ export default function EmployeesPage() {
                 </div>
 
                 {paymentType === 'hourly' && (
-                  <input
-                    className="w-full border px-2 py-1 rounded"
-                    placeholder="Hourly Pay"
-                    type="number"
-                    step="0.01"
-                    value={newHourlyRate}
-                    onChange={(e) => setNewHourlyRate(e.target.value)}
-                  />
+                  <div>
+                    <Label htmlFor="employee-hourly-rate" className="text-slate-700 text-sm mb-1 block">Hourly Pay <span className="text-red-500">*</span></Label>
+                    <input
+                      id="employee-hourly-rate"
+                      className="w-full border px-2 py-1 rounded"
+                      placeholder="Hourly Pay"
+                      type="number"
+                      step="0.01"
+                      value={newHourlyRate}
+                      onChange={(e) => setNewHourlyRate(e.target.value)}
+                    />
+                  </div>
                 )}
 
                 {paymentType === 'monthly' && (
-                  <input
-                    className="w-full border px-2 py-1 rounded"
-                    placeholder="Monthly Pay"
-                    type="number"
-                    step="0.01"
-                    value={newSalary}
-                    onChange={(e) => setNewSalary(e.target.value)}
-                  />
+                  <div>
+                    <Label htmlFor="employee-salary" className="text-slate-700 text-sm mb-1 block">Monthly Pay <span className="text-red-500">*</span></Label>
+                    <input
+                      id="employee-salary"
+                      className="w-full border px-2 py-1 rounded"
+                      placeholder="Monthly Pay"
+                      type="number"
+                      step="0.01"
+                      value={newSalary}
+                      onChange={(e) => setNewSalary(e.target.value)}
+                    />
+                  </div>
                 )}
 
-                <input
-                  className="w-full border px-2 py-1 rounded"
-                  placeholder="Overtime Rate (AED/hr)"
-                  type="number"
-                  step="0.01"
-                  value={newOvertimeRate}
-                  onChange={(e) => setNewOvertimeRate(e.target.value)}
-                />
+                <div>
+                  <Label htmlFor="employee-overtime-rate" className="text-slate-700 text-sm mb-1 block">Overtime Rate (AED/hr)</Label>
+                  <input
+                    id="employee-overtime-rate"
+                    className="w-full border px-2 py-1 rounded"
+                    placeholder="Overtime Rate (AED/hr)"
+                    type="number"
+                    step="0.01"
+                    value={newOvertimeRate}
+                    onChange={(e) => setNewOvertimeRate(e.target.value)}
+                  />
+                </div>
 
-                <textarea className="w-full border px-2 py-1 rounded" placeholder="Bank Details" value={newBankDetails} onChange={(e) => setNewBankDetails(e.target.value)} />
+                <div>
+                  <Label htmlFor="employee-bank-details" className="text-slate-700 text-sm mb-1 block">Bank Details</Label>
+                  <textarea 
+                    id="employee-bank-details"
+                    className="w-full border px-2 py-1 rounded" 
+                    placeholder="Bank Details" 
+                    value={newBankDetails} 
+                    onChange={(e) => setNewBankDetails(e.target.value)} 
+                  />
+                </div>
               </div>
             </div>
             <div className="p-6 border-t border-slate-200 flex justify-end gap-2 sticky bottom-0 bg-white z-10 rounded-b-lg">

@@ -5,7 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Plus, Edit2, Trash2, Car, AlertCircle, TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
-import { getAllVehicles, saveVehicle, deleteVehicle, generateId, getVehicleProfitability, getAllVehicleTransactions, saveVehicleTransaction } from '@/lib/storage'
+import { useVehicles, useCreateVehicle, useUpdateVehicle, useDeleteVehicle, useCreateVehicleTransaction } from '@/hooks/use-vehicles'
+import { getVehicleProfitability, getAllVehicleTransactions } from '@/actions/vehicles'
+
+// Helper to generate unique IDs
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
 import type { Vehicle, VehicleFuelType, VehicleStatus } from '@/lib/types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import Link from 'next/link'
@@ -70,8 +76,12 @@ const statusColors: Record<VehicleStatus, string> = {
 }
 
 export default function VehiclesPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: vehicles = [], isLoading: loading, error: vehiclesError } = useVehicles()
+  const createMutation = useCreateVehicle()
+  const updateMutation = useUpdateVehicle()
+  const deleteMutation = useDeleteVehicle()
+  const createTransactionMutation = useCreateVehicleTransaction()
+  
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<VehicleForm>(emptyForm)
@@ -84,31 +94,18 @@ export default function VehiclesPage() {
     compliance: false,
   })
 
-  useEffect(() => {
-    loadVehicles()
-  }, [])
-
+  // Load profitability data when vehicles change
   useEffect(() => {
     if (vehicles.length > 0) {
       loadProfitabilityData()
     }
   }, [vehicles])
 
-  const loadVehicles = async () => {
-    try {
-      const allVehicles = await getAllVehicles()
-      setVehicles(allVehicles)
-    } catch (error) {
-      console.error('Error loading vehicles:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const loadProfitabilityData = async () => {
     const data: Record<string, any> = {}
     for (const vehicle of vehicles) {
       try {
+        // Use the hook's query function directly
         const profitability = await getVehicleProfitability(vehicle.id)
         data[vehicle.id] = profitability
       } catch (error) {
@@ -126,7 +123,15 @@ export default function VehiclesPage() {
     )
   }
 
-  const renderCell = (value: string | number | undefined) => (
+  if (vehiclesError) {
+    return (
+      <div className="p-8">
+        <div className="text-red-500">Error loading vehicles: {vehiclesError.message}</div>
+      </div>
+    )
+  }
+
+  const renderCell = (value: string | number | null | undefined) => (
     <TableCell className="text-slate-600 truncate max-w-[150px]">
       <TooltipProvider>
         <Tooltip>
@@ -177,63 +182,121 @@ export default function VehiclesPage() {
       return
     }
 
-    const vehicleId = editingId || generateId()
-    const vehicle: Vehicle = {
-      id: vehicleId,
-      vehicleNumber: form.vehicleNumber.trim(),
-      vehicleType: form.vehicleType.trim() || undefined,
-      make: form.make.trim() || undefined,
-      model: form.model.trim() || undefined,
-      year: form.year ? parseInt(form.year) : undefined,
-      color: form.color.trim() || undefined,
-      purchasePrice: form.purchasePrice ? parseFloat(form.purchasePrice) : undefined,
-      purchaseDate: form.purchaseDate || undefined,
-      currentValue: form.currentValue ? parseFloat(form.currentValue) : undefined,
-      insuranceCostMonthly: form.insuranceCostMonthly ? parseFloat(form.insuranceCostMonthly) : undefined,
-      financingCostMonthly: form.financingCostMonthly ? parseFloat(form.financingCostMonthly) : undefined,
-      odometerReading: form.odometerReading ? parseFloat(form.odometerReading) : undefined,
-      lastServiceDate: form.lastServiceDate || undefined,
-      nextServiceDue: form.nextServiceDue || undefined,
-      fuelType: (form.fuelType as VehicleFuelType) || undefined,
-      status: (form.status as VehicleStatus) || 'active',
-      registrationExpiry: form.registrationExpiry || undefined,
-      insuranceExpiry: form.insuranceExpiry || undefined,
-      description: form.description.trim() || undefined,
-      basePrice: form.basePrice ? parseFloat(form.basePrice) : undefined,
-      notes: form.notes.trim() || undefined,
-      createdAt: new Date().toISOString(),
+    // Generate ID - use crypto.randomUUID if available, otherwise fallback
+    const vehicleId = editingId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : generateId())
+    const isUpdate = !!editingId
+
+    // Helper to safely trim strings
+    const safeTrim = (value: string | undefined): string | null => {
+      if (!value) return null
+      const trimmed = value.trim()
+      return trimmed.length === 0 ? null : trimmed
     }
 
     try {
-      await saveVehicle(vehicle)
+      console.log('Form data before submission:', {
+        vehicleId,
+        isUpdate,
+        vehicleNumber: form.vehicleNumber,
+        vehicleNumberLength: form.vehicleNumber?.length,
+        hasVehicleNumber: !!form.vehicleNumber && form.vehicleNumber.trim().length > 0,
+      })
       
-      // Optional: Auto-create expense entry for purchase price
-      if (vehicle.purchasePrice && vehicle.purchasePrice > 0 && vehicle.purchaseDate) {
+      let result
+      if (isUpdate) {
+        result = await updateMutation.mutateAsync({
+          id: vehicleId,
+          data: {
+            vehicleNumber: form.vehicleNumber.trim(),
+            vehicleType: safeTrim(form.vehicleType),
+            make: safeTrim(form.make),
+            model: safeTrim(form.model),
+            year: form.year ? parseInt(form.year) : null,
+            color: safeTrim(form.color),
+            purchasePrice: form.purchasePrice ? parseFloat(form.purchasePrice) : null,
+            purchaseDate: safeTrim(form.purchaseDate),
+            currentValue: form.currentValue ? parseFloat(form.currentValue) : null,
+            insuranceCostMonthly: form.insuranceCostMonthly ? parseFloat(form.insuranceCostMonthly) : null,
+            financingCostMonthly: form.financingCostMonthly ? parseFloat(form.financingCostMonthly) : null,
+            odometerReading: form.odometerReading ? parseFloat(form.odometerReading) : null,
+            lastServiceDate: safeTrim(form.lastServiceDate),
+            nextServiceDue: safeTrim(form.nextServiceDue),
+            fuelType: (form.fuelType as VehicleFuelType) || null,
+            status: (form.status as VehicleStatus) || 'active',
+            registrationExpiry: safeTrim(form.registrationExpiry),
+            insuranceExpiry: safeTrim(form.insuranceExpiry),
+            description: safeTrim(form.description),
+            basePrice: form.basePrice ? parseFloat(form.basePrice) : null,
+            notes: safeTrim(form.notes),
+          },
+        })
+      } else {
+        // Helper to safely trim strings
+        const safeTrim = (value: string | undefined): string | null => {
+          if (!value) return null
+          const trimmed = value.trim()
+          return trimmed.length === 0 ? null : trimmed
+        }
+        
+        result = await createMutation.mutateAsync({
+          id: vehicleId,
+          vehicleNumber: form.vehicleNumber.trim(),
+          vehicleType: safeTrim(form.vehicleType),
+          make: safeTrim(form.make),
+          model: safeTrim(form.model),
+          year: form.year ? parseInt(form.year) : null,
+          color: safeTrim(form.color),
+          purchasePrice: form.purchasePrice ? parseFloat(form.purchasePrice) : null,
+          purchaseDate: safeTrim(form.purchaseDate),
+          currentValue: form.currentValue ? parseFloat(form.currentValue) : null,
+          insuranceCostMonthly: form.insuranceCostMonthly ? parseFloat(form.insuranceCostMonthly) : null,
+          financingCostMonthly: form.financingCostMonthly ? parseFloat(form.financingCostMonthly) : null,
+          odometerReading: form.odometerReading ? parseFloat(form.odometerReading) : null,
+          lastServiceDate: safeTrim(form.lastServiceDate),
+          nextServiceDue: safeTrim(form.nextServiceDue),
+          fuelType: (form.fuelType as VehicleFuelType) || null,
+          status: (form.status as VehicleStatus) || 'active',
+          registrationExpiry: safeTrim(form.registrationExpiry),
+          insuranceExpiry: safeTrim(form.insuranceExpiry),
+          description: safeTrim(form.description),
+          basePrice: form.basePrice ? parseFloat(form.basePrice) : null,
+          notes: safeTrim(form.notes),
+        })
+      }
+
+      if (!result.success) {
+        setError(result.error || 'Failed to save vehicle')
+        return
+      }
+
+      // Optional: Auto-create expense entry for purchase price (only on create)
+      if (!isUpdate && form.purchasePrice && parseFloat(form.purchasePrice) > 0 && form.purchaseDate) {
         try {
+          const purchasePrice = parseFloat(form.purchasePrice)
           // Check if expense entry already exists for this purchase
           const existingTransactions = await getAllVehicleTransactions(vehicleId)
           const purchaseExpenseExists = existingTransactions.some(
             t => t.transactionType === 'expense' && 
                  t.category === 'Purchase' && 
-                 Math.abs(t.amount - vehicle.purchasePrice) < 0.01
+                 Math.abs(t.amount - purchasePrice) < 0.01
           )
           
           if (!purchaseExpenseExists) {
             // Ask user if they want to create expense entry
             const shouldCreate = confirm(
-              `Would you like to create an expense entry for the purchase price of ${vehicle.purchasePrice.toFixed(2)} AED?`
+              `Would you like to create an expense entry for the purchase price of ${purchasePrice.toFixed(2)} AED?`
             )
             
             if (shouldCreate) {
-              await saveVehicleTransaction({
-                id: generateId(),
+              await createTransactionMutation.mutateAsync({
+                id: crypto.randomUUID(),
                 vehicleId: vehicleId,
                 transactionType: 'expense',
                 category: 'Purchase',
-                amount: vehicle.purchasePrice,
-                date: vehicle.purchaseDate,
-                month: vehicle.purchaseDate.substring(0, 7),
-                description: `Vehicle purchase: ${vehicle.vehicleNumber}`,
+                amount: purchasePrice,
+                date: form.purchaseDate,
+                month: form.purchaseDate.substring(0, 7),
+                description: `Vehicle purchase: ${form.vehicleNumber.trim()}`,
               })
             }
           }
@@ -243,19 +306,45 @@ export default function VehiclesPage() {
         }
       }
       
-      await loadVehicles()
       closeModal()
     } catch (err: any) {
       console.error('Failed to save vehicle', err)
-      setError(err?.message || 'Failed to save vehicle')
+      console.error('Error details:', {
+        message: err?.message,
+        response: err?.response,
+        data: err?.data,
+        error: err?.error,
+        stack: err?.stack?.substring(0, 500),
+      })
+      
+      // Handle different error formats
+      let errorMessage = 'Failed to save vehicle'
+      
+      if (err?.error) {
+        // Result object with error property
+        errorMessage = err.error
+      } else if (err?.message) {
+        // Standard Error object
+        errorMessage = err.message
+      } else if (typeof err === 'string') {
+        // String error
+        errorMessage = err
+      } else if (err?.response?.data?.error) {
+        // API response error
+        errorMessage = err.response.data.error
+      }
+      
+      setError(errorMessage)
     }
   }
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this vehicle?')) {
       try {
-        await deleteVehicle(id)
-        await loadVehicles()
+        const result = await deleteMutation.mutateAsync(id)
+        if (!result.success) {
+          alert(result.error || 'Failed to delete vehicle')
+        }
       } catch (err: any) {
         alert(err?.message || 'Failed to delete vehicle')
       }
@@ -321,11 +410,11 @@ export default function VehiclesPage() {
                   vehicles.map((vehicle) => (
                     <TableRow key={vehicle.id}>
                       <TableCell className="font-medium text-slate-900">{vehicle.vehicleNumber}</TableCell>
-                      {renderCell(vehicle.make && vehicle.model ? `${vehicle.make} ${vehicle.model}` : vehicle.make || vehicle.model)}
-                      {renderCell(vehicle.year)}
-                      {renderCell(vehicle.vehicleType)}
+                      {renderCell(vehicle.make && vehicle.model ? `${vehicle.make} ${vehicle.model}` : vehicle.make || vehicle.model || null)}
+                      {renderCell(vehicle.year ?? null)}
+                      {renderCell(vehicle.vehicleType ?? null)}
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[vehicle.status || 'active']}`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[(vehicle.status || 'active') as VehicleStatus]}`}>
                           {vehicle.status || 'active'}
                         </span>
                       </TableCell>
@@ -355,20 +444,18 @@ export default function VehiclesPage() {
                           <span className="text-slate-400">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex gap-2 justify-center">
-                          {/* <Link href={`/vehicle-finances/${vehicle.id}`} className="inline-block">
-                            <span className="text-green-600 hover:text-green-800 cursor-pointer inline-flex" title="View Profitability">
-                              <DollarSign className="w-4 h-4" /> 
-                            </span>
-                          </Link> */}
-                          <button onClick={() => handleEdit(vehicle)} className="text-blue-600 hover:text-blue-800">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDelete(vehicle.id)} className="text-red-600 hover:text-red-800">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                      <TableCell className="text-center gap-2 flex justify-center">
+                        {/* <Link href={`/vehicle-finances/${vehicle.id}`} className="inline-block">
+                          <span className="text-green-600 hover:text-green-800 cursor-pointer inline-flex" title="View Profitability">
+                            <DollarSign className="w-4 h-4" /> 
+                          </span>
+                        </Link> */}
+                        <button onClick={() => handleEdit(vehicle)} className="text-primary hover:text-primary/90">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDelete(vehicle.id)} className="text-destructive hover:text-destructive/90">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </TableCell>
                     </TableRow>
                   ))

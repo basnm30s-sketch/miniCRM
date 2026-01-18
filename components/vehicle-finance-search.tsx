@@ -98,6 +98,7 @@ export function VehicleFinanceSearch({
               <SelectItem value="revenue">Revenue (High to Low)</SelectItem>
               <SelectItem value="vehicleNumber">Vehicle Number</SelectItem>
               <SelectItem value="profitMargin">Profit Margin</SelectItem>
+              <SelectItem value="lastUpdated">Last Updated</SelectItem>
             </SelectContent>
           </Select>
         </div>

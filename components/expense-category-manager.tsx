@@ -8,13 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Edit2, Trash2, X, Save } from 'lucide-react'
 import { getAllExpenseCategories, saveExpenseCategory, deleteExpenseCategory, generateId } from '@/lib/storage'
 import type { ExpenseCategory } from '@/lib/types'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 export default function ExpenseCategoryManager() {
   const [categories, setCategories] = useState<ExpenseCategory[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [editingName, setEditingName] = useState('')
@@ -29,7 +28,11 @@ export default function ExpenseCategoryManager() {
       const data = await getAllExpenseCategories()
       setCategories(data)
     } catch (err: any) {
-      setError(err?.message || 'Failed to load categories')
+      toast({
+        title: 'Error',
+        description: err?.message || 'Failed to load categories',
+        variant: 'destructive',
+      })
     } finally {
       setLoading(false)
     }
@@ -37,18 +40,25 @@ export default function ExpenseCategoryManager() {
 
   const handleAdd = async () => {
     if (!newCategoryName.trim()) {
-      setError('Category name is required')
+      toast({
+        title: 'Validation Error',
+        description: 'Category name is required',
+        variant: 'destructive',
+      })
       return
     }
 
     // Check for duplicate
     if (categories.some(c => c.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
-      setError('Category with this name already exists')
+      toast({
+        title: 'Validation Error',
+        description: 'Category with this name already exists',
+        variant: 'destructive',
+      })
       return
     }
 
     try {
-      setError(null)
       await saveExpenseCategory({
         id: generateId(),
         name: newCategoryName.trim(),
@@ -57,8 +67,16 @@ export default function ExpenseCategoryManager() {
       setNewCategoryName('')
       setShowAddForm(false)
       await loadCategories()
+      toast({
+        title: 'Success',
+        description: 'Category created successfully',
+      })
     } catch (err: any) {
-      setError(err?.message || 'Failed to add category')
+      toast({
+        title: 'Error',
+        description: err?.message || 'Failed to add category',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -69,7 +87,11 @@ export default function ExpenseCategoryManager() {
 
   const handleSaveEdit = async (id: string) => {
     if (!editingName.trim()) {
-      setError('Category name is required')
+      toast({
+        title: 'Validation Error',
+        description: 'Category name is required',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -78,12 +100,15 @@ export default function ExpenseCategoryManager() {
 
     // Check for duplicate (excluding current category)
     if (categories.some(c => c.id !== id && c.name.toLowerCase() === editingName.trim().toLowerCase())) {
-      setError('Category with this name already exists')
+      toast({
+        title: 'Validation Error',
+        description: 'Category with this name already exists',
+        variant: 'destructive',
+      })
       return
     }
 
     try {
-      setError(null)
       await saveExpenseCategory({
         ...category,
         name: editingName.trim(),
@@ -91,15 +116,22 @@ export default function ExpenseCategoryManager() {
       setEditingId(null)
       setEditingName('')
       await loadCategories()
+      toast({
+        title: 'Success',
+        description: 'Category updated successfully',
+      })
     } catch (err: any) {
-      setError(err?.message || 'Failed to update category')
+      toast({
+        title: 'Error',
+        description: err?.message || 'Failed to update category',
+        variant: 'destructive',
+      })
     }
   }
 
   const handleCancelEdit = () => {
     setEditingId(null)
     setEditingName('')
-    setError(null)
   }
 
   const handleDelete = async (id: string) => {
@@ -107,7 +139,11 @@ export default function ExpenseCategoryManager() {
     if (!category) return
 
     if (!category.isCustom) {
-      setError('Cannot delete predefined category')
+      toast({
+        title: 'Error',
+        description: 'Cannot delete predefined category',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -116,11 +152,18 @@ export default function ExpenseCategoryManager() {
     }
 
     try {
-      setError(null)
       await deleteExpenseCategory(id)
       await loadCategories()
+      toast({
+        title: 'Success',
+        description: 'Category deleted successfully',
+      })
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete category')
+      toast({
+        title: 'Error',
+        description: err?.message || 'Failed to delete category',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -133,62 +176,13 @@ export default function ExpenseCategoryManager() {
 
   return (
     <div className="space-y-4">
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-slate-900">Expense Categories</h3>
-        {!showAddForm && (
-          <Button onClick={() => setShowAddForm(true)} size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Category
-          </Button>
-        )}
+        <Button onClick={() => setShowAddForm(true)} size="sm">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Category
+        </Button>
       </div>
-
-      {showAddForm && (
-        <div className="p-4 border border-slate-200 rounded-lg bg-slate-50">
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Label htmlFor="newCategory">Category Name</Label>
-              <Input
-                id="newCategory"
-                value={newCategoryName}
-                onChange={(e) => {
-                  setNewCategoryName(e.target.value)
-                  setError(null)
-                }}
-                placeholder="Enter category name"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleAdd()
-                  } else if (e.key === 'Escape') {
-                    setShowAddForm(false)
-                    setNewCategoryName('')
-                  }
-                }}
-              />
-            </div>
-            <div className="flex items-end gap-2">
-              <Button onClick={handleAdd} size="sm">
-                <Save className="w-4 h-4 mr-2" />
-                Save
-              </Button>
-              <Button onClick={() => {
-                setShowAddForm(false)
-                setNewCategoryName('')
-                setError(null)
-              }} variant="outline" size="sm">
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="border border-slate-200 rounded-lg overflow-hidden">
         <Table>
@@ -221,7 +215,6 @@ export default function ExpenseCategoryManager() {
                       value={editingName}
                       onChange={(e) => {
                         setEditingName(e.target.value)
-                        setError(null)
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -242,7 +235,7 @@ export default function ExpenseCategoryManager() {
                     Custom
                   </span>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right gap-2 flex justify-end">
                   {editingId === category.id ? (
                     <div className="flex justify-end gap-2">
                       <Button
@@ -261,22 +254,20 @@ export default function ExpenseCategoryManager() {
                       </Button>
                     </div>
                   ) : (
-                    <div className="flex justify-end gap-2">
-                      <Button
+                    <>
+                      <button
                         onClick={() => handleEdit(category)}
-                        size="sm"
-                        variant="outline"
+                        className="text-primary hover:text-primary/90"
                       >
                         <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button
+                      </button>
+                      <button
                         onClick={() => handleDelete(category.id)}
-                        size="sm"
-                        variant="outline"
+                        className="text-destructive hover:text-destructive/90"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+                      </button>
+                    </>
                   )}
                 </TableCell>
               </TableRow>
@@ -291,6 +282,55 @@ export default function ExpenseCategoryManager() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={showAddForm} onOpenChange={(open) => {
+        setShowAddForm(open)
+        if (!open) {
+          setNewCategoryName('')
+        }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Category</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div>
+              <Label htmlFor="newCategory" className="text-slate-700 text-sm mb-2 block">
+                Category Name
+              </Label>
+              <Input
+                id="newCategory"
+                value={newCategoryName}
+                onChange={(e) => {
+                  setNewCategoryName(e.target.value)
+                }}
+                placeholder="Enter category name"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAdd()
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowAddForm(false)
+                setNewCategoryName('')
+              }}
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAdd}>
+              <Save className="w-4 h-4 mr-2" />
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { VehicleFinanceCard } from '@/components/vehicle-finance-card'
 import { VehicleFinanceSearch } from '@/components/vehicle-finance-search'
 import { VehicleFinanceDetailView } from '@/components/vehicle-finance-detail-view'
-import { getAllVehicles, getVehicleProfitability } from '@/lib/storage'
+import { getAllVehicles, getVehicleProfitability, getAllVehicleTransactions } from '@/lib/storage'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import type { Vehicle } from '@/lib/types'
@@ -14,6 +14,7 @@ import type { VehicleProfitabilitySummary } from '@/lib/types'
 
 interface VehicleWithProfitability extends Vehicle {
   profitability: VehicleProfitabilitySummary | null
+  lastTransactionDate?: string
 }
 
 function VehicleFinancesContent() {
@@ -54,9 +55,36 @@ function VehicleFinancesContent() {
           allVehicles.map(async (vehicle) => {
             try {
               const profitability = await getVehicleProfitability(vehicle.id)
-              return { ...vehicle, profitability }
+              // Get most recent transaction update date (when transaction was created/updated, not transaction date)
+              const transactions = await getAllVehicleTransactions(vehicle.id)
+              let lastTransactionDate: string | undefined = undefined
+              if (transactions.length > 0) {
+                // Find the transaction with the most recent updatedAt or createdAt
+                // Prioritize: updatedAt > createdAt > date
+                const mostRecent = transactions.reduce((latest, tx) => {
+                  // Get the best available date for each transaction
+                  const txDate = tx.updatedAt || tx.createdAt || tx.date || ''
+                  const latestDate = latest.updatedAt || latest.createdAt || latest.date || ''
+                  // Compare dates (works for ISO strings and YYYY-MM-DD format)
+                  return txDate > latestDate ? tx : latest
+                })
+                // Use the best available date from the most recent transaction
+                lastTransactionDate = mostRecent.updatedAt || mostRecent.createdAt || mostRecent.date
+              } else {
+                lastTransactionDate = vehicle.createdAt || undefined
+              }
+              
+              return { 
+                ...vehicle, 
+                profitability,
+                lastTransactionDate
+              }
             } catch (error) {
-              return { ...vehicle, profitability: null }
+              return { 
+                ...vehicle, 
+                profitability: null,
+                lastTransactionDate: vehicle.createdAt || undefined
+              }
             }
           })
         )
@@ -70,6 +98,59 @@ function VehicleFinancesContent() {
       if (isMounted.current) setVehicles([])
     } finally {
       if (isMounted.current) setLoading(false)
+    }
+  }, [])
+
+  const refreshVehicleList = useCallback(async () => {
+    // Reload profitability for all vehicles without showing loading state
+    try {
+      const allVehicles = await getAllVehicles()
+
+      if (!isMounted.current) return
+
+      if (allVehicles) {
+        const vehiclesWithData = await Promise.all(
+          allVehicles.map(async (vehicle) => {
+            try {
+              const profitability = await getVehicleProfitability(vehicle.id)
+              // Get most recent transaction update date (when transaction was created/updated, not transaction date)
+              const transactions = await getAllVehicleTransactions(vehicle.id)
+              let lastTransactionDate: string | undefined = undefined
+              if (transactions.length > 0) {
+                // Find the transaction with the most recent updatedAt or createdAt
+                // Prioritize: updatedAt > createdAt > date
+                const mostRecent = transactions.reduce((latest, tx) => {
+                  // Get the best available date for each transaction
+                  const txDate = tx.updatedAt || tx.createdAt || tx.date || ''
+                  const latestDate = latest.updatedAt || latest.createdAt || latest.date || ''
+                  // Compare dates (works for ISO strings and YYYY-MM-DD format)
+                  return txDate > latestDate ? tx : latest
+                })
+                // Use the best available date from the most recent transaction
+                lastTransactionDate = mostRecent.updatedAt || mostRecent.createdAt || mostRecent.date
+              } else {
+                lastTransactionDate = vehicle.createdAt || undefined
+              }
+              
+              return { 
+                ...vehicle, 
+                profitability,
+                lastTransactionDate
+              }
+            } catch (error) {
+              return { 
+                ...vehicle, 
+                profitability: null,
+                lastTransactionDate: vehicle.createdAt || undefined
+              }
+            }
+          })
+        )
+
+        if (isMounted.current) setVehicles(vehiclesWithData)
+      }
+    } catch (error) {
+      console.error('Failed to refresh vehicle list:', error)
     }
   }, [])
 
@@ -129,6 +210,11 @@ function VehicleFinancesContent() {
             ? (b.profitability.allTimeProfit / b.profitability.allTimeRevenue) * 100
             : -Infinity
           return marginB - marginA
+        case 'lastUpdated':
+          const dateA = a.lastTransactionDate || a.createdAt || ''
+          const dateB = b.lastTransactionDate || b.createdAt || ''
+          // Sort descending (most recent first)
+          return dateB.localeCompare(dateA)
         case 'vehicleNumber':
         default:
           return (a.vehicleNumber || '').localeCompare(b.vehicleNumber || '')
@@ -169,7 +255,7 @@ function VehicleFinancesContent() {
       `}>
         <div className="p-4 border-b border-slate-200 bg-white z-10 space-y-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Fleet Management</h1>
+            <h1 className="text-xl font-bold text-slate-900">Vehicle Finances</h1>
             <p className="text-xs text-slate-500">Select a vehicle to view details</p>
           </div>
 
@@ -221,7 +307,7 @@ function VehicleFinancesContent() {
               </Button>
             </div>
 
-            <VehicleFinanceDetailView vehicleId={selectedVehicleId} />
+            <VehicleFinanceDetailView vehicleId={selectedVehicleId} onDataChange={refreshVehicleList} />
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8">

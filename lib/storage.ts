@@ -67,6 +67,9 @@ export async function initializeAdminSettings(): Promise<AdminSettings> {
     showRevenueTrend: false,
     showQuickActions: false,
     showReports: false,
+    showQuotationsTwoPane: true,
+    showPurchaseOrdersTwoPane: true,
+    showInvoicesTwoPane: true,
     createdAt: new Date().toISOString(),
   }
 

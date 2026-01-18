@@ -4,6 +4,7 @@ import { ConditionalAnalytics } from '@/components/conditional-analytics'
 import { LayoutWrapper } from '@/components/layout-wrapper'
 import { Toaster } from '@/components/ui/toaster'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { QueryProvider } from '@/lib/providers/query-provider'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -40,11 +41,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans antialiased`}>
-        <ErrorBoundary>
-          <LayoutWrapper>{children}</LayoutWrapper>
-        </ErrorBoundary>
-        <ConditionalAnalytics />
-        <Toaster />
+        <QueryProvider>
+          <ErrorBoundary>
+            <LayoutWrapper>{children}</LayoutWrapper>
+          </ErrorBoundary>
+          <ConditionalAnalytics />
+          <Toaster />
+        </QueryProvider>
       </body>
     </html>
   )

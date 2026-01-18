@@ -17,7 +17,7 @@ namespace iManageCRM.Data.Models
         public bool? ShowRevenueTrend { get; set; }
         public bool? ShowQuickActions { get; set; }
         public bool? ShowReports { get; set; }
-        public bool? ShowVehicleFinances { get; set; }
+        public bool? ShowVehicleDashboard { get; set; }
         public bool? ShowQuotationsInvoicesCard { get; set; }
         public bool? ShowQuotationsTwoPane { get; set; }
         public bool? ShowPurchaseOrdersTwoPane { get; set; }

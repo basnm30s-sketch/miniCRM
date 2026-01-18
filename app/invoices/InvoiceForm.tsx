@@ -688,12 +688,52 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                             <div className="fixed inset-0 bg-black/40" onClick={() => setShowAddCustomer(false)} />
                             <div className="bg-white rounded p-6 z-10 w-full max-w-md shadow-xl">
                                 <h3 className="text-lg font-semibold mb-4">Add Customer</h3>
-                                <div className="space-y-3">
-                                    <Input placeholder="Name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} />
-                                    <Input placeholder="Company" value={newCustomerCompany} onChange={(e) => setNewCustomerCompany(e.target.value)} />
-                                    <Input placeholder="Email" value={newCustomerEmail} onChange={(e) => setNewCustomerEmail(e.target.value)} />
-                                    <Input placeholder="Phone" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
-                                    <Textarea placeholder="Address" value={newCustomerAddress} onChange={(e) => setNewCustomerAddress(e.target.value)} />
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="invoice-customer-name" className="text-slate-700 text-sm mb-1 block">Name</Label>
+                                        <Input 
+                                            id="invoice-customer-name"
+                                            placeholder="Name" 
+                                            value={newCustomerName} 
+                                            onChange={(e) => setNewCustomerName(e.target.value)} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="invoice-customer-company" className="text-slate-700 text-sm mb-1 block">Company</Label>
+                                        <Input 
+                                            id="invoice-customer-company"
+                                            placeholder="Company" 
+                                            value={newCustomerCompany} 
+                                            onChange={(e) => setNewCustomerCompany(e.target.value)} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="invoice-customer-email" className="text-slate-700 text-sm mb-1 block">Email</Label>
+                                        <Input 
+                                            id="invoice-customer-email"
+                                            placeholder="Email" 
+                                            value={newCustomerEmail} 
+                                            onChange={(e) => setNewCustomerEmail(e.target.value)} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="invoice-customer-phone" className="text-slate-700 text-sm mb-1 block">Phone</Label>
+                                        <Input 
+                                            id="invoice-customer-phone"
+                                            placeholder="Phone" 
+                                            value={newCustomerPhone} 
+                                            onChange={(e) => setNewCustomerPhone(e.target.value)} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="invoice-customer-address" className="text-slate-700 text-sm mb-1 block">Address</Label>
+                                        <Textarea 
+                                            id="invoice-customer-address"
+                                            placeholder="Address" 
+                                            value={newCustomerAddress} 
+                                            onChange={(e) => setNewCustomerAddress(e.target.value)} 
+                                        />
+                                    </div>
                                 </div>
                                 <div className="mt-4 flex justify-end gap-2">
                                     <Button variant="outline" onClick={() => setShowAddCustomer(false)}>Cancel</Button>

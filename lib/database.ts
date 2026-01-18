@@ -11,27 +11,13 @@ import * as fs from 'fs'
 
 // Import better-sqlite3
 import Database from 'better-sqlite3'
-
-// Removed Electron-specific imports - using project folder for all environments
+import { getDatabasePath } from './db-config'
 
 let db: any = null
 let dbPath: string | null = null
 let initAttempted: boolean = false
 let initFailed: boolean = false
 let initError: Error | null = null
-
-/**
- * Get the database path
- * Always uses ./data directory in project folder for portability
- */
-function getDatabasePath(): string {
-  // Always use project folder for portability
-  const dbDir = path.join(process.cwd(), 'data')
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true })
-  }
-  return path.join(dbDir, process.env.DB_FILENAME || 'imanage.db')
-}
 
 /**
  * Initialize the database connection
@@ -656,13 +642,37 @@ function createTables(database: any): void {
       description TEXT,
       employeeId TEXT,
       invoiceId TEXT,
+      purchaseOrderId TEXT,
+      quoteId TEXT,
       createdAt TEXT,
       updatedAt TEXT,
       FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE CASCADE,
       FOREIGN KEY (employeeId) REFERENCES employees(id),
-      FOREIGN KEY (invoiceId) REFERENCES invoices(id)
+      FOREIGN KEY (invoiceId) REFERENCES invoices(id),
+      FOREIGN KEY (purchaseOrderId) REFERENCES purchase_orders(id),
+      FOREIGN KEY (quoteId) REFERENCES quotes(id)
     )
   `)
+
+  // Migration: Add purchaseOrderId and quoteId columns if they don't exist
+  try {
+    const transactionTableInfo = database.prepare("PRAGMA table_info(vehicle_transactions)").all() as any[]
+    const transactionColumnNames = transactionTableInfo.map((col: any) => col.name)
+
+    const newTransactionColumns = [
+      { name: 'purchaseOrderId', type: 'TEXT' },
+      { name: 'quoteId', type: 'TEXT' },
+    ]
+
+    for (const col of newTransactionColumns) {
+      if (!transactionColumnNames.includes(col.name)) {
+        database.exec(`ALTER TABLE vehicle_transactions ADD COLUMN ${col.name} ${col.type}`)
+        console.log(`Added ${col.name} column to vehicle_transactions table`)
+      }
+    }
+  } catch (error: any) {
+    console.log('Vehicle transaction migration note:', error.message)
+  }
 
   // Create indexes for better performance
   database.exec(`

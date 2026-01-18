@@ -8,6 +8,8 @@ import { Plus, Edit2, Trash2 } from 'lucide-react'
 import { getAllVendors, saveVendor, deleteVendor, generateId } from '@/lib/storage'
 import type { Vendor } from '@/lib/types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Label } from '@/components/ui/label'
+import { toast } from '@/hooks/use-toast'
 
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([])
@@ -73,6 +75,16 @@ export default function VendorsPage() {
   }
 
   const handleSave = async () => {
+    // Validate name field
+    if (!newName.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Vendor name is required',
+        variant: 'destructive',
+      })
+      return
+    }
+
     const vendor: Vendor = {
       id: editingId || generateId(),
       name: newName.trim(),
@@ -99,6 +111,11 @@ export default function VendorsPage() {
       setShowAdd(false)
     } catch (err) {
       console.error('Failed to save vendor', err)
+      toast({
+        title: 'Error',
+        description: 'Failed to save vendor',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -183,14 +200,77 @@ export default function VendorsPage() {
               <h3 className="text-lg font-semibold">{editingId ? 'Edit' : 'Add'} Vendor</h3>
             </div>
             <div className="overflow-y-auto flex-1 p-6">
-              <div className="space-y-2">
-                <input className="w-full border px-2 py-1" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-                <input className="w-full border px-2 py-1" placeholder="Contact Person" value={newContactPerson} onChange={(e) => setNewContactPerson(e.target.value)} />
-                <input className="w-full border px-2 py-1" placeholder="Email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
-                <input className="w-full border px-2 py-1" placeholder="Phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
-                <textarea className="w-full border px-2 py-1" placeholder="Address" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} />
-                <textarea className="w-full border px-2 py-1" placeholder="Bank Details" value={newBankDetails} onChange={(e) => setNewBankDetails(e.target.value)} />
-                <textarea className="w-full border px-2 py-1" placeholder="Payment Terms" value={newPaymentTerms} onChange={(e) => setNewPaymentTerms(e.target.value)} />
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="vendor-name" className="text-slate-700 text-sm mb-1 block">Name</Label>
+                  <input 
+                    id="vendor-name"
+                    className="w-full border px-2 py-1" 
+                    placeholder="Name" 
+                    value={newName} 
+                    onChange={(e) => setNewName(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="vendor-contact-person" className="text-slate-700 text-sm mb-1 block">Contact Person</Label>
+                  <input 
+                    id="vendor-contact-person"
+                    className="w-full border px-2 py-1" 
+                    placeholder="Contact Person" 
+                    value={newContactPerson} 
+                    onChange={(e) => setNewContactPerson(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="vendor-email" className="text-slate-700 text-sm mb-1 block">Email</Label>
+                  <input 
+                    id="vendor-email"
+                    className="w-full border px-2 py-1" 
+                    placeholder="Email" 
+                    value={newEmail} 
+                    onChange={(e) => setNewEmail(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="vendor-phone" className="text-slate-700 text-sm mb-1 block">Phone</Label>
+                  <input 
+                    id="vendor-phone"
+                    className="w-full border px-2 py-1" 
+                    placeholder="Phone" 
+                    value={newPhone} 
+                    onChange={(e) => setNewPhone(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="vendor-address" className="text-slate-700 text-sm mb-1 block">Address</Label>
+                  <textarea 
+                    id="vendor-address"
+                    className="w-full border px-2 py-1" 
+                    placeholder="Address" 
+                    value={newAddress} 
+                    onChange={(e) => setNewAddress(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="vendor-bank-details" className="text-slate-700 text-sm mb-1 block">Bank Details</Label>
+                  <textarea 
+                    id="vendor-bank-details"
+                    className="w-full border px-2 py-1" 
+                    placeholder="Bank Details" 
+                    value={newBankDetails} 
+                    onChange={(e) => setNewBankDetails(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="vendor-payment-terms" className="text-slate-700 text-sm mb-1 block">Payment Terms</Label>
+                  <textarea 
+                    id="vendor-payment-terms"
+                    className="w-full border px-2 py-1" 
+                    placeholder="Payment Terms" 
+                    value={newPaymentTerms} 
+                    onChange={(e) => setNewPaymentTerms(e.target.value)} 
+                  />
+                </div>
               </div>
             </div>
             <div className="p-6 border-t border-slate-200 flex justify-end gap-2 sticky bottom-0 bg-white z-10 rounded-b-lg">

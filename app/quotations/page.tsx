@@ -34,58 +34,79 @@ import {
   FileSpreadsheet,
   File as FileIcon
 } from 'lucide-react'
-import { getAllQuotes, deleteQuote, getAdminSettings } from '@/lib/storage'
+import { useQuotes, useDeleteQuote } from '@/hooks/use-quotes'
+import { getAdminSettings } from '@/lib/storage'
 import { ClientSidePDFRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
-import type { Quote } from '@/lib/types'
+import type { Quote, AdminSettings } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 export default function QuotationsPage() {
   const router = useRouter()
-  const [quotes, setQuotes] = useState<Quote[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: quotes = [], isLoading: loading, error: quotesError } = useQuotes()
+  const deleteMutation = useDeleteQuote()
+  
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
   const [showTerms, setShowTerms] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
+  const [useTwoPane, setUseTwoPane] = useState(true)
 
   useEffect(() => {
-    const loadQuotes = async () => {
+    const loadSettings = async () => {
       try {
-        const allQuotes = await getAllQuotes()
-        setQuotes(allQuotes)
-        // Auto-select first quote if available
-        if (allQuotes.length > 0) {
-          setSelectedQuote((prev) => prev || allQuotes[0])
+        const settings = await getAdminSettings()
+        setAdminSettings(settings)
+        
+        // Determine view mode
+        const twoPaneValue = settings?.showQuotationsTwoPane
+        const twoPaneEnabled = twoPaneValue === false || twoPaneValue === 0
+          ? false
+          : (twoPaneValue === true || twoPaneValue === 1)
+            ? true
+            : true
+        setUseTwoPane(twoPaneEnabled)
+        
+        // Auto-select first quote if available and two-pane is enabled
+        if (twoPaneEnabled && quotes.length > 0) {
+          setSelectedQuote((prev) => prev || quotes[0])
         }
       } catch (error) {
-        console.error('Error loading quotes:', error)
-        toast({ title: 'Error', description: 'Failed to load quotations', variant: 'destructive' })
-      } finally {
-        setLoading(false)
+        console.error('Error loading settings:', error)
       }
     }
 
-    loadQuotes()
-  }, [])
+    loadSettings()
+  }, [quotes])
 
   const handleDelete = async () => {
     if (!deleteId) return
     try {
-      await deleteQuote(deleteId)
-      const updatedQuotes = quotes.filter((q) => q.id !== deleteId)
-      setQuotes(updatedQuotes)
+      const result = await deleteMutation.mutateAsync(deleteId)
+      if (!result.success) {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to delete quotation',
+          variant: 'destructive',
+        })
+        return
+      }
+      
       // Clear selection if deleted quote was selected
+      const updatedQuotes = quotes.filter((q) => q.id !== deleteId)
       if (selectedQuote?.id === deleteId) {
         setSelectedQuote(updatedQuotes.length > 0 ? updatedQuotes[0] : null)
         setIsEditing(false)
       }
       toast({ title: 'Deleted', description: 'Quotation deleted successfully' })
       setDeleteId(null)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting quote:', error)
-      toast({ title: 'Error', description: 'Failed to delete quotation', variant: 'destructive' })
+      toast({ title: 'Error', description: error?.message || 'Failed to delete quotation', variant: 'destructive' })
     }
   }
 
@@ -217,6 +238,31 @@ export default function QuotationsPage() {
     setIsEditing(false)
   }
 
+  // Helper functions for table display
+  const getValidUntilStatus = (validUntil?: string) => {
+    if (!validUntil) return { status: 'none', label: 'N/A', days: null }
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const expiry = new Date(validUntil)
+    expiry.setHours(0, 0, 0, 0)
+    const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    
+    if (diffDays < 0) return { status: 'expired', label: 'Expired', days: Math.abs(diffDays) }
+    if (diffDays <= 7) return { status: 'expiring', label: `Expires in ${diffDays} days`, days: diffDays }
+    return { status: 'valid', label: validUntil, days: diffDays }
+  }
+
+  const formatCurrency = (amount: number) => `AED ${amount.toFixed(2)}`
+
+  const getStatusBadgeColor = (status: string) => {
+    const colors: Record<string, string> = {
+      expired: 'bg-red-100 text-red-700 border-red-300',
+      expiring: 'bg-orange-100 text-orange-700 border-orange-300',
+      valid: 'bg-green-100 text-green-700 border-green-300',
+    }
+    return colors[status] || 'bg-gray-100 text-gray-700 border-gray-300'
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
@@ -225,6 +271,219 @@ export default function QuotationsPage() {
     )
   }
 
+  if (quotesError) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="text-red-500">Error loading quotations: {quotesError.message}</div>
+      </div>
+    )
+  }
+
+  // List-only view (table)
+  if (!useTwoPane) {
+    return (
+      <div className="p-8">
+        <div className="flex justify-between items-start mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Quotations</h1>
+            <p className="text-slate-500">Manage and track your customer quotations</p>
+          </div>
+          <Link href="/quotes/create">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-md">
+              <Plus className="w-4 h-4 mr-2" />
+              New Quotation
+            </Button>
+          </Link>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>All Quotations ({quotes.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Quote #</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Valid Until</TableHead>
+                    <TableHead className="text-center">Items</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
+                    <TableHead className="text-right">Tax</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {quotes.length > 0 ? (
+                    quotes.map((quote) => {
+                      const vehicleTypes = quote.items.map((item) => item.vehicleTypeLabel).filter(Boolean)
+                      const uniqueVehicles = [...new Set(vehicleTypes)].join(', ')
+                      const validUntilStatus = getValidUntilStatus(quote.validUntil)
+                      const customerTooltip = [
+                        quote.customer?.name || 'N/A',
+                        quote.customer?.company && `Company: ${quote.customer.company}`,
+                        quote.customer?.email && `Email: ${quote.customer.email}`,
+                        quote.customer?.phone && `Phone: ${quote.customer.phone}`,
+                        quote.customer?.address && `Address: ${quote.customer.address}`
+                      ].filter(Boolean).join('\n')
+                      
+                      return (
+                        <TableRow key={quote.id}>
+                          <TableCell className="font-mono text-sm font-medium text-slate-900">
+                            {quote.number}
+                          </TableCell>
+                          <TableCell>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <div className="max-w-[200px]">
+                                    <div className="font-medium text-slate-900 truncate">
+                                      {quote.customer?.name || 'Unknown Customer'}
+                                    </div>
+                                    {quote.customer?.company && (
+                                      <div className="text-xs text-slate-500 truncate mt-0.5">
+                                        {quote.customer.company}
+                                      </div>
+                                    )}
+                                    {uniqueVehicles && (
+                                      <div className="text-xs text-slate-400 mt-1">{uniqueVehicles}</div>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="whitespace-pre-line max-w-xs">
+                                  {customerTooltip}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                          <TableCell className="text-slate-600">{quote.date}</TableCell>
+                          <TableCell>
+                            {validUntilStatus.status === 'none' ? (
+                              <span className="text-slate-400 text-sm">N/A</span>
+                            ) : (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`text-xs ${getStatusBadgeColor(validUntilStatus.status)}`}
+                                    >
+                                      {validUntilStatus.label}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {validUntilStatus.status === 'expired' 
+                                      ? `Expired ${validUntilStatus.days} days ago`
+                                      : validUntilStatus.status === 'expiring'
+                                      ? `Expires in ${validUntilStatus.days} days`
+                                      : `Valid until ${quote.validUntil}`
+                                    }
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="text-xs">
+                              {quote.items.length} {quote.items.length === 1 ? 'item' : 'items'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right text-slate-600">
+                            {formatCurrency(quote.subTotal)}
+                          </TableCell>
+                          <TableCell className="text-right text-slate-600">
+                            {formatCurrency(quote.totalTax)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-slate-900">
+                            {formatCurrency(quote.total)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex justify-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => router.push(`/quotes/create?id=${quote.id}`)}
+                                className="h-8 w-8 p-0"
+                                title="Edit"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Download">
+                                    <Download className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleDownloadPDF(quote)}>
+                                    <FileText className="w-4 h-4 mr-2 text-red-500" />
+                                    PDF
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleDownloadExcel(quote)}>
+                                    <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" />
+                                    Excel
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleDownloadDocx(quote)}>
+                                    <FileIcon className="w-4 h-4 mr-2 text-blue-600" />
+                                    Word
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteId(quote.id)}
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-800"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center text-slate-500 py-8">
+                        No quotations yet. <Link href="/quotes/create" className="text-blue-600 hover:underline">Create your first quotation</Link>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Quotation?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this quotation? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex justify-end gap-3 mt-4">
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete Quote
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    )
+  }
+
+  // Two-pane view (existing)
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
       {/* Top Bar */}
@@ -392,87 +651,53 @@ export default function QuotationsPage() {
                 </div>
 
                 {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
-                  {/* Customer Card */}
-                  <Card className="shadow-sm border-slate-200">
-                    <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
-                      <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Customer Details</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4 grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="block text-slate-500 text-xs mb-1">Customer Name</span>
-                        <span className="font-medium text-slate-900">{selectedQuote.customer?.name || 'N/A'}</span>
-                      </div>
-                      {selectedQuote.customer?.company && (
-                        <div>
-                          <span className="block text-slate-500 text-xs mb-1">Company</span>
-                          <span className="font-medium text-slate-900">{selectedQuote.customer.company}</span>
-                        </div>
-                      )}
-                      {selectedQuote.customer?.email && (
-                        <div>
-                          <span className="block text-slate-500 text-xs mb-1">Email</span>
-                          <span className="text-slate-900">{selectedQuote.customer.email}</span>
-                        </div>
-                      )}
-                      {selectedQuote.customer?.phone && (
-                        <div>
-                          <span className="block text-slate-500 text-xs mb-1">Phone</span>
-                          <span className="text-slate-900">{selectedQuote.customer.phone}</span>
-                        </div>
-                      )}
-                      {selectedQuote.customer?.address && (
-                        <div className="col-span-2">
-                          <span className="block text-slate-500 text-xs mb-1">Details</span>
-                          <span className="text-slate-900">{selectedQuote.customer.address}</span>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Items & Totals Group */}
-                  <div className="grid grid-cols-3 gap-6">
-                    {/* Items Table */}
+                  {/* Customer Details & Summary Group */}
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* Customer Card */}
                     <Card className="col-span-2 shadow-sm border-slate-200">
-                      <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Line Items</CardTitle>
+                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
+                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Customer Details</CardTitle>
                       </CardHeader>
-                      <CardContent className="p-0">
-                        <table className="w-full text-sm">
-                          <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100">
-                            <tr>
-                              <th className="text-left py-3 px-4 font-medium">Description</th>
-                              <th className="text-right py-3 px-4 font-medium">Qty</th>
-                              <th className="text-right py-3 px-4 font-medium">Price</th>
-                              <th className="text-right py-3 px-4 font-medium">Tax</th>
-                              <th className="text-right py-3 px-4 font-medium">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {selectedQuote.items.map((item) => {
-                              const lineTotal = item.quantity * item.unitPrice + (item.quantity * item.unitPrice * item.taxPercent) / 100
-                              return (
-                                <tr key={item.id} className="hover:bg-slate-50/50">
-                                  <td className="py-3 px-4 font-medium text-slate-700">{item.vehicleTypeLabel || 'Item'}</td>
-                                  <td className="py-3 px-4 text-right text-slate-600">{item.quantity}</td>
-                                  <td className="py-3 px-4 text-right text-slate-600">{item.unitPrice.toFixed(2)}</td>
-                                  <td className="py-3 px-4 text-right text-slate-500 text-xs">{item.taxPercent}%</td>
-                                  <td className="py-3 px-4 text-right font-semibold text-slate-900">{lineTotal.toFixed(2)}</td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
+                      <CardContent className="pt-3 grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="block text-slate-500 text-xs mb-1">Customer Name</span>
+                          <span className="font-medium text-slate-900">{selectedQuote.customer?.name || 'N/A'}</span>
+                        </div>
+                        {selectedQuote.customer?.company && (
+                          <div>
+                            <span className="block text-slate-500 text-xs mb-1">Company</span>
+                            <span className="font-medium text-slate-900">{selectedQuote.customer.company}</span>
+                          </div>
+                        )}
+                        {selectedQuote.customer?.email && (
+                          <div>
+                            <span className="block text-slate-500 text-xs mb-1">Email</span>
+                            <span className="text-slate-900">{selectedQuote.customer.email}</span>
+                          </div>
+                        )}
+                        {selectedQuote.customer?.phone && (
+                          <div>
+                            <span className="block text-slate-500 text-xs mb-1">Phone</span>
+                            <span className="text-slate-900">{selectedQuote.customer.phone}</span>
+                          </div>
+                        )}
+                        {selectedQuote.customer?.address && (
+                          <div className="col-span-2">
+                            <span className="block text-slate-500 text-xs mb-1">Details</span>
+                            <span className="text-slate-900">{selectedQuote.customer.address}</span>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
 
                     {/* Financial Summary */}
                     <Card className="shadow-sm border-slate-200 h-fit">
-                      <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
                         <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Summary</CardTitle>
                       </CardHeader>
-                      <CardContent className="pt-4 space-y-3">
+                      <CardContent className="pt-3 space-y-3">
                         <div className="flex justify-between text-sm text-slate-600">
                           <span>Subtotal</span>
                           <span>AED {selectedQuote.subTotal.toFixed(2)}</span>
@@ -489,15 +714,49 @@ export default function QuotationsPage() {
                     </Card>
                   </div>
 
+                  {/* Line Items - Full Width */}
+                  <Card className="shadow-sm border-slate-200">
+                    <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
+                      <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Line Items</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100">
+                          <tr>
+                            <th className="text-left py-3 px-4 font-medium">Description</th>
+                            <th className="text-right py-3 px-4 font-medium">Qty</th>
+                            <th className="text-right py-3 px-4 font-medium">Price</th>
+                            <th className="text-right py-3 px-4 font-medium">Tax</th>
+                            <th className="text-right py-3 px-4 font-medium">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {selectedQuote.items.map((item) => {
+                            const lineTotal = item.quantity * item.unitPrice + (item.quantity * item.unitPrice * item.taxPercent) / 100
+                            return (
+                              <tr key={item.id} className="hover:bg-slate-50/50">
+                                <td className="py-3 px-4 font-medium text-slate-700">{item.vehicleTypeLabel || 'Item'}</td>
+                                <td className="py-3 px-4 text-right text-slate-600">{item.quantity}</td>
+                                <td className="py-3 px-4 text-right text-slate-600">{item.unitPrice.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-right text-slate-500 text-xs">{item.taxPercent}%</td>
+                                <td className="py-3 px-4 text-right font-semibold text-slate-900">{lineTotal.toFixed(2)}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </CardContent>
+                  </Card>
+
                   {/* Additional Info (Terms/Notes) */}
                   {(selectedQuote.terms || selectedQuote.notes) && (
-                    <div className="grid grid-cols-1 gap-6">
+                    <div className="grid grid-cols-1 gap-4">
                       {selectedQuote.notes && (
                         <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
                             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
                           </CardHeader>
-                          <CardContent className="pt-4">
+                          <CardContent className="pt-3">
                             <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedQuote.notes}</p>
                           </CardContent>
                         </Card>
@@ -505,10 +764,10 @@ export default function QuotationsPage() {
 
                       {selectedQuote.terms && (
                         <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
                             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Terms & Conditions</CardTitle>
                           </CardHeader>
-                          <CardContent className="pt-4">
+                          <CardContent className="pt-3">
                             <div className={`prose prose-sm max-w-none text-slate-600 ${!showTerms ? 'line-clamp-4' : ''}`}
                               dangerouslySetInnerHTML={{ __html: selectedQuote.terms }}
                             />

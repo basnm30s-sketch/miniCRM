@@ -1,7 +1,74 @@
 /**
  * Core data types for the Quote MVP
+ * 
+ * Types are now inferred from Drizzle schema for type safety.
+ * Legacy interfaces are maintained for backward compatibility during migration.
  */
 
+import type { InferSelectModel, InferInsertModel } from 'drizzle-orm'
+import {
+  adminSettings,
+  customers,
+  vendors,
+  employees,
+  vehicles,
+  quotes,
+  quoteItems,
+  purchaseOrders,
+  poItems,
+  invoices,
+  invoiceItems,
+  payslips,
+  expenseCategories,
+  vehicleTransactions,
+} from '../src/db/schema'
+
+// ==================== DRIZZLE INFERRED TYPES ====================
+// These types are automatically generated from the schema
+export type AdminSettings = InferSelectModel<typeof adminSettings>
+export type NewAdminSettings = InferInsertModel<typeof adminSettings>
+
+export type Customer = InferSelectModel<typeof customers>
+export type NewCustomer = InferInsertModel<typeof customers>
+
+export type Vendor = InferSelectModel<typeof vendors>
+export type NewVendor = InferInsertModel<typeof vendors>
+
+export type Employee = InferSelectModel<typeof employees>
+export type NewEmployee = InferInsertModel<typeof employees>
+
+export type Vehicle = InferSelectModel<typeof vehicles>
+export type NewVehicle = InferInsertModel<typeof vehicles>
+
+export type Quote = InferSelectModel<typeof quotes>
+export type NewQuote = InferInsertModel<typeof quotes>
+
+export type QuoteLineItem = InferSelectModel<typeof quoteItems>
+export type NewQuoteLineItem = InferInsertModel<typeof quoteItems>
+
+export type PurchaseOrder = InferSelectModel<typeof purchaseOrders>
+export type NewPurchaseOrder = InferInsertModel<typeof purchaseOrders>
+
+export type POItem = InferSelectModel<typeof poItems>
+export type NewPOItem = InferInsertModel<typeof poItems>
+
+export type Invoice = InferSelectModel<typeof invoices>
+export type NewInvoice = InferInsertModel<typeof invoices>
+
+export type InvoiceItem = InferSelectModel<typeof invoiceItems>
+export type NewInvoiceItem = InferInsertModel<typeof invoiceItems>
+
+export type Payslip = InferSelectModel<typeof payslips>
+export type NewPayslip = InferInsertModel<typeof payslips>
+
+export type ExpenseCategory = InferSelectModel<typeof expenseCategories>
+export type NewExpenseCategory = InferInsertModel<typeof expenseCategories>
+
+export type VehicleTransaction = InferSelectModel<typeof vehicleTransactions>
+export type NewVehicleTransaction = InferInsertModel<typeof vehicleTransactions>
+
+// ==================== LEGACY INTERFACES (for backward compatibility) ====================
+// These are kept for existing code that hasn't been migrated yet
 export interface AdminSettings {
   id: string;
   companyName: string;
@@ -16,8 +83,11 @@ export interface AdminSettings {
   showRevenueTrend?: boolean; // Show/hide revenue trend chart on home page
   showQuickActions?: boolean; // Show/hide quick actions on home page
   showReports?: boolean; // Show/hide Reports menu in sidebar
-  showVehicleFinances?: boolean; // Show/hide Vehicle Finances menu in sidebar
+  showVehicleDashboard?: boolean; // Show/hide Vehicle Dashboard menu in sidebar
   showQuotationsInvoicesCard?: boolean; // Show/hide Quotations & Invoices card on home page
+  showQuotationsTwoPane?: boolean; // Show/hide two-pane view for quotations (default: true)
+  showPurchaseOrdersTwoPane?: boolean; // Show/hide two-pane view for purchase orders (default: true)
+  showInvoicesTwoPane?: boolean; // Show/hide two-pane view for invoices (default: true)
   showEmployeeSalariesCard?: boolean; // Show/hide Employee Salaries card on home page
   showVehicleRevenueExpensesCard?: boolean; // Show/hide Vehicle Revenue & Expenses card on home page
   showActivityThisMonth?: boolean; // Show/hide Activity This Month section on home page
@@ -243,6 +313,8 @@ export interface VehicleTransaction {
   description?: string;
   employeeId?: string;
   invoiceId?: string;
+  purchaseOrderId?: string;
+  quoteId?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -303,6 +375,7 @@ export interface Invoice {
   amountReceived?: number // Amount received from customer (defaults to 0)
   status?: string // draft, invoice_sent, payment_received
   notes?: string
+  terms?: string // Terms and Conditions for this invoice
   createdAt?: string
   updatedAt?: string
 }

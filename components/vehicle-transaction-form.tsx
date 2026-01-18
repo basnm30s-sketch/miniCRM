@@ -8,8 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertCircle, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { getAllVehicles, getAllEmployees, getAllExpenseCategories, saveVehicleTransaction, generateId } from '@/lib/storage'
-import type { VehicleTransaction, VehicleTransactionType, Employee, ExpenseCategory } from '@/lib/types'
+import { getAllVehicles, getAllEmployees, getAllExpenseCategories, saveVehicleTransaction, generateId, getAllInvoices, getAllPurchaseOrders, getAllQuotes } from '@/lib/storage'
+import type { VehicleTransaction, VehicleTransactionType, Employee, ExpenseCategory, Invoice, PurchaseOrder, Quote } from '@/lib/types'
 
 interface VehicleTransactionFormProps {
   vehicleId?: string
@@ -22,6 +22,9 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
   const [vehicles, setVehicles] = useState<any[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [categories, setCategories] = useState<ExpenseCategory[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+  const [quotes, setQuotes] = useState<Quote[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -34,6 +37,9 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
     date: transaction?.date || new Date().toISOString().split('T')[0],
     description: transaction?.description || '',
     employeeId: transaction?.employeeId || '',
+    invoiceId: transaction?.invoiceId || '',
+    purchaseOrderId: transaction?.purchaseOrderId || '',
+    quoteId: transaction?.quoteId || '',
   })
 
   useEffect(() => {
@@ -42,14 +48,20 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
 
   const loadData = async () => {
     try {
-      const [vehiclesData, employeesData, categoriesData] = await Promise.all([
+      const [vehiclesData, employeesData, categoriesData, invoicesData, purchaseOrdersData, quotesData] = await Promise.all([
         getAllVehicles(),
         getAllEmployees(),
         getAllExpenseCategories(),
+        getAllInvoices(),
+        getAllPurchaseOrders(),
+        getAllQuotes(),
       ])
       setVehicles(vehiclesData)
       setEmployees(employeesData)
       setCategories(categoriesData)
+      setInvoices(invoicesData)
+      setPurchaseOrders(purchaseOrdersData)
+      setQuotes(quotesData)
     } catch (err: any) {
       setError(err?.message || 'Failed to load data')
     } finally {
@@ -102,6 +114,9 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
         month: formData.date.substring(0, 7), // YYYY-MM
         description: formData.description || undefined,
         employeeId: formData.employeeId || undefined,
+        invoiceId: formData.transactionType === 'revenue' ? (formData.invoiceId || undefined) : undefined,
+        purchaseOrderId: formData.transactionType === 'expense' ? (formData.purchaseOrderId || undefined) : undefined,
+        quoteId: formData.transactionType === 'expense' ? (formData.quoteId || undefined) : undefined,
       }
 
       await saveVehicleTransaction(transactionData)
@@ -176,7 +191,7 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
           <Label htmlFor="transactionType">Type <span className="text-red-500">*</span></Label>
           <Select
             value={formData.transactionType}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, transactionType: value as VehicleTransactionType, category: '' }))}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, transactionType: value as VehicleTransactionType, category: '', invoiceId: '', purchaseOrderId: '', quoteId: '' }))}
           >
             <SelectTrigger>
               <SelectValue />
@@ -208,6 +223,71 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
             </SelectContent>
           </Select>
         </div>
+      )}
+
+      {formData.transactionType === 'revenue' && (
+        <div className="space-y-2">
+          <Label htmlFor="invoiceId">Linked Invoice (Optional)</Label>
+          <Select
+            value={formData.invoiceId || '__none__'}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, invoiceId: value === '__none__' ? '' : value }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select invoice (optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">None</SelectItem>
+              {invoices.map((invoice) => (
+                <SelectItem key={invoice.id} value={invoice.id}>
+                  {invoice.number} - {invoice.date} - {invoice.total?.toFixed(2) || '0.00'} AED
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {formData.transactionType === 'expense' && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="purchaseOrderId">Linked Purchase Order (Optional)</Label>
+            <Select
+              value={formData.purchaseOrderId || '__none__'}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, purchaseOrderId: value === '__none__' ? '' : value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select purchase order (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                {purchaseOrders.map((po) => (
+                  <SelectItem key={po.id} value={po.id}>
+                    {po.number} - {po.date} - {po.amount?.toFixed(2) || '0.00'} AED
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quoteId">Linked Quote (Optional)</Label>
+            <Select
+              value={formData.quoteId || '__none__'}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, quoteId: value === '__none__' ? '' : value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select quote (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                {quotes.map((quote) => (
+                  <SelectItem key={quote.id} value={quote.id}>
+                    {quote.number} - {quote.date} - {quote.total?.toFixed(2) || '0.00'} AED
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
       )}
 
       <div className="grid grid-cols-2 gap-4">

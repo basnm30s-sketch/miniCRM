@@ -898,6 +898,15 @@ export const adminAdapter = {
       if (!columnNames.includes('showActivitySummary')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0')
       }
+      if (!columnNames.includes('showQuotationsTwoPane')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsTwoPane INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showPurchaseOrdersTwoPane')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showPurchaseOrdersTwoPane INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showInvoicesTwoPane')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1')
+      }
     } catch (error: any) {
       console.log('Migration check:', error.message)
     }
@@ -922,7 +931,7 @@ export const adminAdapter = {
       : (row.showReports === 1)
         ? true
         : false // default to false if null/undefined
-    const showVehicleFinances = (row.showVehicleFinances === 0)
+    const showVehicleDashboard = (row.showVehicleFinances === 0)
       ? false
       : (row.showVehicleFinances === 1)
         ? true
@@ -967,6 +976,21 @@ export const adminAdapter = {
       : (row.showActivitySummary === 1)
         ? true
         : false // default to false if null/undefined
+    const showQuotationsTwoPane = (row.showQuotationsTwoPane === 0)
+      ? false
+      : (row.showQuotationsTwoPane === 1)
+        ? true
+        : true // default to true if null/undefined
+    const showPurchaseOrdersTwoPane = (row.showPurchaseOrdersTwoPane === 0)
+      ? false
+      : (row.showPurchaseOrdersTwoPane === 1)
+        ? true
+        : true // default to true if null/undefined
+    const showInvoicesTwoPane = (row.showInvoicesTwoPane === 0)
+      ? false
+      : (row.showInvoicesTwoPane === 1)
+        ? true
+        : true // default to true if null/undefined
 
     return {
       id: row.id,
@@ -982,8 +1006,11 @@ export const adminAdapter = {
       showRevenueTrend,
       showQuickActions,
       showReports,
-      showVehicleFinances,
+      showVehicleDashboard,
       showQuotationsInvoicesCard,
+      showQuotationsTwoPane,
+      showPurchaseOrdersTwoPane,
+      showInvoicesTwoPane,
       showEmployeeSalariesCard,
       showVehicleRevenueExpensesCard,
       showActivityThisMonth,
@@ -1043,6 +1070,15 @@ export const adminAdapter = {
       if (!columnNames.includes('showActivitySummary')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0')
       }
+      if (!columnNames.includes('showQuotationsTwoPane')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsTwoPane INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showPurchaseOrdersTwoPane')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showPurchaseOrdersTwoPane INTEGER DEFAULT 1')
+      }
+      if (!columnNames.includes('showInvoicesTwoPane')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1')
+      }
     } catch (error: any) {
       console.log('Migration check in save:', error.message)
     }
@@ -1057,7 +1093,7 @@ export const adminAdapter = {
     const showRevenueTrend = (data.showRevenueTrend === true) ? 1 : 0
     const showQuickActions = (data.showQuickActions === true) ? 1 : 0
     const showReports = (data.showReports === true) ? 1 : 0
-    const showVehicleFinances = (data.showVehicleFinances === true) ? 1 : 0
+    const showVehicleFinances = (data.showVehicleDashboard === true) ? 1 : 0
     const showQuotationsInvoicesCard = (data.showQuotationsInvoicesCard === true) ? 1 : 0
     const showEmployeeSalariesCard = (data.showEmployeeSalariesCard === true) ? 1 : 0
     const showVehicleRevenueExpensesCard = (data.showVehicleRevenueExpensesCard === true) ? 1 : 0
@@ -1066,12 +1102,15 @@ export const adminAdapter = {
     const showBusinessOverview = (data.showBusinessOverview === true) ? 1 : 0
     const showTopCustomers = (data.showTopCustomers === true) ? 1 : 0
     const showActivitySummary = (data.showActivitySummary === true) ? 1 : 0
+    const showQuotationsTwoPane = (data.showQuotationsTwoPane === true) ? 1 : 0
+    const showPurchaseOrdersTwoPane = (data.showPurchaseOrdersTwoPane === true) ? 1 : 0
+    const showInvoicesTwoPane = (data.showInvoicesTwoPane === true) ? 1 : 0
 
     console.log('Adapter save - converting:', {
       showRevenueTrend: { input: data.showRevenueTrend, output: showRevenueTrend },
       showQuickActions: { input: data.showQuickActions, output: showQuickActions },
       showReports: { input: data.showReports, output: showReports },
-      showVehicleFinances: { input: data.showVehicleFinances, output: showVehicleFinances },
+      showVehicleDashboard: { input: data.showVehicleDashboard, output: showVehicleFinances },
       showQuotationsInvoicesCard: { input: data.showQuotationsInvoicesCard, output: showQuotationsInvoicesCard },
       showEmployeeSalariesCard: { input: data.showEmployeeSalariesCard, output: showEmployeeSalariesCard },
       showVehicleRevenueExpensesCard: { input: data.showVehicleRevenueExpensesCard, output: showVehicleRevenueExpensesCard },
@@ -1088,7 +1127,7 @@ export const adminAdapter = {
         SET companyName = ?, address = ?, vatNumber = ?, logoUrl = ?, sealUrl = ?, 
             signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, 
             showRevenueTrend = ?, showQuickActions = ?, showReports = ?, showVehicleFinances = ?, 
-            showQuotationsInvoicesCard = ?, showEmployeeSalariesCard = ?, showVehicleRevenueExpensesCard = ?, 
+            showQuotationsInvoicesCard = ?, showQuotationsTwoPane = ?, showPurchaseOrdersTwoPane = ?, showInvoicesTwoPane = ?, showEmployeeSalariesCard = ?, showVehicleRevenueExpensesCard = ?, 
             showActivityThisMonth = ?, showFinancialHealth = ?, showBusinessOverview = ?, 
             showTopCustomers = ?, showActivitySummary = ?, updatedAt = ?
         WHERE id = ?
@@ -1108,6 +1147,9 @@ export const adminAdapter = {
         showReports,
         showVehicleFinances,
         showQuotationsInvoicesCard,
+        showQuotationsTwoPane,
+        showPurchaseOrdersTwoPane,
+        showInvoicesTwoPane,
         showEmployeeSalariesCard,
         showVehicleRevenueExpensesCard,
         showActivityThisMonth,
@@ -1123,10 +1165,10 @@ export const adminAdapter = {
         INSERT INTO admin_settings (id, companyName, address, vatNumber, logoUrl, sealUrl, 
                                     signatureUrl, quoteNumberPattern, currency, defaultTerms, 
                                     showRevenueTrend, showQuickActions, showReports, showVehicleFinances, 
-                                    showQuotationsInvoicesCard, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, 
+                                    showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, 
                                     showActivityThisMonth, showFinancialHealth, showBusinessOverview, 
                                     showTopCustomers, showActivitySummary, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         data.id || 'settings_1',
@@ -1144,6 +1186,9 @@ export const adminAdapter = {
         showReports,
         showVehicleFinances,
         showQuotationsInvoicesCard,
+        showQuotationsTwoPane,
+        showPurchaseOrdersTwoPane,
+        showInvoicesTwoPane,
         showEmployeeSalariesCard,
         showVehicleRevenueExpensesCard,
         showActivityThisMonth,
@@ -2210,6 +2255,8 @@ export const vehicleTransactionsAdapter = {
       description: row.description || undefined,
       employeeId: row.employeeId || undefined,
       invoiceId: row.invoiceId || undefined,
+      purchaseOrderId: row.purchaseOrderId || undefined,
+      quoteId: row.quoteId || undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }))
@@ -2236,6 +2283,8 @@ export const vehicleTransactionsAdapter = {
       description: row.description || undefined,
       employeeId: row.employeeId || undefined,
       invoiceId: row.invoiceId || undefined,
+      purchaseOrderId: row.purchaseOrderId || undefined,
+      quoteId: row.quoteId || undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }
@@ -2286,6 +2335,8 @@ export const vehicleTransactionsAdapter = {
       description: row.description || undefined,
       employeeId: row.employeeId || undefined,
       invoiceId: row.invoiceId || undefined,
+      purchaseOrderId: row.purchaseOrderId || undefined,
+      quoteId: row.quoteId || undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }))
@@ -2787,8 +2838,8 @@ export const vehicleTransactionsAdapter = {
     const month = data.date.substring(0, 7)
 
     const stmt = db.prepare(`
-      INSERT INTO vehicle_transactions (id, vehicleId, transactionType, category, amount, date, month, description, employeeId, invoiceId, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO vehicle_transactions (id, vehicleId, transactionType, category, amount, date, month, description, employeeId, invoiceId, purchaseOrderId, quoteId, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     stmt.run(
       data.id,
@@ -2801,6 +2852,8 @@ export const vehicleTransactionsAdapter = {
       data.description || null,
       data.employeeId || null,
       data.invoiceId || null,
+      data.purchaseOrderId || null,
+      data.quoteId || null,
       now,
       now
     )
@@ -2869,7 +2922,7 @@ export const vehicleTransactionsAdapter = {
 
     const stmt = db.prepare(`
       UPDATE vehicle_transactions 
-      SET vehicleId = ?, transactionType = ?, category = ?, amount = ?, date = ?, month = ?, description = ?, employeeId = ?, invoiceId = ?, updatedAt = ?
+      SET vehicleId = ?, transactionType = ?, category = ?, amount = ?, date = ?, month = ?, description = ?, employeeId = ?, invoiceId = ?, purchaseOrderId = ?, quoteId = ?, updatedAt = ?
       WHERE id = ?
     `)
     stmt.run(
@@ -2882,6 +2935,8 @@ export const vehicleTransactionsAdapter = {
       updated.description || null,
       updated.employeeId || null,
       updated.invoiceId || null,
+      updated.purchaseOrderId || null,
+      updated.quoteId || null,
       updated.updatedAt,
       id
     )

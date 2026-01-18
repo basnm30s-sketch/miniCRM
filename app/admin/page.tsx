@@ -55,7 +55,7 @@ export default function AdminSettingsPage() {
             showReports: (stored as any).showReports === false || (stored as any).showReports === 0
               ? false
               : ((stored as any).showReports === true || (stored as any).showReports === 1 ? true : false),
-            showVehicleFinances: (stored as any).showVehicleFinances === false || (stored as any).showVehicleFinances === 0
+            showVehicleDashboard: (stored as any).showVehicleFinances === false || (stored as any).showVehicleFinances === 0
               ? false
               : ((stored as any).showVehicleFinances === true || (stored as any).showVehicleFinances === 1 ? true : false),
             showQuotationsInvoicesCard: (stored as any).showQuotationsInvoicesCard === false || (stored as any).showQuotationsInvoicesCard === 0
@@ -82,6 +82,27 @@ export default function AdminSettingsPage() {
             showActivitySummary: (stored as any).showActivitySummary === false || (stored as any).showActivitySummary === 0
               ? false
               : ((stored as any).showActivitySummary === true || (stored as any).showActivitySummary === 1 ? true : false),
+            showQuotationsTwoPane: (stored as any).showQuotationsTwoPane === false || (stored as any).showQuotationsTwoPane === 0
+              ? false
+              : ((stored as any).showQuotationsTwoPane === true || (stored as any).showQuotationsTwoPane === 1 
+                ? true 
+                : ((stored as any).showQuotationsTwoPane === null || (stored as any).showQuotationsTwoPane === undefined) 
+                  ? true 
+                  : false),
+            showPurchaseOrdersTwoPane: (stored as any).showPurchaseOrdersTwoPane === false || (stored as any).showPurchaseOrdersTwoPane === 0
+              ? false
+              : ((stored as any).showPurchaseOrdersTwoPane === true || (stored as any).showPurchaseOrdersTwoPane === 1 
+                ? true 
+                : ((stored as any).showPurchaseOrdersTwoPane === null || (stored as any).showPurchaseOrdersTwoPane === undefined) 
+                  ? true 
+                  : false),
+            showInvoicesTwoPane: (stored as any).showInvoicesTwoPane === false || (stored as any).showInvoicesTwoPane === 0
+              ? false
+              : ((stored as any).showInvoicesTwoPane === true || (stored as any).showInvoicesTwoPane === 1 
+                ? true 
+                : ((stored as any).showInvoicesTwoPane === null || (stored as any).showInvoicesTwoPane === undefined) 
+                  ? true 
+                  : false),
           }
           setSettings(settingsWithBooleans)
         } else {
@@ -167,7 +188,7 @@ export default function AdminSettingsPage() {
         showRevenueTrend: settings.showRevenueTrend === true ? true : false,
         showQuickActions: settings.showQuickActions === true ? true : false,
         showReports: settings.showReports === true ? true : false,
-        showVehicleFinances: settings.showVehicleFinances === true ? true : false,
+        showVehicleDashboard: settings.showVehicleDashboard === true ? true : false,
         showQuotationsInvoicesCard: settings.showQuotationsInvoicesCard === true ? true : false,
         showEmployeeSalariesCard: settings.showEmployeeSalariesCard === true ? true : false,
         showVehicleRevenueExpensesCard: settings.showVehicleRevenueExpensesCard === true ? true : false,
@@ -176,11 +197,19 @@ export default function AdminSettingsPage() {
         showBusinessOverview: settings.showBusinessOverview === true ? true : false,
         showTopCustomers: settings.showTopCustomers === true ? true : false,
         showActivitySummary: settings.showActivitySummary === true ? true : false,
+        showQuotationsTwoPane: settings.showQuotationsTwoPane === true ? true : false,
+        showPurchaseOrdersTwoPane: settings.showPurchaseOrdersTwoPane === true ? true : false,
+        showInvoicesTwoPane: settings.showInvoicesTwoPane === true ? true : false,
         updatedAt: new Date().toISOString(),
       }
 
       await saveAdminSettings(settingsToSave)
       toast({ title: 'Saved', description: 'Settings saved successfully' })
+      
+      // Dispatch event to notify sidebar and other components to reload settings
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('adminSettingsUpdated'))
+      }
     } catch (err) {
       console.error('Failed to save settings:', err)
       toast({ title: 'Error', description: 'Failed to save settings', variant: 'destructive' })
@@ -211,7 +240,7 @@ export default function AdminSettingsPage() {
   const signatureUrl = getBrandingUrl('signature', branding.extensions.signature)
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 pb-24">
       <div>
         <h1 className="text-3xl font-bold">Admin Settings</h1>
         <p className="text-gray-500">Manage company profile and branding for quotes</p>
@@ -425,15 +454,57 @@ export default function AdminSettingsPage() {
 
             <div className="flex items-center justify-between mt-4">
               <div className="space-y-0.5">
-                <Label htmlFor="showVehicleFinances">Show Vehicle Finances Menu</Label>
+                <Label htmlFor="showVehicleDashboard">Show Vehicle Dashboard</Label>
                 <p className="text-sm text-gray-500">
-                  Display the Vehicle Finances menu item in the sidebar
+                  Display the Vehicle Dashboard menu item in the sidebar
                 </p>
               </div>
               <Switch
-                id="showVehicleFinances"
-                checked={settings.showVehicleFinances === true}
-                onCheckedChange={(checked) => handleInputChange('showVehicleFinances', checked)}
+                id="showVehicleDashboard"
+                checked={settings.showVehicleDashboard === true}
+                onCheckedChange={(checked) => handleInputChange('showVehicleDashboard', checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showQuotationsTwoPane">Quotations Two-Pane View</Label>
+                <p className="text-sm text-gray-500">
+                  Display quotations in two-pane layout (list + detail). Disable for table-only view.
+                </p>
+              </div>
+              <Switch
+                id="showQuotationsTwoPane"
+                checked={settings.showQuotationsTwoPane === true}
+                onCheckedChange={(checked) => handleInputChange('showQuotationsTwoPane', checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showPurchaseOrdersTwoPane">Purchase Orders Two-Pane View</Label>
+                <p className="text-sm text-gray-500">
+                  Display purchase orders in two-pane layout (list + detail). Disable for table-only view.
+                </p>
+              </div>
+              <Switch
+                id="showPurchaseOrdersTwoPane"
+                checked={settings.showPurchaseOrdersTwoPane === true}
+                onCheckedChange={(checked) => handleInputChange('showPurchaseOrdersTwoPane', checked)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="showInvoicesTwoPane">Invoices Two-Pane View</Label>
+                <p className="text-sm text-gray-500">
+                  Display invoices in two-pane layout (list + detail). Disable for table-only view.
+                </p>
+              </div>
+              <Switch
+                id="showInvoicesTwoPane"
+                checked={settings.showInvoicesTwoPane === true}
+                onCheckedChange={(checked) => handleInputChange('showInvoicesTwoPane', checked)}
               />
             </div>
           </div>
@@ -656,7 +727,7 @@ export default function AdminSettingsPage() {
       </Card>
 
       {/* Save Button */}
-      <div className="flex justify-end gap-2">
+      <div className="sticky bottom-0 bg-white border-t border-slate-200 p-4 flex justify-end gap-2 z-10 shadow-sm mt-6">
         <Button variant="outline">Cancel</Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Settings'}

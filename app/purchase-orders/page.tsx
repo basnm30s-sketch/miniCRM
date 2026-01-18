@@ -40,8 +40,13 @@ import {
   Truck
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useRouter } from 'next/navigation'
+import { Edit3 } from 'lucide-react'
 
 export default function PurchaseOrdersPage() {
+  const router = useRouter()
   const [pos, setPos] = useState<PurchaseOrder[]>([])
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
@@ -50,6 +55,8 @@ export default function PurchaseOrdersPage() {
   const [poToDelete, setPoToDelete] = useState<string | null>(null)
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [useTwoPane, setUseTwoPane] = useState(true)
+  const [showTerms, setShowTerms] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -62,8 +69,18 @@ export default function PurchaseOrdersPage() {
         setPos(allPos)
         setVendors(allVendors)
         setAdminSettings(settings)
-        // Auto-select first PO if available
-        if (allPos.length > 0) {
+        
+        // Determine view mode (default to true if not set, but respect explicit false/0)
+        const twoPaneValue = settings?.showPurchaseOrdersTwoPane
+        const twoPaneEnabled = twoPaneValue === false || twoPaneValue === 0
+          ? false
+          : (twoPaneValue === true || twoPaneValue === 1)
+            ? true
+            : true // default to true if null/undefined
+        setUseTwoPane(twoPaneEnabled)
+        
+        // Auto-select first PO if available and two-pane is enabled
+        if (twoPaneEnabled && allPos.length > 0) {
           setSelectedPO((prev) => prev || allPos[0])
         }
       } catch (error) {
@@ -169,6 +186,24 @@ export default function PurchaseOrdersPage() {
     }
   }
 
+  // Helper functions for table display
+  const formatCurrency = (amount: number | undefined) => {
+    if (amount === undefined || amount === null) return 'AED 0.00'
+    return `AED ${amount.toFixed(2)}`
+  }
+
+  const getVendorDetails = (vendorId: string) => {
+    const vendor = vendors.find((v) => v.id === vendorId)
+    if (!vendor) return null
+    return {
+      name: vendor.name,
+      contactPerson: vendor.contactPerson,
+      email: vendor.email,
+      phone: vendor.phone,
+      address: vendor.address
+    }
+  }
+
   const handlePOSave = (savedPO: PurchaseOrder) => {
     setPos((prev) => prev.map((po) => (po.id === savedPO.id ? savedPO : po)))
     setSelectedPO(savedPO)
@@ -199,9 +234,10 @@ export default function PurchaseOrdersPage() {
         </Link>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Pane - List View */}
-        <div className="w-[380px] border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
+      {useTwoPane ? (
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Pane - List View */}
+          <div className="w-[380px] border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
           <div className="p-3 bg-slate-50/50 border-b border-slate-200 sticky top-0 z-10 backdrop-blur-sm">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">
               All Orders ({pos.length})
@@ -341,55 +377,79 @@ export default function PurchaseOrdersPage() {
                 </div>
 
                 {/* Scrollable Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
-                  {/* Vendor Details */}
-                  <Card className="shadow-sm border-slate-200">
-                    <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
-                      <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                        <Truck className="w-4 h-4" />
-                        Vendor Information
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4 grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="block text-slate-500 text-xs mb-1">Vendor Name</span>
-                        <span className="font-medium text-slate-900">{getVendorName(selectedPO.vendorId)}</span>
-                      </div>
-                      {selectedPO.vendor && (
-                        <>
-                          {selectedPO.vendor.contactPerson && (
-                            <div>
-                              <span className="block text-slate-500 text-xs mb-1">Contact Person</span>
-                              <span className="text-slate-900">{selectedPO.vendor.contactPerson}</span>
-                            </div>
-                          )}
-                          {selectedPO.vendor.email && (
-                            <div>
-                              <span className="block text-slate-500 text-xs mb-1">Email</span>
-                              <span className="text-slate-900">{selectedPO.vendor.email}</span>
-                            </div>
-                          )}
-                          {selectedPO.vendor.phone && (
-                            <div>
-                              <span className="block text-slate-500 text-xs mb-1">Phone</span>
-                              <span className="text-slate-900">{selectedPO.vendor.phone}</span>
-                            </div>
-                          )}
-                          {selectedPO.vendor.address && (
-                            <div className="col-span-2">
-                              <span className="block text-slate-500 text-xs mb-1">Address</span>
-                              <span className="text-slate-900">{selectedPO.vendor.address}</span>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
+                  {/* Vendor Details & Summary Group */}
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* Vendor Details */}
+                    <Card className="col-span-2 shadow-sm border-slate-200">
+                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
+                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                          <Truck className="w-4 h-4" />
+                          Vendor Information
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-3 grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="block text-slate-500 text-xs mb-1">Vendor Name</span>
+                          <span className="font-medium text-slate-900">{getVendorName(selectedPO.vendorId)}</span>
+                        </div>
+                        {selectedPO.vendor && (
+                          <>
+                            {selectedPO.vendor.contactPerson && (
+                              <div>
+                                <span className="block text-slate-500 text-xs mb-1">Contact Person</span>
+                                <span className="text-slate-900">{selectedPO.vendor.contactPerson}</span>
+                              </div>
+                            )}
+                            {selectedPO.vendor.email && (
+                              <div>
+                                <span className="block text-slate-500 text-xs mb-1">Email</span>
+                                <span className="text-slate-900">{selectedPO.vendor.email}</span>
+                              </div>
+                            )}
+                            {selectedPO.vendor.phone && (
+                              <div>
+                                <span className="block text-slate-500 text-xs mb-1">Phone</span>
+                                <span className="text-slate-900">{selectedPO.vendor.phone}</span>
+                              </div>
+                            )}
+                            {selectedPO.vendor.address && (
+                              <div className="col-span-2">
+                                <span className="block text-slate-500 text-xs mb-1">Address</span>
+                                <span className="text-slate-900">{selectedPO.vendor.address}</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </CardContent>
+                    </Card>
 
-                  {/* Items Table */}
+                    {/* Financial Summary */}
+                    <Card className="shadow-sm border-slate-200 h-fit">
+                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
+                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Summary</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-3 space-y-3">
+                        <div className="flex justify-between text-sm text-slate-600">
+                          <span>Subtotal</span>
+                          <span>AED {(selectedPO.subtotal || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-slate-600">
+                          <span>Tax</span>
+                          <span>AED {(selectedPO.tax || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="pt-3 mt-3 border-t border-slate-100 flex justify-between items-baseline">
+                          <span className="font-semibold text-slate-900">Total</span>
+                          <span className="text-xl font-bold text-slate-900">AED {(selectedPO.amount || 0).toFixed(2)}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Line Items - Full Width */}
                   <Card className="shadow-sm border-slate-200">
-                    <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
+                    <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
                       <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Order Items</CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -422,39 +482,42 @@ export default function PurchaseOrdersPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Financial Summary */}
-                  <div className="flex justify-end">
-                    <Card className="shadow-sm border-slate-200 w-1/3 min-w-[300px]">
-                      <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Summary</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-4 space-y-3">
-                        <div className="flex justify-between text-sm text-slate-600">
-                          <span>Subtotal</span>
-                          <span>AED {(selectedPO.subtotal || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-slate-600">
-                          <span>Tax</span>
-                          <span>AED {(selectedPO.tax || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="pt-3 mt-3 border-t border-slate-100 flex justify-between items-baseline">
-                          <span className="font-semibold text-slate-900">Total</span>
-                          <span className="text-xl font-bold text-slate-900">AED {(selectedPO.amount || 0).toFixed(2)}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
+                  {/* Additional Info (Terms/Notes) */}
+                  {(selectedPO.terms || selectedPO.notes) && (
+                    <div className="grid grid-cols-1 gap-4">
+                      {selectedPO.terms && (
+                        <Card className="shadow-sm border-slate-200">
+                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
+                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Terms & Conditions</CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-3">
+                            <div className={`prose prose-sm max-w-none text-slate-600 ${!showTerms ? 'line-clamp-4' : ''}`}
+                              dangerouslySetInnerHTML={{ __html: selectedPO.terms }}
+                            />
+                            {selectedPO.terms.length > 200 && (
+                              <button
+                                className="text-blue-600 hover:text-blue-700 text-xs font-medium mt-2 flex items-center"
+                                onClick={() => setShowTerms(!showTerms)}
+                              >
+                                {showTerms ? 'Show Less' : 'Read More'}
+                                <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showTerms ? 'rotate-180' : ''}`} />
+                              </button>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )}
 
-                  {/* Notes */}
-                  {selectedPO.notes && (
-                    <Card className="shadow-sm border-slate-200">
-                      <CardHeader className="pb-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-4">
-                        <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedPO.notes}</p>
-                      </CardContent>
-                    </Card>
+                      {selectedPO.notes && (
+                        <Card className="shadow-sm border-slate-200">
+                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
+                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-3">
+                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedPO.notes}</p>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
                   )}
                 </div>
               </>
@@ -474,7 +537,151 @@ export default function PurchaseOrdersPage() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      ) : (
+        // List-only table view
+        <div className="flex-1 overflow-y-auto p-6 bg-white">
+          <Card>
+            <CardHeader>
+              <CardTitle>All Purchase Orders ({pos.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>PO #</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-center">Items</TableHead>
+                      <TableHead className="text-right">Subtotal</TableHead>
+                      <TableHead className="text-right">Tax</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pos.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center text-slate-500 py-8">
+                          No purchase orders found.
+                          <Link href="/purchase-orders/create" className="text-blue-600 hover:underline mt-2 text-sm inline-block">
+                            Create your first purchase order
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      pos.map((po) => {
+                        const vendorDetails = getVendorDetails(po.vendorId)
+                        const vendorTooltip = vendorDetails ? [
+                          vendorDetails.name,
+                          vendorDetails.contactPerson && `Contact: ${vendorDetails.contactPerson}`,
+                          vendorDetails.email && `Email: ${vendorDetails.email}`,
+                          vendorDetails.phone && `Phone: ${vendorDetails.phone}`,
+                          vendorDetails.address && `Address: ${vendorDetails.address}`
+                        ].filter(Boolean).join('\n') : 'Unknown Vendor'
+                        
+                        return (
+                          <TableRow key={po.id}>
+                            <TableCell className="font-mono text-sm font-medium text-slate-900">
+                              {po.number}
+                            </TableCell>
+                            <TableCell>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <div className="max-w-[200px]">
+                                      <div className="font-medium text-slate-900 truncate">
+                                        {vendorDetails?.name || 'Unknown Vendor'}
+                                      </div>
+                                      {vendorDetails?.contactPerson && (
+                                        <div className="text-xs text-slate-500 truncate mt-0.5">
+                                          {vendorDetails.contactPerson}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="whitespace-pre-line max-w-xs">
+                                    {vendorTooltip}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </TableCell>
+                            <TableCell className="text-slate-600">{po.date}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`text-xs ${getStatusColor(po.status)}`}>
+                                {po.status || 'Draft'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline" className="text-xs">
+                                {po.items?.length || 0} {(po.items?.length || 0) === 1 ? 'item' : 'items'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-slate-600">
+                              {formatCurrency(po.subtotal)}
+                            </TableCell>
+                            <TableCell className="text-right text-slate-600">
+                              {formatCurrency(po.tax)}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold text-slate-900">
+                              {formatCurrency(po.amount)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex justify-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => router.push(`/purchase-orders/create?id=${po.id}`)}
+                                  className="h-8 w-8 p-0"
+                                  title="Edit"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Download">
+                                      <Download className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleDownloadPDF(po)}>
+                                      <FileText className="w-4 h-4 mr-2 text-red-500" />
+                                      PDF
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDownloadExcel(po)}>
+                                      <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" />
+                                      Excel
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDownloadDocx(po)}>
+                                      <FileIcon className="w-4 h-4 mr-2 text-blue-600" />
+                                      Word
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(po.id)}
+                                  className="h-8 w-8 p-0 text-red-600 hover:text-red-800"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -499,3 +706,6 @@ export default function PurchaseOrdersPage() {
     </div>
   )
 }
+
+
+

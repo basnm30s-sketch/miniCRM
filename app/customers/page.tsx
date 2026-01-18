@@ -1,17 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Plus, Edit2, Trash2 } from 'lucide-react'
-import { getAllCustomers, saveCustomer, deleteCustomer, generateId } from '@/lib/storage'
+import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '@/hooks/use-customers'
 import type { Customer } from '@/lib/types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Label } from '@/components/ui/label'
+import { toast } from '@/hooks/use-toast'
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: customers = [], isLoading: loading, error } = useCustomers()
+  const createMutation = useCreateCustomer()
+  const updateMutation = useUpdateCustomer()
+  const deleteMutation = useDeleteCustomer()
+  
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
@@ -20,25 +25,18 @@ export default function CustomersPage() {
   const [newPhone, setNewPhone] = useState('')
   const [newAddress, setNewAddress] = useState('')
 
-  useEffect(() => {
-    const loadCustomers = async () => {
-      try {
-        const allCustomers = await getAllCustomers()
-        setCustomers(allCustomers)
-      } catch (error) {
-        console.error('Error loading customers:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadCustomers()
-  }, [])
-
   if (loading) {
     return (
       <div className="p-8">
         <div className="text-slate-500">Loading customers...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="text-red-500">Error loading customers: {error.message}</div>
       </div>
     )
   }
@@ -69,22 +67,51 @@ export default function CustomersPage() {
   }
 
   const handleSave = async () => {
-    const isUpdate = editingId !== null
-    const customer = {
-      id: editingId || generateId(),
-      name: newName.trim(),
-      company: newCompany.trim(),
-      email: newEmail.trim(),
-      phone: newPhone.trim(),
-      address: newAddress.trim(),
-      createdAt: new Date().toISOString(),
+    // Validate name field
+    if (!newName.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Customer name is required',
+        variant: 'destructive',
+      })
+      return
     }
+
+    const isUpdate = editingId !== null
     try {
-      // Pass isUpdate flag to avoid unnecessary existence check for new customers
-      await saveCustomer(customer, isUpdate)
-      const updated = await getAllCustomers()
-      setCustomers(updated)
-      // reset
+      let result
+      if (isUpdate && editingId) {
+        result = await updateMutation.mutateAsync({
+          id: editingId,
+          data: {
+            name: newName.trim(),
+            company: newCompany.trim() || null,
+            email: newEmail.trim() || null,
+            phone: newPhone.trim() || null,
+            address: newAddress.trim() || null,
+          },
+        })
+      } else {
+        result = await createMutation.mutateAsync({
+          id: crypto.randomUUID(),
+          name: newName.trim(),
+          company: newCompany.trim() || null,
+          email: newEmail.trim() || null,
+          phone: newPhone.trim() || null,
+          address: newAddress.trim() || null,
+        })
+      }
+
+      if (!result.success) {
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to save customer',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      // Reset form
       setNewName('')
       setNewCompany('')
       setNewEmail('')
@@ -94,17 +121,32 @@ export default function CustomersPage() {
       setShowAdd(false)
     } catch (err) {
       console.error('Failed to save customer', err)
+      toast({
+        title: 'Error',
+        description: 'Failed to save customer',
+        variant: 'destructive',
+      })
     }
   }
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this customer?')) {
       try {
-        await deleteCustomer(id)
-        const updated = await getAllCustomers()
-        setCustomers(updated)
+        const result = await deleteMutation.mutateAsync(id)
+        if (!result.success) {
+          toast({
+            title: 'Error',
+            description: result.error || 'Failed to delete customer',
+            variant: 'destructive',
+          })
+        }
       } catch (err) {
         console.error('Failed to delete customer', err)
+        toast({
+          title: 'Error',
+          description: 'Failed to delete customer',
+          variant: 'destructive',
+        })
       }
     }
   }
@@ -176,12 +218,57 @@ export default function CustomersPage() {
           <div className="fixed inset-0 bg-black/40" onClick={() => { setShowAdd(false); setEditingId(null) }} />
           <div className="bg-white rounded p-6 z-10 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">{editingId ? 'Edit' : 'Add'} Customer</h3>
-            <div className="space-y-2">
-              <input className="w-full border px-2 py-1" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
-              <input className="w-full border px-2 py-1" placeholder="Company" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} />
-              <input className="w-full border px-2 py-1" placeholder="Email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
-              <input className="w-full border px-2 py-1" placeholder="Phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
-              <textarea className="w-full border px-2 py-1" placeholder="Address" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} />
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="customer-name" className="text-slate-700 text-sm mb-1 block">Name</Label>
+                <input 
+                  id="customer-name"
+                  className="w-full border px-2 py-1" 
+                  placeholder="Name" 
+                  value={newName} 
+                  onChange={(e) => setNewName(e.target.value)} 
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer-company" className="text-slate-700 text-sm mb-1 block">Company</Label>
+                <input 
+                  id="customer-company"
+                  className="w-full border px-2 py-1" 
+                  placeholder="Company" 
+                  value={newCompany} 
+                  onChange={(e) => setNewCompany(e.target.value)} 
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer-email" className="text-slate-700 text-sm mb-1 block">Email</Label>
+                <input 
+                  id="customer-email"
+                  className="w-full border px-2 py-1" 
+                  placeholder="Email" 
+                  value={newEmail} 
+                  onChange={(e) => setNewEmail(e.target.value)} 
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer-phone" className="text-slate-700 text-sm mb-1 block">Phone</Label>
+                <input 
+                  id="customer-phone"
+                  className="w-full border px-2 py-1" 
+                  placeholder="Phone" 
+                  value={newPhone} 
+                  onChange={(e) => setNewPhone(e.target.value)} 
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer-address" className="text-slate-700 text-sm mb-1 block">Address</Label>
+                <textarea 
+                  id="customer-address"
+                  className="w-full border px-2 py-1" 
+                  placeholder="Address" 
+                  value={newAddress} 
+                  onChange={(e) => setNewAddress(e.target.value)} 
+                />
+              </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button className="px-3 py-1 border rounded" onClick={() => { setShowAdd(false); setEditingId(null); setNewName(''); setNewCompany(''); setNewEmail(''); setNewPhone(''); setNewAddress('') }}>Cancel</button>
