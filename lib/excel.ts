@@ -801,14 +801,16 @@ export class ClientSideExcelRenderer implements ExcelRenderer {
       currentRow++
     }
 
+    const invoiceDefaultTerms = adminSettings.defaultInvoiceTerms ?? adminSettings.defaultTerms
+
     // Terms section
-    if (invoice.terms || adminSettings.defaultTerms) {
+    if (invoice.terms || invoiceDefaultTerms) {
       currentRow++ // Empty row
       worksheet.getCell(currentRow, 1).value = 'Terms and Conditions:'
       this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true })
       currentRow++
 
-      const terms = invoice.terms || adminSettings.defaultTerms || ''
+      const terms = invoice.terms || invoiceDefaultTerms || ''
       const termsText = terms
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/p>/gi, '\n')
@@ -1124,14 +1126,16 @@ export class ClientSideExcelRenderer implements ExcelRenderer {
     })
     currentRow++
 
+    const poDefaultTerms = adminSettings.defaultPurchaseOrderTerms ?? adminSettings.defaultTerms
+
     // Terms section
-    if (po.terms || adminSettings.defaultTerms) {
+    if (po.terms || poDefaultTerms) {
       currentRow++ // Empty row
       worksheet.getCell(currentRow, 1).value = 'Terms and Conditions:'
       this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true })
       currentRow++
 
-      const terms = po.terms || adminSettings.defaultTerms || ''
+      const terms = po.terms || poDefaultTerms || ''
       const termsText = terms
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/p>/gi, '\n')

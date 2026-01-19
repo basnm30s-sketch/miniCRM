@@ -18,6 +18,9 @@ exports.adminSettings = (0, sqlite_core_1.sqliteTable)('admin_settings', {
     quoteNumberPattern: (0, sqlite_core_1.text)('quoteNumberPattern'),
     currency: (0, sqlite_core_1.text)('currency'),
     defaultTerms: (0, sqlite_core_1.text)('defaultTerms'),
+    // Doc-type specific defaults (fallback to defaultTerms for backward compatibility)
+    defaultInvoiceTerms: (0, sqlite_core_1.text)('defaultInvoiceTerms'),
+    defaultPurchaseOrderTerms: (0, sqlite_core_1.text)('defaultPurchaseOrderTerms'),
     showRevenueTrend: (0, sqlite_core_1.integer)('showRevenueTrend', { mode: 'boolean' }).default(true),
     showQuickActions: (0, sqlite_core_1.integer)('showQuickActions', { mode: 'boolean' }).default(true),
     showReports: (0, sqlite_core_1.integer)('showReports', { mode: 'boolean' }),
@@ -150,6 +153,7 @@ exports.purchaseOrders = (0, sqlite_core_1.sqliteTable)('purchase_orders', {
     amount: (0, sqlite_core_1.real)('amount'),
     currency: (0, sqlite_core_1.text)('currency'),
     status: (0, sqlite_core_1.text)('status'), // 'draft' | 'sent' | 'accepted'
+    terms: (0, sqlite_core_1.text)('terms'),
     notes: (0, sqlite_core_1.text)('notes'),
     createdAt: (0, sqlite_core_1.text)('createdAt'),
 });

@@ -118,6 +118,8 @@ function createTables(database: any): void {
       quoteNumberPattern TEXT,
       currency TEXT,
       defaultTerms TEXT,
+      defaultInvoiceTerms TEXT,
+      defaultPurchaseOrderTerms TEXT,
       showRevenueTrend INTEGER DEFAULT 1,
       showQuickActions INTEGER DEFAULT 1,
       createdAt TEXT,
@@ -131,6 +133,8 @@ function createTables(database: any): void {
     const columnNames = tableInfo.map((col: any) => col.name)
 
     const adminSettingsNewColumns = [
+      { name: 'defaultInvoiceTerms', type: 'TEXT' },
+      { name: 'defaultPurchaseOrderTerms', type: 'TEXT' },
       { name: 'showRevenueTrend', type: 'INTEGER DEFAULT 1' },
       { name: 'showQuickActions', type: 'INTEGER DEFAULT 1' },
       { name: 'footerAddressEnglish', type: 'TEXT' },

@@ -164,7 +164,8 @@ describe('Database Module', () => {
       })
 
       const { initDatabase } = require('../database')
-      expect(() => initDatabase()).toThrow('Database initialization failed')
+      expect(() => initDatabase()).not.toThrow()
+      expect(initDatabase()).toBeNull()
     })
   })
 

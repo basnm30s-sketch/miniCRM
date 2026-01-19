@@ -153,11 +153,13 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                     currentSettings = initialized
                 }
 
+                const defaultInvoiceTerms = (currentSettings as any)?.defaultInvoiceTerms ?? currentSettings?.defaultTerms
+
                 // If creating new (no initialData) and default terms exist, set them (without overwriting user edits)
-                if (!initialData && currentSettings?.defaultTerms) {
+                if (!initialData && defaultInvoiceTerms) {
                     setInvoice((prev) => {
                         if (!isHtmlEmpty(prev.terms)) return prev
-                        return { ...prev, terms: currentSettings.defaultTerms }
+                        return { ...prev, terms: defaultInvoiceTerms }
                     })
                 }
 

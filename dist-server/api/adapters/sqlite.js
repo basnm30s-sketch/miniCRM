@@ -30,6 +30,29 @@ function formatReferenceError(entityName, references) {
     const refList = references.map(r => `- ${r.type} ${r.number}`).join('\n');
     return `Cannot delete ${entityName} as it is referenced in:\n${refList}`;
 }
+function ensureTermsColumns(db) {
+    // Lightweight runtime migrations for older DBs
+    try {
+        const poInfo = db.prepare("PRAGMA table_info(purchase_orders)").all();
+        const poCols = poInfo.map((c) => c.name);
+        if (!poCols.includes('terms')) {
+            db.exec('ALTER TABLE purchase_orders ADD COLUMN terms TEXT');
+        }
+    }
+    catch (error) {
+        console.log('Migration check (purchase_orders.terms):', error.message);
+    }
+    try {
+        const invInfo = db.prepare("PRAGMA table_info(invoices)").all();
+        const invCols = invInfo.map((c) => c.name);
+        if (!invCols.includes('terms')) {
+            db.exec('ALTER TABLE invoices ADD COLUMN terms TEXT');
+        }
+    }
+    catch (error) {
+        console.log('Migration check (invoices.terms):', error.message);
+    }
+}
 // ==================== CUSTOMERS ====================
 exports.customersAdapter = {
     getAll: () => {
@@ -724,6 +747,12 @@ exports.adminAdapter = {
         try {
             const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all();
             const columnNames = tableInfo.map((col) => col.name);
+            if (!columnNames.includes('defaultInvoiceTerms')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN defaultInvoiceTerms TEXT');
+            }
+            if (!columnNames.includes('defaultPurchaseOrderTerms')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN defaultPurchaseOrderTerms TEXT');
+            }
             if (!columnNames.includes('showRevenueTrend')) {
                 db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0');
             }
@@ -873,6 +902,9 @@ exports.adminAdapter = {
             quoteNumberPattern: row.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
             currency: row.currency || 'AED',
             defaultTerms: row.defaultTerms || '',
+            // Optional; if unset, callers should fall back to defaultTerms
+            defaultInvoiceTerms: row.defaultInvoiceTerms ?? undefined,
+            defaultPurchaseOrderTerms: row.defaultPurchaseOrderTerms ?? undefined,
             footerAddressEnglish: row.footerAddressEnglish || '',
             footerAddressArabic: row.footerAddressArabic || '',
             footerContactEnglish: row.footerContactEnglish || '',
@@ -905,6 +937,12 @@ exports.adminAdapter = {
         try {
             const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all();
             const columnNames = tableInfo.map((col) => col.name);
+            if (!columnNames.includes('defaultInvoiceTerms')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN defaultInvoiceTerms TEXT');
+            }
+            if (!columnNames.includes('defaultPurchaseOrderTerms')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN defaultPurchaseOrderTerms TEXT');
+            }
             if (!columnNames.includes('showRevenueTrend')) {
                 db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0');
             }
@@ -967,8 +1005,16 @@ exports.adminAdapter = {
             console.log('Migration check in save:', error.message);
         }
         const now = new Date().toISOString();
-        // Get existing record (but don't use its boolean values - use the data being saved)
-        const existing = db.prepare('SELECT id FROM admin_settings LIMIT 1').get();
+        const existing = db.prepare('SELECT * FROM admin_settings LIMIT 1').get();
+        const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
+        // For new optional columns: if the client omits the field entirely, keep existing value.
+        // This avoids older clients clobbering new settings with empty strings.
+        const resolvedDefaultInvoiceTerms = hasOwn(data, 'defaultInvoiceTerms')
+            ? (data.defaultInvoiceTerms ?? null)
+            : (existing?.defaultInvoiceTerms ?? null);
+        const resolvedDefaultPurchaseOrderTerms = hasOwn(data, 'defaultPurchaseOrderTerms')
+            ? (data.defaultPurchaseOrderTerms ?? null)
+            : (existing?.defaultPurchaseOrderTerms ?? null);
         // Convert boolean to integer (SQLite doesn't have native boolean)
         // Explicitly handle: false -> 0, true -> 1, undefined/null -> 0 (default)
         const showRevenueTrend = (data.showRevenueTrend === true) ? 1 : 0;
@@ -1004,7 +1050,7 @@ exports.adminAdapter = {
             const stmt = db.prepare(`
         UPDATE admin_settings 
         SET companyName = ?, address = ?, vatNumber = ?, logoUrl = ?, sealUrl = ?, 
-            signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, 
+            signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, defaultInvoiceTerms = ?, defaultPurchaseOrderTerms = ?,
             footerAddressEnglish = ?, footerAddressArabic = ?, footerContactEnglish = ?, footerContactArabic = ?,
             showRevenueTrend = ?, showQuickActions = ?, showReports = ?, showVehicleFinances = ?, 
             showQuotationsInvoicesCard = ?, showQuotationsTwoPane = ?, showPurchaseOrdersTwoPane = ?, showInvoicesTwoPane = ?, showEmployeeSalariesCard = ?, showVehicleRevenueExpensesCard = ?, 
@@ -1012,20 +1058,20 @@ exports.adminAdapter = {
             showTopCustomers = ?, showActivitySummary = ?, updatedAt = ?
         WHERE id = ?
       `);
-            const result = stmt.run(data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, existing.id);
+            const result = stmt.run(data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', resolvedDefaultInvoiceTerms, resolvedDefaultPurchaseOrderTerms, data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, existing.id);
         }
         else {
             const stmt = db.prepare(`
         INSERT INTO admin_settings (id, companyName, address, vatNumber, logoUrl, sealUrl, 
-                                    signatureUrl, quoteNumberPattern, currency, defaultTerms, 
+                                    signatureUrl, quoteNumberPattern, currency, defaultTerms, defaultInvoiceTerms, defaultPurchaseOrderTerms,
                                     footerAddressEnglish, footerAddressArabic, footerContactEnglish, footerContactArabic,
                                     showRevenueTrend, showQuickActions, showReports, showVehicleFinances, 
                                     showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, 
                                     showActivityThisMonth, showFinancialHealth, showBusinessOverview, 
                                     showTopCustomers, showActivitySummary, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-            stmt.run(data.id || 'settings_1', data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, now);
+            stmt.run(data.id || 'settings_1', data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', resolvedDefaultInvoiceTerms, resolvedDefaultPurchaseOrderTerms, data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, now);
         }
         return exports.adminAdapter.get();
     },
@@ -1268,6 +1314,7 @@ exports.purchaseOrdersAdapter = {
         if (!db)
             return [];
         try {
+            ensureTermsColumns(db);
             const pos = db.prepare('SELECT * FROM purchase_orders ORDER BY createdAt DESC').all();
             return pos.map(po => {
                 const items = db.prepare('SELECT * FROM po_items WHERE purchaseOrderId = ?').all(po.id);
@@ -1299,6 +1346,7 @@ exports.purchaseOrdersAdapter = {
                     amount: po.amount || 0,
                     currency: po.currency || 'AED',
                     status: po.status || 'draft',
+                    terms: po.terms || '',
                     notes: po.notes || '',
                     createdAt: po.createdAt,
                 };
@@ -1313,6 +1361,7 @@ exports.purchaseOrdersAdapter = {
         const db = getDb();
         if (!db)
             return null;
+        ensureTermsColumns(db);
         const po = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(id);
         if (!po)
             return null;
@@ -1344,6 +1393,7 @@ exports.purchaseOrdersAdapter = {
             amount: po.amount || 0,
             currency: po.currency || 'AED',
             status: po.status || 'draft',
+            terms: po.terms || '',
             notes: po.notes || '',
             createdAt: po.createdAt,
         };
@@ -1353,13 +1403,14 @@ exports.purchaseOrdersAdapter = {
         if (!db) {
             throw new Error('Database is not available. App is using client-side storage.');
         }
+        ensureTermsColumns(db);
         const now = new Date().toISOString();
         // Insert purchase order
         const poStmt = db.prepare(`
-      INSERT INTO purchase_orders (id, number, date, vendorId, subtotal, tax, amount, currency, status, notes, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO purchase_orders (id, number, date, vendorId, subtotal, tax, amount, currency, status, terms, notes, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-        poStmt.run(data.id, data.number, data.date, data.vendorId, data.subtotal || 0, data.tax || 0, data.amount || 0, data.currency || 'AED', data.status || 'draft', data.notes || '', now);
+        poStmt.run(data.id, data.number, data.date, data.vendorId, data.subtotal || 0, data.tax || 0, data.amount || 0, data.currency || 'AED', data.status || 'draft', data.terms || '', data.notes || '', now);
         // Insert items
         if (data.items && data.items.length > 0) {
             const itemStmt = db.prepare(`
@@ -1382,14 +1433,15 @@ exports.purchaseOrdersAdapter = {
         if (!db) {
             throw new Error('Database is not available. App is using client-side storage.');
         }
+        ensureTermsColumns(db);
         // Update purchase order
         const poStmt = db.prepare(`
       UPDATE purchase_orders 
       SET number = ?, date = ?, vendorId = ?, subtotal = ?, tax = ?, amount = ?, 
-          currency = ?, status = ?, notes = ?
+          currency = ?, status = ?, terms = ?, notes = ?
       WHERE id = ?
     `);
-        poStmt.run(data.number, data.date, data.vendorId, data.subtotal || 0, data.tax || 0, data.amount || 0, data.currency || 'AED', data.status || 'draft', data.notes || '', id);
+        poStmt.run(data.number, data.date, data.vendorId, data.subtotal || 0, data.tax || 0, data.amount || 0, data.currency || 'AED', data.status || 'draft', data.terms || '', data.notes || '', id);
         // Delete existing items and insert new ones
         db.prepare('DELETE FROM po_items WHERE purchaseOrderId = ?').run(id);
         if (data.items && data.items.length > 0) {
@@ -1433,6 +1485,7 @@ exports.invoicesAdapter = {
         if (!db)
             return [];
         try {
+            ensureTermsColumns(db);
             const invoices = db.prepare('SELECT * FROM invoices ORDER BY createdAt DESC').all();
             return invoices.map(invoice => {
                 const items = db.prepare('SELECT * FROM invoice_items WHERE invoiceId = ?').all(invoice.id);
@@ -1484,6 +1537,7 @@ exports.invoicesAdapter = {
         const db = getDb();
         if (!db)
             return null;
+        ensureTermsColumns(db);
         const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id);
         if (!invoice)
             return null;
@@ -1521,6 +1575,7 @@ exports.invoicesAdapter = {
         if (!db) {
             throw new Error('Database is not available. App is using client-side storage.');
         }
+        ensureTermsColumns(db);
         const now = new Date().toISOString();
         // Validate required fields
         if (!data.number || data.number.trim() === '') {
@@ -1617,6 +1672,7 @@ exports.invoicesAdapter = {
         if (!db) {
             throw new Error('Database is not available. App is using client-side storage.');
         }
+        ensureTermsColumns(db);
         const now = new Date().toISOString();
         // Check if invoice exists first
         const existing = exports.invoicesAdapter.getById(id);

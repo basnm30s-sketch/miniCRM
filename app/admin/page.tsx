@@ -506,16 +506,41 @@ export default function AdminSettingsPage() {
               <CardHeader>
                 <CardTitle>Default Terms & Conditions</CardTitle>
                 <CardDescription>
-                  These terms will be used as the default when creating a new quote.
+                  Save different defaults per document type. These will be copied into new documents.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <RichTextEditor
-                  value={settings.defaultTerms || ''}
-                  onChange={(html) => handleInputChange('defaultTerms' as keyof typeof settings, html)}
-                  placeholder="Default terms and conditions (will be copied into new quotes)."
-                  rows={6}
-                />
+                <div className="space-y-6">
+                  <div>
+                    <Label className="mb-2 block">Quotations (default)</Label>
+                    <RichTextEditor
+                      value={settings.defaultTerms || ''}
+                      onChange={(html) => handleInputChange('defaultTerms' as keyof typeof settings, html)}
+                      placeholder="Default terms and conditions for quotations."
+                      rows={6}
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="mb-2 block">Invoices</Label>
+                    <RichTextEditor
+                      value={(settings.defaultInvoiceTerms ?? settings.defaultTerms ?? '') as string}
+                      onChange={(html) => handleInputChange('defaultInvoiceTerms' as keyof typeof settings, html)}
+                      placeholder="Default terms and conditions for invoices."
+                      rows={6}
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="mb-2 block">Purchase Orders</Label>
+                    <RichTextEditor
+                      value={(settings.defaultPurchaseOrderTerms ?? settings.defaultTerms ?? '') as string}
+                      onChange={(html) => handleInputChange('defaultPurchaseOrderTerms' as keyof typeof settings, html)}
+                      placeholder="Default terms and conditions for purchase orders."
+                      rows={6}
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </section>

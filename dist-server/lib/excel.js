@@ -702,6 +702,30 @@ class ClientSideExcelRenderer {
             });
             currentRow++;
         }
+        const invoiceDefaultTerms = adminSettings.defaultInvoiceTerms ?? adminSettings.defaultTerms;
+        // Terms section
+        if (invoice.terms || invoiceDefaultTerms) {
+            currentRow++; // Empty row
+            worksheet.getCell(currentRow, 1).value = 'Terms and Conditions:';
+            this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true });
+            currentRow++;
+            const terms = invoice.terms || invoiceDefaultTerms || '';
+            const termsText = terms
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n')
+                .replace(/<p[^>]*>/gi, '')
+                .replace(/<\/div>/gi, '\n')
+                .replace(/<div[^>]*>/gi, '')
+                .replace(/<[^>]+>/g, '')
+                .trim();
+            termsText.split('\n').forEach((line) => {
+                if (!line.trim())
+                    return;
+                worksheet.getCell(currentRow, 1).value = line.trim();
+                worksheet.mergeCells(currentRow, 1, currentRow, 4);
+                currentRow++;
+            });
+        }
         // Notes section
         if (invoice.notes) {
             currentRow++; // Empty row
@@ -965,6 +989,30 @@ class ClientSideExcelRenderer {
             alignment: { horizontal: 'right', vertical: 'middle' },
         });
         currentRow++;
+        const poDefaultTerms = adminSettings.defaultPurchaseOrderTerms ?? adminSettings.defaultTerms;
+        // Terms section
+        if (po.terms || poDefaultTerms) {
+            currentRow++; // Empty row
+            worksheet.getCell(currentRow, 1).value = 'Terms and Conditions:';
+            this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true });
+            currentRow++;
+            const terms = po.terms || poDefaultTerms || '';
+            const termsText = terms
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n')
+                .replace(/<p[^>]*>/gi, '')
+                .replace(/<\/div>/gi, '\n')
+                .replace(/<div[^>]*>/gi, '')
+                .replace(/<[^>]+>/g, '')
+                .trim();
+            termsText.split('\n').forEach((line) => {
+                if (!line.trim())
+                    return;
+                worksheet.getCell(currentRow, 1).value = line.trim();
+                worksheet.mergeCells(currentRow, 1, currentRow, 4);
+                currentRow++;
+            });
+        }
         // Notes section
         if (po.notes) {
             currentRow++; // Empty row

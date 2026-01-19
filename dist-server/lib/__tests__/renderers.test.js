@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const excel_1 = require("../excel");
 const docx_1 = require("../docx");
+const pdf_1 = require("../pdf");
 // Mock api-client
 jest.mock('../api-client', () => ({
     loadBrandingUrls: jest.fn().mockResolvedValue({
@@ -119,6 +120,59 @@ describe('Document Renderers', () => {
     describe('PDF Renderer', () => {
         it.skip('ClientSidePDFRenderer is DOM-dependent and skipped in unit tests', () => {
             // Placeholder to document why logic is skipped
+        });
+    });
+    describe('PDF Renderer (terms defaults)', () => {
+        const renderer = new pdf_1.ClientSidePDFRenderer();
+        it('uses invoice-specific default terms when invoice.terms is empty', () => {
+            const admin = {
+                companyName: 'Test Corp',
+                address: '123 Test St',
+                vatNumber: 'TAX-123',
+                defaultTerms: 'QUOTE_DEFAULT_TERMS',
+                defaultInvoiceTerms: 'INVOICE_DEFAULT_TERMS',
+            };
+            const invoice = {
+                number: 'INV-001',
+                date: '2025-01-01',
+                items: [{ description: 'Service', quantity: 1, unitPrice: 100, total: 100 }],
+                subtotal: 100,
+                tax: 0,
+                total: 100,
+                // terms omitted to force default selection
+            };
+            const html = renderer.buildInvoiceHtml(invoice, admin, 'Client A', {
+                logoUrl: null,
+                sealUrl: null,
+                signatureUrl: null,
+            });
+            expect(html).toContain('INVOICE_DEFAULT_TERMS');
+            expect(html).not.toContain('QUOTE_DEFAULT_TERMS');
+        });
+        it('uses purchase-order-specific default terms when po.terms is empty', () => {
+            const admin = {
+                companyName: 'Test Corp',
+                address: '123 Test St',
+                vatNumber: 'TAX-123',
+                defaultTerms: 'QUOTE_DEFAULT_TERMS',
+                defaultPurchaseOrderTerms: 'PO_DEFAULT_TERMS',
+            };
+            const po = {
+                number: 'PO-001',
+                date: '2025-01-01',
+                currency: 'USD',
+                items: [{ description: 'Parts', quantity: 1, unitPrice: 100, total: 100 }],
+                tax: 0,
+                amount: 100,
+                // terms omitted to force default selection
+            };
+            const html = renderer.buildPurchaseOrderHtml(po, admin, 'Vendor A', {
+                logoUrl: null,
+                sealUrl: null,
+                signatureUrl: null,
+            });
+            expect(html).toContain('PO_DEFAULT_TERMS');
+            expect(html).not.toContain('QUOTE_DEFAULT_TERMS');
         });
     });
 });

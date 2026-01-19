@@ -17,6 +17,8 @@ type PdfAdminSettings = {
   vatNumber: string
   currency?: string | null
   defaultTerms?: string | null
+  defaultInvoiceTerms?: string | null
+  defaultPurchaseOrderTerms?: string | null
   footerAddressEnglish?: string | null
   footerAddressArabic?: string | null
   footerContactEnglish?: string | null
@@ -786,7 +788,8 @@ export class ClientSidePDFRenderer implements PDFRenderer {
             return text;
           }
 
-          const termsContent = po.terms || adminSettings.defaultTerms || '';
+          const poDefaultTerms = adminSettings.defaultPurchaseOrderTerms ?? adminSettings.defaultTerms;
+          const termsContent = po.terms || poDefaultTerms || '';
           let formattedTerms = htmlToFormattedWithNewlines(termsContent);
           formattedTerms = formattedTerms.replace(/\r\n|\r|\n/g, '<br>');
 
@@ -935,7 +938,8 @@ export class ClientSidePDFRenderer implements PDFRenderer {
             return text;
           }
 
-          const termsContent = invoice.terms || adminSettings.defaultTerms || '';
+          const invoiceDefaultTerms = adminSettings.defaultInvoiceTerms ?? adminSettings.defaultTerms;
+          const termsContent = invoice.terms || invoiceDefaultTerms || '';
           let formattedTerms = htmlToFormattedWithNewlines(termsContent);
           formattedTerms = formattedTerms.replace(/\r\n|\r|\n/g, '<br>');
 

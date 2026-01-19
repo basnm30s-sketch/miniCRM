@@ -1107,6 +1107,37 @@ class ClientSideDOCXRenderer {
             },
             margins: { marginUnitType: docx_1.WidthType.DXA, top: 0, bottom: 200, left: 0, right: 0 },
         }));
+        const invoiceDefaultTerms = adminSettings.defaultInvoiceTerms ?? adminSettings.defaultTerms;
+        // Terms section
+        if (invoice.terms || invoiceDefaultTerms) {
+            children.push(new docx_1.Paragraph({
+                children: [
+                    new docx_1.TextRun({
+                        text: 'Terms and Conditions:',
+                        bold: true,
+                    }),
+                ],
+                spacing: { before: 200 },
+            }));
+            const terms = invoice.terms || invoiceDefaultTerms || '';
+            // Convert HTML to plain text with line breaks
+            const termsText = terms
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n')
+                .replace(/<p[^>]*>/gi, '')
+                .replace(/<\/div>/gi, '\n')
+                .replace(/<div[^>]*>/gi, '')
+                .replace(/<[^>]+>/g, '')
+                .trim();
+            termsText.split('\n').forEach((line) => {
+                if (line.trim()) {
+                    children.push(new docx_1.Paragraph({
+                        children: [new docx_1.TextRun({ text: line.trim() })],
+                        spacing: { after: 100 },
+                    }));
+                }
+            });
+        }
         // Notes section
         if (invoice.notes) {
             children.push(new docx_1.Paragraph({
@@ -1550,6 +1581,37 @@ class ClientSideDOCXRenderer {
             },
             margins: { marginUnitType: docx_1.WidthType.DXA, top: 0, bottom: 200, left: 0, right: 0 },
         }));
+        const poDefaultTerms = adminSettings.defaultPurchaseOrderTerms ?? adminSettings.defaultTerms;
+        // Terms section
+        if (po.terms || poDefaultTerms) {
+            children.push(new docx_1.Paragraph({
+                children: [
+                    new docx_1.TextRun({
+                        text: 'Terms and Conditions:',
+                        bold: true,
+                    }),
+                ],
+                spacing: { before: 200 },
+            }));
+            const terms = po.terms || poDefaultTerms || '';
+            // Convert HTML to plain text with line breaks
+            const termsText = terms
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n')
+                .replace(/<p[^>]*>/gi, '')
+                .replace(/<\/div>/gi, '\n')
+                .replace(/<div[^>]*>/gi, '')
+                .replace(/<[^>]+>/g, '')
+                .trim();
+            termsText.split('\n').forEach((line) => {
+                if (line.trim()) {
+                    children.push(new docx_1.Paragraph({
+                        children: [new docx_1.TextRun({ text: line.trim() })],
+                        spacing: { after: 100 },
+                    }));
+                }
+            });
+        }
         // Notes section
         if (po.notes) {
             children.push(new docx_1.Paragraph({

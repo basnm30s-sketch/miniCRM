@@ -81,10 +81,10 @@ describe('Employees API', () => {
 
     // POST /api/employees
     describe('POST /', () => {
-        const newEmployee = { name: 'Bob', role: 'Driver' }
+        const newEmployee = { id: 'emp-2', name: 'Bob', role: 'Driver' }
 
         it('should create a new employee', async () => {
-            const createdEmployee = { ...newEmployee, id: '2' }
+            const createdEmployee = { ...newEmployee }
                 ; (employeesAdapter.create as jest.Mock).mockReturnValue(createdEmployee)
 
             const res = await request(app).post('/api/employees').send(newEmployee)

@@ -1303,8 +1303,10 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
       })
     )
 
+    const invoiceDefaultTerms = adminSettings.defaultInvoiceTerms ?? adminSettings.defaultTerms
+
     // Terms section
-    if (invoice.terms || adminSettings.defaultTerms) {
+    if (invoice.terms || invoiceDefaultTerms) {
       children.push(
         new Paragraph({
           children: [
@@ -1317,7 +1319,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
         })
       )
 
-      const terms = invoice.terms || adminSettings.defaultTerms || ''
+      const terms = invoice.terms || invoiceDefaultTerms || ''
       // Convert HTML to plain text with line breaks
       const termsText = terms
         .replace(/<br\s*\/?>/gi, '\n')
@@ -1842,8 +1844,10 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
       })
     )
 
+    const poDefaultTerms = adminSettings.defaultPurchaseOrderTerms ?? adminSettings.defaultTerms
+
     // Terms section
-    if (po.terms || adminSettings.defaultTerms) {
+    if (po.terms || poDefaultTerms) {
       children.push(
         new Paragraph({
           children: [
@@ -1856,7 +1860,7 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
         })
       )
 
-      const terms = po.terms || adminSettings.defaultTerms || ''
+      const terms = po.terms || poDefaultTerms || ''
       // Convert HTML to plain text with line breaks
       const termsText = terms
         .replace(/<br\s*\/?>/gi, '\n')

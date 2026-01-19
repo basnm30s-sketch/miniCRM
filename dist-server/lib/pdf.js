@@ -617,6 +617,41 @@ class ClientSidePDFRenderer {
           </div>
         </div>
 
+        <!-- Terms and Notes -->
+        ${(() => {
+            // Utility to convert block tags to newlines, preserve inline formatting
+            function htmlToFormattedWithNewlines(html) {
+                let text = html.replace(/<\s*div[^>]*>/gi, '\n')
+                    .replace(/<\s*\/div>/gi, '')
+                    .replace(/<\s*p[^>]*>/gi, '\n')
+                    .replace(/<\s*\/p>/gi, '')
+                    .replace(/<\s*br[^>]*>/gi, '\n');
+                text = text.replace(/<(?!\/?(b|strong|i|em|u)\b)[^>]+>/gi, '');
+                return text;
+            }
+            const poDefaultTerms = adminSettings.defaultPurchaseOrderTerms ?? adminSettings.defaultTerms;
+            const termsContent = po.terms || poDefaultTerms || '';
+            let formattedTerms = htmlToFormattedWithNewlines(termsContent);
+            formattedTerms = formattedTerms.replace(/\r\n|\r|\n/g, '<br>');
+            const termsHtml = formattedTerms && formattedTerms.length > 0
+                ? `
+              <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; font-size: 14px; line-height: 1.4;">
+                <h4 style="margin: 0 0 6px 0; font-size: 15px; font-weight: bold; line-height: 1.2;">Terms and Conditions:</h4>
+                <div style="margin: 0; white-space: pre-line; line-height: 1.4;">${formattedTerms}</div>
+              </div>
+            `
+                : '';
+            const notesHtml = po.notes
+                ? `
+          <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px; line-height: 1.4;">
+            <h4 style="margin: 0 0 6px 0; font-size: 15px; font-weight: bold; line-height: 1.2;">Notes:</h4>
+            <p style="margin: 0; white-space: pre-wrap; line-height: 1.4;">${po.notes}</p>
+          </div>
+          `
+                : '';
+            return termsHtml + notesHtml;
+        })()}
+
         <!-- Footer with Signature and Seal -->
         <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; font-size: 13px;">
           <div style="flex: 1;">
@@ -721,13 +756,40 @@ class ClientSidePDFRenderer {
           </div>
         </div>
 
-        <!-- Notes -->
-        ${invoice.notes ? `
-          <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; font-size: 13px;">
-            <h4 style="margin: 0 0 5px 0;">Notes:</h4>
-            <p style="margin: 0; white-space: pre-wrap;">${invoice.notes}</p>
+        <!-- Terms and Notes -->
+        ${(() => {
+            // Utility to convert block tags to newlines, preserve inline formatting
+            function htmlToFormattedWithNewlines(html) {
+                let text = html.replace(/<\s*div[^>]*>/gi, '\n')
+                    .replace(/<\s*\/div>/gi, '')
+                    .replace(/<\s*p[^>]*>/gi, '\n')
+                    .replace(/<\s*\/p>/gi, '')
+                    .replace(/<\s*br[^>]*>/gi, '\n');
+                text = text.replace(/<(?!\/?(b|strong|i|em|u)\b)[^>]+>/gi, '');
+                return text;
+            }
+            const invoiceDefaultTerms = adminSettings.defaultInvoiceTerms ?? adminSettings.defaultTerms;
+            const termsContent = invoice.terms || invoiceDefaultTerms || '';
+            let formattedTerms = htmlToFormattedWithNewlines(termsContent);
+            formattedTerms = formattedTerms.replace(/\r\n|\r|\n/g, '<br>');
+            const termsHtml = formattedTerms && formattedTerms.length > 0
+                ? `
+              <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; font-size: 14px; line-height: 1.4;">
+                <h4 style="margin: 0 0 6px 0; font-size: 15px; font-weight: bold; line-height: 1.2;">Terms and Conditions:</h4>
+                <div style="margin: 0; white-space: pre-line; line-height: 1.4;">${formattedTerms}</div>
+              </div>
+            `
+                : '';
+            const notesHtml = invoice.notes
+                ? `
+          <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px; line-height: 1.4;">
+            <h4 style="margin: 0 0 6px 0; font-size: 15px; font-weight: bold; line-height: 1.2;">Notes:</h4>
+            <p style="margin: 0; white-space: pre-wrap; line-height: 1.4;">${invoice.notes}</p>
           </div>
-        ` : ''}
+          `
+                : '';
+            return termsHtml + notesHtml;
+        })()}
 
         <!-- Footer with Signature and Seal -->
         <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; font-size: 13px;">

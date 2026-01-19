@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import {
     Card,
@@ -36,6 +36,7 @@ import {
     getAdminSettings,
     initializeAdminSettings,
     getAllCustomers,
+    getCustomerById,
     getAllVehicles,
     generateQuoteNumber,
     generateId,
@@ -104,6 +105,65 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     })
 
     const isEditMode = !!initialData || !!quote.createdAt
+
+    const customerHydrateSeqRef = useRef(0)
+    const lastHydratedCustomerIdRef = useRef<string | null>(null)
+
+    const normalizeCustomer = (c: any): Customer => {
+        return {
+            id: typeof c?.id === 'string' ? c.id : '',
+            name: typeof c?.name === 'string' ? c.name : '',
+            company: typeof c?.company === 'string' ? c.company : (c?.company ?? '') ? String(c.company ?? '') : '',
+            email: typeof c?.email === 'string' ? c.email : (c?.email ?? '') ? String(c.email ?? '') : '',
+            phone: typeof c?.phone === 'string' ? c.phone : (c?.phone ?? '') ? String(c.phone ?? '') : '',
+            address: typeof c?.address === 'string' ? c.address : (c?.address ?? '') ? String(c.address ?? '') : '',
+            createdAt: typeof c?.createdAt === 'string' ? c.createdAt : undefined,
+            updatedAt: typeof c?.updatedAt === 'string' ? c.updatedAt : undefined,
+        } as Customer
+    }
+
+    const hydrateCustomerById = async (customerId: string) => {
+        if (!customerId || typeof customerId !== 'string' || customerId.trim() === '') return
+
+        const seq = ++customerHydrateSeqRef.current
+        try {
+            const fetched = await getCustomerById(customerId)
+            if (seq !== customerHydrateSeqRef.current) return
+
+            if (!fetched) return
+            const normalized = normalizeCustomer(fetched)
+
+            setQuote((prev) => {
+                if (prev.customer?.id !== customerId) return prev
+                // Avoid needless state churn
+                const prevNormalized = normalizeCustomer(prev.customer)
+                const same =
+                    prevNormalized.id === normalized.id &&
+                    prevNormalized.name === normalized.name &&
+                    prevNormalized.company === normalized.company &&
+                    prevNormalized.email === normalized.email &&
+                    prevNormalized.phone === normalized.phone &&
+                    prevNormalized.address === normalized.address
+                if (same) return prev
+                const updated = { ...prev, customer: normalized }
+                // Keep validation in sync after hydration
+                validateQuoteState(updated)
+                return updated
+            })
+
+            // Keep in-memory list in sync (helps dropdown display and future selections)
+            setCustomers((prev) => {
+                const idx = prev.findIndex((c) => c.id === customerId)
+                if (idx < 0) return prev
+                const next = [...prev]
+                next[idx] = { ...(prev[idx] as any), ...(normalized as any) }
+                return next
+            })
+        } catch (err) {
+            // Hydration is best-effort; don’t block editing
+            console.warn('Failed to hydrate customer details:', err)
+        }
+    }
 
     const snapshotQuote = (q: Quote) => {
         // Exclude timestamp fields so they don't cause dirty state flips
@@ -420,18 +480,28 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
         }
 
         const selectedCustomer = customers.find((c) => c.id === customerId)
-        if (!selectedCustomer) {
-            console.warn(`Customer with ID "${customerId}" not found in customers list`)
-            return
-        }
+        const normalizedSelected = selectedCustomer
+            ? normalizeCustomer(selectedCustomer)
+            : normalizeCustomer({ id: customerId })
 
         const updatedQuote = {
             ...quote,
-            customer: selectedCustomer,
+            customer: normalizedSelected,
         }
         setQuote(updatedQuote)
         validateQuoteState(updatedQuote)
+        void hydrateCustomerById(customerId)
     }
+
+    // Ensure customer details are hydrated in edit mode or when switching customers quickly
+    useEffect(() => {
+        const id = quote.customer?.id
+        if (!id) return
+        if (lastHydratedCustomerIdRef.current === id) return
+        lastHydratedCustomerIdRef.current = id
+        void hydrateCustomerById(id)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [quote.customer?.id])
 
     const handleSaveQuote = async (): Promise<boolean> => {
         // Comprehensive validation

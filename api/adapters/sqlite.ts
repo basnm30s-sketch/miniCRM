@@ -893,6 +893,12 @@ export const adminAdapter = {
       const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all() as any[]
       const columnNames = tableInfo.map((col: any) => col.name)
 
+      if (!columnNames.includes('defaultInvoiceTerms')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN defaultInvoiceTerms TEXT')
+      }
+      if (!columnNames.includes('defaultPurchaseOrderTerms')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN defaultPurchaseOrderTerms TEXT')
+      }
       if (!columnNames.includes('showRevenueTrend')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0')
       }
@@ -1043,6 +1049,9 @@ export const adminAdapter = {
       quoteNumberPattern: row.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
       currency: row.currency || 'AED',
       defaultTerms: row.defaultTerms || '',
+      // Optional; if unset, callers should fall back to defaultTerms
+      defaultInvoiceTerms: row.defaultInvoiceTerms ?? undefined,
+      defaultPurchaseOrderTerms: row.defaultPurchaseOrderTerms ?? undefined,
       footerAddressEnglish: row.footerAddressEnglish || '',
       footerAddressArabic: row.footerAddressArabic || '',
       footerContactEnglish: row.footerContactEnglish || '',
@@ -1078,6 +1087,12 @@ export const adminAdapter = {
       const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all() as any[]
       const columnNames = tableInfo.map((col: any) => col.name)
 
+      if (!columnNames.includes('defaultInvoiceTerms')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN defaultInvoiceTerms TEXT')
+      }
+      if (!columnNames.includes('defaultPurchaseOrderTerms')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN defaultPurchaseOrderTerms TEXT')
+      }
       if (!columnNames.includes('showRevenueTrend')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0')
       }
@@ -1141,8 +1156,17 @@ export const adminAdapter = {
 
     const now = new Date().toISOString()
 
-    // Get existing record (but don't use its boolean values - use the data being saved)
-    const existing = db.prepare('SELECT id FROM admin_settings LIMIT 1').get() as any
+    const existing = db.prepare('SELECT * FROM admin_settings LIMIT 1').get() as any
+    const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj || {}, key)
+
+    // For new optional columns: if the client omits the field entirely, keep existing value.
+    // This avoids older clients clobbering new settings with empty strings.
+    const resolvedDefaultInvoiceTerms = hasOwn(data, 'defaultInvoiceTerms')
+      ? (data.defaultInvoiceTerms ?? null)
+      : (existing?.defaultInvoiceTerms ?? null)
+    const resolvedDefaultPurchaseOrderTerms = hasOwn(data, 'defaultPurchaseOrderTerms')
+      ? (data.defaultPurchaseOrderTerms ?? null)
+      : (existing?.defaultPurchaseOrderTerms ?? null)
 
     // Convert boolean to integer (SQLite doesn't have native boolean)
     // Explicitly handle: false -> 0, true -> 1, undefined/null -> 0 (default)
@@ -1181,7 +1205,7 @@ export const adminAdapter = {
       const stmt = db.prepare(`
         UPDATE admin_settings 
         SET companyName = ?, address = ?, vatNumber = ?, logoUrl = ?, sealUrl = ?, 
-            signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, 
+            signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, defaultInvoiceTerms = ?, defaultPurchaseOrderTerms = ?,
             footerAddressEnglish = ?, footerAddressArabic = ?, footerContactEnglish = ?, footerContactArabic = ?,
             showRevenueTrend = ?, showQuickActions = ?, showReports = ?, showVehicleFinances = ?, 
             showQuotationsInvoicesCard = ?, showQuotationsTwoPane = ?, showPurchaseOrdersTwoPane = ?, showInvoicesTwoPane = ?, showEmployeeSalariesCard = ?, showVehicleRevenueExpensesCard = ?, 
@@ -1199,6 +1223,8 @@ export const adminAdapter = {
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
         data.defaultTerms || '',
+        resolvedDefaultInvoiceTerms,
+        resolvedDefaultPurchaseOrderTerms,
         data.footerAddressEnglish || '',
         data.footerAddressArabic || '',
         data.footerContactEnglish || '',
@@ -1224,13 +1250,13 @@ export const adminAdapter = {
     } else {
       const stmt = db.prepare(`
         INSERT INTO admin_settings (id, companyName, address, vatNumber, logoUrl, sealUrl, 
-                                    signatureUrl, quoteNumberPattern, currency, defaultTerms, 
+                                    signatureUrl, quoteNumberPattern, currency, defaultTerms, defaultInvoiceTerms, defaultPurchaseOrderTerms,
                                     footerAddressEnglish, footerAddressArabic, footerContactEnglish, footerContactArabic,
                                     showRevenueTrend, showQuickActions, showReports, showVehicleFinances, 
                                     showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, 
                                     showActivityThisMonth, showFinancialHealth, showBusinessOverview, 
                                     showTopCustomers, showActivitySummary, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         data.id || 'settings_1',
@@ -1243,6 +1269,8 @@ export const adminAdapter = {
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
         data.defaultTerms || '',
+        resolvedDefaultInvoiceTerms,
+        resolvedDefaultPurchaseOrderTerms,
         data.footerAddressEnglish || '',
         data.footerAddressArabic || '',
         data.footerContactEnglish || '',

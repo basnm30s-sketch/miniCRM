@@ -117,11 +117,13 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                 }
                 setAdminSettings(currentSettings)
 
+                const defaultPOTerms = (currentSettings as any)?.defaultPurchaseOrderTerms ?? currentSettings?.defaultTerms
+
                 // If creating new and default terms exist, set them (without overwriting user edits)
-                if (!isEditMode && currentSettings?.defaultTerms) {
+                if (!isEditMode && defaultPOTerms) {
                     setPo((prev) => {
                         if (!isHtmlEmpty(prev.terms)) return prev
-                        return { ...prev, terms: currentSettings.defaultTerms }
+                        return { ...prev, terms: defaultPOTerms }
                     })
                 }
 
