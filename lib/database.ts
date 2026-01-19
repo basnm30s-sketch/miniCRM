@@ -459,13 +459,37 @@ function createTables(database: any): void {
       amountReceived REAL DEFAULT 0,
       status TEXT,
       notes TEXT,
+      terms TEXT,
       createdAt TEXT,
+      updatedAt TEXT,
       FOREIGN KEY (customerId) REFERENCES customers(id),
       FOREIGN KEY (vendorId) REFERENCES vendors(id),
       FOREIGN KEY (purchaseOrderId) REFERENCES purchase_orders(id),
       FOREIGN KEY (quoteId) REFERENCES quotes(id)
     )
   `)
+
+  // Migrate existing invoices table to add new columns if they don't exist
+  const invoiceNewColumns = [
+    { name: 'terms', type: 'TEXT' },
+    { name: 'updatedAt', type: 'TEXT' },
+  ]
+
+  invoiceNewColumns.forEach(({ name, type }) => {
+    try {
+      database.prepare(`SELECT ${name} FROM invoices LIMIT 1`).get()
+    } catch (error: any) {
+      try {
+        database.exec(`ALTER TABLE invoices ADD COLUMN ${name} ${type}`)
+        console.log(`Added ${name} column to invoices table`)
+      } catch (alterError: any) {
+        const errorMsg = alterError?.message || String(alterError)
+        if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+          console.warn(`Migration warning for ${name}:`, errorMsg)
+        }
+      }
+    }
+  })
 
   // Invoice Items
   database.exec(`

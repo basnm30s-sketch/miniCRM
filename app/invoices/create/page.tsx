@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import InvoiceForm from '@/app/invoices/InvoiceForm'
@@ -10,6 +11,7 @@ import { Invoice } from '@/lib/types'
 import { toast } from '@/hooks/use-toast'
 
 export default function CreateInvoicePage() {
+  const router = useRouter()
   const [initialInvoice, setInitialInvoice] = useState<Invoice | undefined>(undefined)
   const [loading, setLoading] = useState(true)
 
@@ -79,11 +81,10 @@ export default function CreateInvoicePage() {
       <InvoiceForm
         initialData={initialInvoice}
         onSave={(savedInvoice) => {
-          if (!initialInvoice) {
-            window.location.href = '/invoices'
-          }
+          setInitialInvoice(savedInvoice)
+          router.replace(`/invoices/create?id=${savedInvoice.id}`)
         }}
-        onCancel={() => window.location.href = '/invoices'}
+        onCancel={() => router.push('/invoices')}
       />
     </div>
   )

@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { VehicleFinanceCharts } from '@/components/vehicle-finance-charts'
 import VehicleTransactionForm from '@/components/vehicle-transaction-form'
-import { getVehicleById, getVehicleProfitability, getAllVehicleTransactions, deleteVehicleTransaction } from '@/lib/storage'
+import { getVehicleById, getAllVehicleTransactions, deleteVehicleTransaction } from '@/lib/storage'
 import type { Vehicle } from '@/lib/types'
-import type { VehicleProfitabilitySummary, VehicleTransaction } from '@/lib/types'
+import type { VehicleTransaction } from '@/lib/types'
 import { Plus, Edit2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,7 +25,6 @@ interface VehicleFinanceDetailViewProps {
 
 export function VehicleFinanceDetailView({ vehicleId, onDataChange }: VehicleFinanceDetailViewProps) {
     const [vehicle, setVehicle] = useState<Vehicle | null>(null)
-    const [profitability, setProfitability] = useState<VehicleProfitabilitySummary | null>(null)
     const [transactions, setTransactions] = useState<VehicleTransaction[]>([])
     const [loading, setLoading] = useState(true)
     const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false)
@@ -41,18 +39,13 @@ export function VehicleFinanceDetailView({ vehicleId, onDataChange }: VehicleFin
     const loadData = async () => {
         try {
             setLoading(true)
-            const [vehicleData, profitabilityData, transactionsData] = await Promise.allSettled([
+            const [vehicleData, transactionsData] = await Promise.allSettled([
                 getVehicleById(vehicleId),
-                getVehicleProfitability(vehicleId),
                 getAllVehicleTransactions(vehicleId),
             ])
 
             if (vehicleData.status === 'fulfilled') {
                 setVehicle(vehicleData.value)
-            }
-
-            if (profitabilityData.status === 'fulfilled') {
-                setProfitability(profitabilityData.value)
             }
 
             if (transactionsData.status === 'fulfilled') {
@@ -64,41 +57,6 @@ export function VehicleFinanceDetailView({ vehicleId, onDataChange }: VehicleFin
             setLoading(false)
         }
     }
-
-    // Transform profitability data for charts
-    const chartData = useMemo(() => {
-        if (!profitability || !vehicle) return null
-
-        // Transform months array to monthlyTrend format
-        const monthlyTrend = (profitability.months || []).map(m => ({
-            month: m.month,
-            revenue: m.totalRevenue,
-            expenses: m.totalExpenses,
-            profit: m.profit,
-        }))
-
-        // Create single-item array for topVehiclesByProfit
-        const topVehiclesByProfit = [{
-            vehicleId: vehicle.id,
-            vehicleNumber: vehicle.vehicleNumber || `${vehicle.make} ${vehicle.model}`,
-            profit: profitability.allTimeProfit,
-        }]
-
-        // Calculate expensesByCategory from transactions
-        const expensesByCategory: Record<string, number> = {}
-        transactions
-            .filter(tx => tx.transactionType === 'expense' && tx.category)
-            .forEach(tx => {
-                const category = tx.category || 'Uncategorized'
-                expensesByCategory[category] = (expensesByCategory[category] || 0) + tx.amount
-            })
-
-        return {
-            monthlyTrend,
-            topVehiclesByProfit,
-            expensesByCategory,
-        }
-    }, [profitability, vehicle, transactions])
 
     const handleEditTransaction = (transaction: VehicleTransaction) => {
         setEditingTransaction(transaction)
@@ -189,14 +147,6 @@ export function VehicleFinanceDetailView({ vehicleId, onDataChange }: VehicleFin
                     </DialogContent>
                 </Dialog>
             </div>
-
-            {chartData && (
-                <VehicleFinanceCharts
-                    monthlyTrend={chartData.monthlyTrend}
-                    topVehiclesByProfit={chartData.topVehiclesByProfit}
-                    expensesByCategory={chartData.expensesByCategory}
-                />
-            )}
 
             {/* Transactions List */}
             <Card>

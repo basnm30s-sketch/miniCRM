@@ -14,6 +14,7 @@ exports.isInRange = isInRange;
 exports.isNonEmptyString = isNonEmptyString;
 exports.validateQuote = validateQuote;
 exports.validateInvoice = validateInvoice;
+exports.normalizeInvoiceStatus = normalizeInvoiceStatus;
 exports.validateQuoteForExport = validateQuoteForExport;
 exports.validateInvoiceForExport = validateInvoiceForExport;
 const storage_1 = require("@/lib/storage");
@@ -338,7 +339,8 @@ async function validateInvoice(invoice, options = {}) {
     }
     // Status validation
     const validStatuses = ['draft', 'invoice_sent', 'payment_received'];
-    if (invoice.status && !validStatuses.includes(invoice.status)) {
+    const normalizedStatus = normalizeInvoiceStatus(invoice.status);
+    if (normalizedStatus && !validStatuses.includes(normalizedStatus)) {
         errors.push({
             field: 'status',
             message: `Status must be one of: ${validStatuses.join(', ')}`,
@@ -348,6 +350,28 @@ async function validateInvoice(invoice, options = {}) {
         isValid: errors.length === 0,
         errors,
     };
+}
+function normalizeInvoiceStatus(status) {
+    if (!status)
+        return 'draft';
+    switch (status) {
+        case 'draft':
+        case 'invoice_sent':
+        case 'payment_received':
+            return status;
+        // legacy / UI-only values
+        case 'paid':
+            return 'payment_received';
+        case 'pending':
+        case 'sent':
+        case 'overdue':
+            return 'invoice_sent';
+        case 'cancelled':
+            return 'draft';
+        default:
+            // Safe fallback to avoid blocking edits/exports due to legacy/corrupt data
+            return 'draft';
+    }
 }
 // Simplified validation for export (no async checks)
 function validateQuoteForExport(quote) {

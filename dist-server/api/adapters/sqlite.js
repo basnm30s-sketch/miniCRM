@@ -416,6 +416,7 @@ exports.payslipsAdapter = {
                 overtimeRate: row.overtimeRate != null ? row.overtimeRate : undefined,
                 overtimePay: row.overtimePay != null ? row.overtimePay : undefined,
                 deductions: row.deductions || 0,
+                deductionRemarks: row.deductionRemarks || undefined,
                 netPay: row.netPay || 0,
                 status: row.status || 'draft',
                 notes: row.notes || undefined,
@@ -447,6 +448,7 @@ exports.payslipsAdapter = {
                 overtimeRate: row.overtimeRate != null ? row.overtimeRate : undefined,
                 overtimePay: row.overtimePay != null ? row.overtimePay : undefined,
                 deductions: row.deductions || 0,
+                deductionRemarks: row.deductionRemarks || undefined,
                 netPay: row.netPay || 0,
                 status: row.status || 'draft',
                 notes: row.notes || undefined,
@@ -475,6 +477,7 @@ exports.payslipsAdapter = {
                 overtimeRate: row.overtimeRate != null ? row.overtimeRate : undefined,
                 overtimePay: row.overtimePay != null ? row.overtimePay : undefined,
                 deductions: row.deductions || 0,
+                deductionRemarks: row.deductionRemarks || undefined,
                 netPay: row.netPay || 0,
                 status: row.status || 'draft',
                 notes: row.notes || undefined,
@@ -505,10 +508,10 @@ exports.payslipsAdapter = {
                 throw new Error('Month is required');
             }
             const stmt = db.prepare(`
-        INSERT INTO payslips (id, employeeId, month, year, baseSalary, overtimeHours, overtimeRate, overtimePay, deductions, netPay, status, notes, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO payslips (id, employeeId, month, year, baseSalary, overtimeHours, overtimeRate, overtimePay, deductions, deductionRemarks, netPay, status, notes, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-            stmt.run(data.id, data.employeeId || '', data.month || '', data.year || new Date().getFullYear(), data.baseSalary || 0, data.overtimeHours != null ? data.overtimeHours : null, data.overtimeRate != null ? data.overtimeRate : null, data.overtimePay != null ? data.overtimePay : null, data.deductions || 0, data.netPay || 0, data.status || 'processed', data.notes != null ? data.notes : null, now, now);
+            stmt.run(data.id, data.employeeId || '', data.month || '', data.year || new Date().getFullYear(), data.baseSalary || 0, data.overtimeHours != null ? data.overtimeHours : null, data.overtimeRate != null ? data.overtimeRate : null, data.overtimePay != null ? data.overtimePay : null, data.deductions || 0, data.deductionRemarks != null && String(data.deductionRemarks).trim() !== '' ? String(data.deductionRemarks) : null, data.netPay || 0, data.status || 'processed', data.notes != null ? data.notes : null, now, now);
             return exports.payslipsAdapter.getById(data.id);
         }
         catch (error) {
@@ -525,10 +528,10 @@ exports.payslipsAdapter = {
         const now = new Date().toISOString();
         const stmt = db.prepare(`
       UPDATE payslips 
-      SET employeeId = ?, month = ?, year = ?, baseSalary = ?, overtimeHours = ?, overtimeRate = ?, overtimePay = ?, deductions = ?, netPay = ?, status = ?, notes = ?, updatedAt = ?
+      SET employeeId = ?, month = ?, year = ?, baseSalary = ?, overtimeHours = ?, overtimeRate = ?, overtimePay = ?, deductions = ?, deductionRemarks = ?, netPay = ?, status = ?, notes = ?, updatedAt = ?
       WHERE id = ?
     `);
-        stmt.run(data.employeeId || '', data.month || '', data.year || new Date().getFullYear(), data.baseSalary || 0, data.overtimeHours != null ? data.overtimeHours : null, data.overtimeRate != null ? data.overtimeRate : null, data.overtimePay != null ? data.overtimePay : null, data.deductions || 0, data.netPay || 0, data.status || 'processed', data.notes != null ? data.notes : null, now, id);
+        stmt.run(data.employeeId || '', data.month || '', data.year || new Date().getFullYear(), data.baseSalary || 0, data.overtimeHours != null ? data.overtimeHours : null, data.overtimeRate != null ? data.overtimeRate : null, data.overtimePay != null ? data.overtimePay : null, data.deductions || 0, data.deductionRemarks != null && String(data.deductionRemarks).trim() !== '' ? String(data.deductionRemarks) : null, data.netPay || 0, data.status || 'processed', data.notes != null ? data.notes : null, now, id);
         return exports.payslipsAdapter.getById(id);
     },
     delete: (id) => {
@@ -754,6 +757,27 @@ exports.adminAdapter = {
             if (!columnNames.includes('showActivitySummary')) {
                 db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0');
             }
+            if (!columnNames.includes('showQuotationsTwoPane')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsTwoPane INTEGER DEFAULT 1');
+            }
+            if (!columnNames.includes('showPurchaseOrdersTwoPane')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showPurchaseOrdersTwoPane INTEGER DEFAULT 1');
+            }
+            if (!columnNames.includes('showInvoicesTwoPane')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1');
+            }
+            if (!columnNames.includes('footerAddressEnglish')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressEnglish TEXT');
+            }
+            if (!columnNames.includes('footerAddressArabic')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressArabic TEXT');
+            }
+            if (!columnNames.includes('footerContactEnglish')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactEnglish TEXT');
+            }
+            if (!columnNames.includes('footerContactArabic')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactArabic TEXT');
+            }
         }
         catch (error) {
             console.log('Migration check:', error.message);
@@ -778,7 +802,7 @@ exports.adminAdapter = {
             : (row.showReports === 1)
                 ? true
                 : false; // default to false if null/undefined
-        const showVehicleFinances = (row.showVehicleFinances === 0)
+        const showVehicleDashboard = (row.showVehicleFinances === 0)
             ? false
             : (row.showVehicleFinances === 1)
                 ? true
@@ -823,6 +847,21 @@ exports.adminAdapter = {
             : (row.showActivitySummary === 1)
                 ? true
                 : false; // default to false if null/undefined
+        const showQuotationsTwoPane = (row.showQuotationsTwoPane === 0)
+            ? false
+            : (row.showQuotationsTwoPane === 1)
+                ? true
+                : true; // default to true if null/undefined
+        const showPurchaseOrdersTwoPane = (row.showPurchaseOrdersTwoPane === 0)
+            ? false
+            : (row.showPurchaseOrdersTwoPane === 1)
+                ? true
+                : true; // default to true if null/undefined
+        const showInvoicesTwoPane = (row.showInvoicesTwoPane === 0)
+            ? false
+            : (row.showInvoicesTwoPane === 1)
+                ? true
+                : true; // default to true if null/undefined
         return {
             id: row.id,
             companyName: row.companyName || '',
@@ -834,11 +873,18 @@ exports.adminAdapter = {
             quoteNumberPattern: row.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
             currency: row.currency || 'AED',
             defaultTerms: row.defaultTerms || '',
+            footerAddressEnglish: row.footerAddressEnglish || '',
+            footerAddressArabic: row.footerAddressArabic || '',
+            footerContactEnglish: row.footerContactEnglish || '',
+            footerContactArabic: row.footerContactArabic || '',
             showRevenueTrend,
             showQuickActions,
             showReports,
-            showVehicleFinances,
+            showVehicleDashboard,
             showQuotationsInvoicesCard,
+            showQuotationsTwoPane,
+            showPurchaseOrdersTwoPane,
+            showInvoicesTwoPane,
             showEmployeeSalariesCard,
             showVehicleRevenueExpensesCard,
             showActivityThisMonth,
@@ -895,6 +941,27 @@ exports.adminAdapter = {
             if (!columnNames.includes('showActivitySummary')) {
                 db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0');
             }
+            if (!columnNames.includes('showQuotationsTwoPane')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsTwoPane INTEGER DEFAULT 1');
+            }
+            if (!columnNames.includes('showPurchaseOrdersTwoPane')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showPurchaseOrdersTwoPane INTEGER DEFAULT 1');
+            }
+            if (!columnNames.includes('showInvoicesTwoPane')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1');
+            }
+            if (!columnNames.includes('footerAddressEnglish')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressEnglish TEXT');
+            }
+            if (!columnNames.includes('footerAddressArabic')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressArabic TEXT');
+            }
+            if (!columnNames.includes('footerContactEnglish')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactEnglish TEXT');
+            }
+            if (!columnNames.includes('footerContactArabic')) {
+                db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactArabic TEXT');
+            }
         }
         catch (error) {
             console.log('Migration check in save:', error.message);
@@ -907,7 +974,7 @@ exports.adminAdapter = {
         const showRevenueTrend = (data.showRevenueTrend === true) ? 1 : 0;
         const showQuickActions = (data.showQuickActions === true) ? 1 : 0;
         const showReports = (data.showReports === true) ? 1 : 0;
-        const showVehicleFinances = (data.showVehicleFinances === true) ? 1 : 0;
+        const showVehicleFinances = (data.showVehicleDashboard === true) ? 1 : 0;
         const showQuotationsInvoicesCard = (data.showQuotationsInvoicesCard === true) ? 1 : 0;
         const showEmployeeSalariesCard = (data.showEmployeeSalariesCard === true) ? 1 : 0;
         const showVehicleRevenueExpensesCard = (data.showVehicleRevenueExpensesCard === true) ? 1 : 0;
@@ -916,11 +983,14 @@ exports.adminAdapter = {
         const showBusinessOverview = (data.showBusinessOverview === true) ? 1 : 0;
         const showTopCustomers = (data.showTopCustomers === true) ? 1 : 0;
         const showActivitySummary = (data.showActivitySummary === true) ? 1 : 0;
+        const showQuotationsTwoPane = (data.showQuotationsTwoPane === true) ? 1 : 0;
+        const showPurchaseOrdersTwoPane = (data.showPurchaseOrdersTwoPane === true) ? 1 : 0;
+        const showInvoicesTwoPane = (data.showInvoicesTwoPane === true) ? 1 : 0;
         console.log('Adapter save - converting:', {
             showRevenueTrend: { input: data.showRevenueTrend, output: showRevenueTrend },
             showQuickActions: { input: data.showQuickActions, output: showQuickActions },
             showReports: { input: data.showReports, output: showReports },
-            showVehicleFinances: { input: data.showVehicleFinances, output: showVehicleFinances },
+            showVehicleDashboard: { input: data.showVehicleDashboard, output: showVehicleFinances },
             showQuotationsInvoicesCard: { input: data.showQuotationsInvoicesCard, output: showQuotationsInvoicesCard },
             showEmployeeSalariesCard: { input: data.showEmployeeSalariesCard, output: showEmployeeSalariesCard },
             showVehicleRevenueExpensesCard: { input: data.showVehicleRevenueExpensesCard, output: showVehicleRevenueExpensesCard },
@@ -935,25 +1005,27 @@ exports.adminAdapter = {
         UPDATE admin_settings 
         SET companyName = ?, address = ?, vatNumber = ?, logoUrl = ?, sealUrl = ?, 
             signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, 
+            footerAddressEnglish = ?, footerAddressArabic = ?, footerContactEnglish = ?, footerContactArabic = ?,
             showRevenueTrend = ?, showQuickActions = ?, showReports = ?, showVehicleFinances = ?, 
-            showQuotationsInvoicesCard = ?, showEmployeeSalariesCard = ?, showVehicleRevenueExpensesCard = ?, 
+            showQuotationsInvoicesCard = ?, showQuotationsTwoPane = ?, showPurchaseOrdersTwoPane = ?, showInvoicesTwoPane = ?, showEmployeeSalariesCard = ?, showVehicleRevenueExpensesCard = ?, 
             showActivityThisMonth = ?, showFinancialHealth = ?, showBusinessOverview = ?, 
             showTopCustomers = ?, showActivitySummary = ?, updatedAt = ?
         WHERE id = ?
       `);
-            const result = stmt.run(data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, existing.id);
+            const result = stmt.run(data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, existing.id);
         }
         else {
             const stmt = db.prepare(`
         INSERT INTO admin_settings (id, companyName, address, vatNumber, logoUrl, sealUrl, 
                                     signatureUrl, quoteNumberPattern, currency, defaultTerms, 
+                                    footerAddressEnglish, footerAddressArabic, footerContactEnglish, footerContactArabic,
                                     showRevenueTrend, showQuickActions, showReports, showVehicleFinances, 
-                                    showQuotationsInvoicesCard, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, 
+                                    showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, 
                                     showActivityThisMonth, showFinancialHealth, showBusinessOverview, 
                                     showTopCustomers, showActivitySummary, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-            stmt.run(data.id || 'settings_1', data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, now);
+            stmt.run(data.id || 'settings_1', data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, now);
         }
         return exports.adminAdapter.get();
     },
@@ -979,11 +1051,16 @@ exports.quotesAdapter = {
                     customer: customer || { id: '', name: '', company: '', email: '', phone: '', address: '' },
                     items: items.map(item => ({
                         id: item.id,
+                        serialNumber: item.serialNumber || undefined,
                         vehicleTypeId: item.vehicleTypeId || '',
                         vehicleTypeLabel: item.vehicleTypeLabel || '',
+                        vehicleNumber: item.vehicleNumber || undefined,
+                        description: item.description || undefined,
+                        rentalBasis: item.rentalBasis || undefined,
                         quantity: item.quantity || 0,
                         unitPrice: item.unitPrice || 0,
                         taxPercent: item.taxPercent || 0,
+                        grossAmount: item.grossAmount || undefined,
                         lineTaxAmount: item.lineTaxAmount || 0,
                         lineTotal: item.lineTotal || 0,
                     })),
@@ -1026,11 +1103,16 @@ exports.quotesAdapter = {
                 customer: customer || null,
                 items: items.map(item => ({
                     id: item.id,
+                    serialNumber: item.serialNumber || undefined,
                     vehicleTypeId: item.vehicleTypeId || '',
                     vehicleTypeLabel: item.vehicleTypeLabel || '',
+                    vehicleNumber: item.vehicleNumber || undefined,
+                    description: item.description || undefined,
+                    rentalBasis: item.rentalBasis || undefined,
                     quantity: item.quantity || 0,
                     unitPrice: item.unitPrice || 0,
                     taxPercent: item.taxPercent || 0,
+                    grossAmount: item.grossAmount || undefined,
                     lineTaxAmount: item.lineTaxAmount || 0,
                     lineTotal: item.lineTotal || 0,
                 })),
@@ -1082,12 +1164,12 @@ exports.quotesAdapter = {
             // Insert items
             if (data.items && data.items.length > 0) {
                 const itemStmt = db.prepare(`
-        INSERT INTO quote_items (id, quoteId, vehicleTypeId, vehicleTypeLabel, quantity, unitPrice, taxPercent, lineTaxAmount, lineTotal)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO quote_items (id, quoteId, vehicleTypeId, vehicleTypeLabel, vehicleNumber, description, rentalBasis, serialNumber, quantity, unitPrice, taxPercent, grossAmount, lineTaxAmount, lineTotal)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
                 const insertItems = db.transaction((items) => {
                     for (const item of items) {
-                        itemStmt.run(item.id, data.id, item.vehicleTypeId || '', item.vehicleTypeLabel || '', item.quantity || 0, item.unitPrice || 0, item.taxPercent || 0, item.lineTaxAmount || 0, item.lineTotal || 0);
+                        itemStmt.run(item.id, data.id, item.vehicleTypeId || '', item.vehicleTypeLabel || '', item.vehicleNumber || null, item.description || null, item.rentalBasis || null, item.serialNumber || null, item.quantity || 0, item.unitPrice || 0, item.taxPercent || 0, item.grossAmount || null, item.lineTaxAmount || 0, item.lineTotal || 0);
                     }
                 });
                 insertItems(data.items);
@@ -1136,12 +1218,12 @@ exports.quotesAdapter = {
             db.prepare('DELETE FROM quote_items WHERE quoteId = ?').run(id);
             if (data.items && data.items.length > 0) {
                 const itemStmt = db.prepare(`
-        INSERT INTO quote_items (id, quoteId, vehicleTypeId, vehicleTypeLabel, quantity, unitPrice, taxPercent, lineTaxAmount, lineTotal)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO quote_items (id, quoteId, vehicleTypeId, vehicleTypeLabel, vehicleNumber, description, rentalBasis, serialNumber, quantity, unitPrice, taxPercent, grossAmount, lineTaxAmount, lineTotal)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
                 const insertItems = db.transaction((items) => {
                     for (const item of items) {
-                        itemStmt.run(item.id, id, item.vehicleTypeId || '', item.vehicleTypeLabel || '', item.quantity || 0, item.unitPrice || 0, item.taxPercent || 0, item.lineTaxAmount || 0, item.lineTotal || 0);
+                        itemStmt.run(item.id, id, item.vehicleTypeId || '', item.vehicleTypeLabel || '', item.vehicleNumber || null, item.description || null, item.rentalBasis || null, item.serialNumber || null, item.quantity || 0, item.unitPrice || 0, item.taxPercent || 0, item.grossAmount || null, item.lineTaxAmount || 0, item.lineTotal || 0);
                     }
                 });
                 insertItems(data.items);
@@ -1387,7 +1469,9 @@ exports.invoicesAdapter = {
                     amountReceived: invoice.amountReceived || 0,
                     status: invoice.status || 'draft',
                     notes: invoice.notes || '',
+                    terms: invoice.terms || '',
                     createdAt: invoice.createdAt,
+                    updatedAt: invoice.updatedAt,
                 };
             });
         }
@@ -1427,7 +1511,9 @@ exports.invoicesAdapter = {
             amountReceived: invoice.amountReceived || 0,
             status: invoice.status || 'draft',
             notes: invoice.notes || '',
+            terms: invoice.terms || '',
             createdAt: invoice.createdAt,
+            updatedAt: invoice.updatedAt,
         };
     },
     create: (data) => {
@@ -1476,12 +1562,12 @@ exports.invoicesAdapter = {
         // Use NULL instead of empty strings for optional foreign keys to satisfy FK constraints
         const invoiceStmt = db.prepare(`
       INSERT INTO invoices (id, number, date, dueDate, customerId, vendorId, purchaseOrderId, quoteId, 
-                            subtotal, tax, total, amountReceived, status, notes, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            subtotal, tax, total, amountReceived, status, notes, terms, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
         try {
             invoiceStmt.run(data.id, data.number, data.date, data.dueDate || null, data.customerId, // Required, validated above
-            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', now);
+            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', data.terms || '', now, now);
         }
         catch (error) {
             // Log the actual error for debugging
@@ -1531,6 +1617,7 @@ exports.invoicesAdapter = {
         if (!db) {
             throw new Error('Database is not available. App is using client-side storage.');
         }
+        const now = new Date().toISOString();
         // Check if invoice exists first
         const existing = exports.invoicesAdapter.getById(id);
         if (!existing) {
@@ -1577,12 +1664,12 @@ exports.invoicesAdapter = {
         const invoiceStmt = db.prepare(`
       UPDATE invoices 
       SET number = ?, date = ?, dueDate = ?, customerId = ?, vendorId = ?, purchaseOrderId = ?, quoteId = ?,
-          subtotal = ?, tax = ?, total = ?, amountReceived = ?, status = ?, notes = ?
+          subtotal = ?, tax = ?, total = ?, amountReceived = ?, status = ?, notes = ?, terms = ?, updatedAt = ?
       WHERE id = ?
     `);
         try {
             invoiceStmt.run(data.number, data.date, data.dueDate || null, data.customerId, // Required, validated above
-            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', id);
+            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', data.terms || '', now, id);
         }
         catch (error) {
             // Log the actual error for debugging
@@ -1769,6 +1856,8 @@ exports.vehicleTransactionsAdapter = {
                 description: row.description || undefined,
                 employeeId: row.employeeId || undefined,
                 invoiceId: row.invoiceId || undefined,
+                purchaseOrderId: row.purchaseOrderId || undefined,
+                quoteId: row.quoteId || undefined,
                 createdAt: row.createdAt,
                 updatedAt: row.updatedAt,
             }));
@@ -1797,6 +1886,8 @@ exports.vehicleTransactionsAdapter = {
                 description: row.description || undefined,
                 employeeId: row.employeeId || undefined,
                 invoiceId: row.invoiceId || undefined,
+                purchaseOrderId: row.purchaseOrderId || undefined,
+                quoteId: row.quoteId || undefined,
                 createdAt: row.createdAt,
                 updatedAt: row.updatedAt,
             };
@@ -1849,6 +1940,8 @@ exports.vehicleTransactionsAdapter = {
                 description: row.description || undefined,
                 employeeId: row.employeeId || undefined,
                 invoiceId: row.invoiceId || undefined,
+                purchaseOrderId: row.purchaseOrderId || undefined,
+                quoteId: row.quoteId || undefined,
                 createdAt: row.createdAt,
                 updatedAt: row.updatedAt,
             }));
@@ -2304,10 +2397,10 @@ exports.vehicleTransactionsAdapter = {
             // Extract month from date (YYYY-MM-DD -> YYYY-MM)
             const month = data.date.substring(0, 7);
             const stmt = db.prepare(`
-      INSERT INTO vehicle_transactions (id, vehicleId, transactionType, category, amount, date, month, description, employeeId, invoiceId, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO vehicle_transactions (id, vehicleId, transactionType, category, amount, date, month, description, employeeId, invoiceId, purchaseOrderId, quoteId, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-            stmt.run(data.id, data.vehicleId, data.transactionType, data.category || null, data.amount, data.date, month, data.description || null, data.employeeId || null, data.invoiceId || null, now, now);
+            stmt.run(data.id, data.vehicleId, data.transactionType, data.category || null, data.amount, data.date, month, data.description || null, data.employeeId || null, data.invoiceId || null, data.purchaseOrderId || null, data.quoteId || null, now, now);
             return exports.vehicleTransactionsAdapter.getById(data.id);
         }
         catch (error) {
@@ -2365,10 +2458,10 @@ exports.vehicleTransactionsAdapter = {
             }
             const stmt = db.prepare(`
       UPDATE vehicle_transactions 
-      SET vehicleId = ?, transactionType = ?, category = ?, amount = ?, date = ?, month = ?, description = ?, employeeId = ?, invoiceId = ?, updatedAt = ?
+      SET vehicleId = ?, transactionType = ?, category = ?, amount = ?, date = ?, month = ?, description = ?, employeeId = ?, invoiceId = ?, purchaseOrderId = ?, quoteId = ?, updatedAt = ?
       WHERE id = ?
     `);
-            stmt.run(updated.vehicleId, updated.transactionType, updated.category || null, updated.amount, updated.date, updated.month, updated.description || null, updated.employeeId || null, updated.invoiceId || null, updated.updatedAt, id);
+            stmt.run(updated.vehicleId, updated.transactionType, updated.category || null, updated.amount, updated.date, updated.month, updated.description || null, updated.employeeId || null, updated.invoiceId || null, updated.purchaseOrderId || null, updated.quoteId || null, updated.updatedAt, id);
             return exports.vehicleTransactionsAdapter.getById(id);
         }
         catch (error) {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import {
     Card,
     CardContent,
@@ -29,7 +30,8 @@ import {
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Trash2, FileText, Sheet, FileType, Pencil } from 'lucide-react'
+import { Plus, Trash2, FileText, Sheet, FileType, Pencil, ArrowLeft } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     getAdminSettings,
     initializeAdminSettings,
@@ -45,6 +47,7 @@ import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
 import { Quote, QuoteLineItem, AdminSettings, Customer, Vehicle } from '@/lib/types'
 import { validateQuote, validateQuoteForExport, ValidationError } from '@/lib/validation'
+import { DEFAULT_QUOTE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
 
 interface QuoteFormProps {
     initialData?: Quote
@@ -73,17 +76,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
     const getVisibleColumnsStorageKey = (quoteId: string | undefined) => 
         quoteId ? `quote-visible-columns-${quoteId}` : 'quote-visible-columns-global'
-    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
-        serialNumber: true,
-        vehicleNumber: true,
-        description: true,
-        rentalBasis: true,
-        quantity: true,
-        rate: true,
-        grossAmount: true,
-        tax: true,
-        netAmount: true,
-    })
+    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_QUOTE_COLUMNS }))
 
     // Determine if editing based on props or internal logic
     const [quote, setQuote] = useState<Quote>(initialData || {
@@ -145,6 +138,15 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
             }
         }
 
+        const isHtmlEmpty = (html?: string) => {
+            if (!html) return true
+            const text = html
+                .replace(/&nbsp;/gi, ' ')
+                .replace(/<[^>]*>/g, '')
+                .trim()
+            return text.length === 0
+        }
+
         async function loadData() {
             try {
                 // Load admin settings
@@ -159,9 +161,12 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                     currentSettings = initialized
                 }
 
-                // If creating new (no initialData) and default terms exist, set them
+                // If creating new (no initialData) and default terms exist, set them (without overwriting user edits)
                 if (!initialData && currentSettings?.defaultTerms) {
-                    setQuote((prev) => ({ ...prev, terms: currentSettings.defaultTerms }))
+                    setQuote((prev) => {
+                        if (!isHtmlEmpty(prev.terms)) return prev
+                        return { ...prev, terms: currentSettings.defaultTerms }
+                    })
                 }
 
                 // Load customers and vehicles
@@ -301,9 +306,18 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                     if (vehicle) {
                         updated.vehicleTypeId = vehicle.id
                         updated.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
+                        updated.vehicleType = vehicle.vehicleType
+                        updated.make = vehicle.make
+                        updated.model = vehicle.model
+                        updated.year = vehicle.year
+                        updated.basePrice = vehicle.basePrice
                         // Auto-fill description from vehicle if not already set
                         if (!updated.description) {
                             updated.description = vehicle.description || ''
+                        }
+                        // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
+                        if (updated.unitPrice === 0 && vehicle.basePrice) {
+                            updated.unitPrice = vehicle.basePrice
                         }
                     }
                 }
@@ -314,9 +328,18 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                     if (vehicle) {
                         updated.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
                         updated.vehicleNumber = vehicle.vehicleNumber || ''
+                        updated.vehicleType = vehicle.vehicleType
+                        updated.make = vehicle.make
+                        updated.model = vehicle.model
+                        updated.year = vehicle.year
+                        updated.basePrice = vehicle.basePrice
                         // Auto-fill description from vehicle if not already set
                         if (!updated.description) {
                             updated.description = vehicle.description || ''
+                        }
+                        // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
+                        if (updated.unitPrice === 0 && vehicle.basePrice) {
+                            updated.unitPrice = vehicle.basePrice
                         }
                     }
                 }
@@ -617,6 +640,13 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     return (
         <div className="p-8">
             <div className="mb-4">
+                <Link 
+                    href="/quotations" 
+                    className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-2"
+                >
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back to Quotations
+                </Link>
                 <h1 className="text-2xl font-bold text-slate-900">
                     {isEditMode ? 'Edit Quotation' : 'Create New Quotation'}
                 </h1>
@@ -773,6 +803,16 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                             <span className="text-blue-600">AED {quote.total.toFixed(2)}</span>
                         </div>
 
+                        {validationErrors.length > 0 && (
+                            <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                                <p className="font-semibold">Errors:</p>
+                                <ul className="list-disc list-inside">
+                                    {validationErrors.slice(0, 2).map((e, i) => <li key={i}>{e.message}</li>)}
+                                    {validationErrors.length > 2 && <li>...and more</li>}
+                                </ul>
+                            </div>
+                        )}
+
                         <div className="pt-4 space-y-2">
                             <div className="grid grid-cols-3 gap-2">
                                 <Button
@@ -848,6 +888,10 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                 <tr>
                                     {visibleColumns.serialNumber !== false && <th className="text-center p-2">#</th>}
                                     {visibleColumns.vehicleNumber !== false && <th className="text-left p-2">Vehicle</th>}
+                                    {visibleColumns.vehicleType !== false && <th className="text-left p-2">Type</th>}
+                                    {visibleColumns.makeModel !== false && <th className="text-left p-2">Make/Model</th>}
+                                    {visibleColumns.year !== false && <th className="text-center p-2">Year</th>}
+                                    {visibleColumns.basePrice !== false && <th className="text-right p-2">Base Price</th>}
                                     {visibleColumns.description !== false && <th className="text-left p-2">Description</th>}
                                     {visibleColumns.rentalBasis !== false && <th className="text-center p-2">Basis</th>}
                                     {visibleColumns.quantity !== false && <th className="text-right p-2">Qty</th>}
@@ -877,13 +921,40 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                             <SelectValue placeholder="Vehicle..." />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            {vehicles.map((vehicle, idx) => (
-                                                                <SelectItem key={vehicle.id ?? `vehicle-${idx}`} value={vehicle.vehicleNumber || ''}>
-                                                                    {vehicle.vehicleNumber || 'Unknown'}
-                                                                </SelectItem>
-                                                            ))}
+                                                            {vehicles.map((vehicle, idx) => {
+                                                                const displayText = vehicle.make && vehicle.model && vehicle.year
+                                                                    ? `${vehicle.vehicleNumber || 'Unknown'} - ${vehicle.make} ${vehicle.model} (${vehicle.year})`
+                                                                    : vehicle.make && vehicle.model
+                                                                    ? `${vehicle.vehicleNumber || 'Unknown'} - ${vehicle.make} ${vehicle.model}`
+                                                                    : vehicle.vehicleNumber || 'Unknown'
+                                                                return (
+                                                                    <SelectItem key={vehicle.id ?? `vehicle-${idx}`} value={vehicle.vehicleNumber || ''}>
+                                                                        {displayText}
+                                                                    </SelectItem>
+                                                                )
+                                                            })}
                                                         </SelectContent>
                                                     </Select>
+                                                </td>
+                                            )}
+                                            {visibleColumns.vehicleType !== false && (
+                                                <td className="p-2 text-left text-slate-700 min-w-[80px]">
+                                                    {item.vehicleType || '-'}
+                                                </td>
+                                            )}
+                                            {visibleColumns.makeModel !== false && (
+                                                <td className="p-2 text-left text-slate-700 min-w-[120px]">
+                                                    {item.make && item.model ? `${item.make} ${item.model}` : '-'}
+                                                </td>
+                                            )}
+                                            {visibleColumns.year !== false && (
+                                                <td className="p-2 text-center text-slate-700 min-w-[60px]">
+                                                    {item.year || '-'}
+                                                </td>
+                                            )}
+                                            {visibleColumns.basePrice !== false && (
+                                                <td className="p-2 text-right text-slate-700 min-w-[80px]">
+                                                    {item.basePrice ? item.basePrice.toFixed(2) : '-'}
                                                 </td>
                                             )}
                                             {visibleColumns.description !== false && (
@@ -897,18 +968,27 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                             )}
                                             {visibleColumns.rentalBasis !== false && (
                                                 <td className="p-2 min-w-[90px]">
-                                                    <Select
-                                                        value={item.rentalBasis || ''}
-                                                        onValueChange={(value) => handleLineItemChange(item.id, 'rentalBasis', value || undefined)}
-                                                    >
-                                                        <SelectTrigger className="h-7 text-xs">
-                                                            <SelectValue placeholder="-" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="hourly">Hourly</SelectItem>
-                                                            <SelectItem value="monthly">Monthly</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div>
+                                                                <Select
+                                                                    value={item.rentalBasis || ''}
+                                                                    onValueChange={(value) => handleLineItemChange(item.id, 'rentalBasis', value || undefined)}
+                                                                >
+                                                                    <SelectTrigger className="h-7 text-xs">
+                                                                        <SelectValue placeholder="-" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="hourly">Hourly</SelectItem>
+                                                                        <SelectItem value="monthly">Monthly</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Rental basis: Hourly (rate per hour) or Monthly (rate per month)</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 </td>
                                             )}
                                             {visibleColumns.quantity !== false && (
@@ -935,27 +1015,50 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                             )}
                                             {visibleColumns.grossAmount !== false && (
                                                 <td className="p-2 text-right text-slate-700 w-[80px]">
-                                                    {(item.grossAmount || 0).toFixed(2)}
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <span className="cursor-help">{(item.grossAmount || 0).toFixed(2)}</span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Gross = Quantity × Rate</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 </td>
                                             )}
                                             {visibleColumns.tax !== false && (
                                                 <td className="p-2 text-right w-[60px]">
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        max="100"
-                                                        value={item.taxPercent && item.taxPercent > 0 ? item.taxPercent : ''}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value
-                                                            handleLineItemChange(item.id, 'taxPercent', val === '' ? 0 : parseFloat(val) || 0)
-                                                        }}
-                                                        className="h-7 text-xs text-right px-1"
-                                                    />
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div>
+                                                                <Input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="100"
+                                                                    value={item.taxPercent && item.taxPercent > 0 ? item.taxPercent : ''}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value
+                                                                        handleLineItemChange(item.id, 'taxPercent', val === '' ? 0 : parseFloat(val) || 0)
+                                                                    }}
+                                                                    className="h-7 text-xs text-right px-1"
+                                                                />
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Tax percentage (0-100%). Tax = Gross × Tax% / 100</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 </td>
                                             )}
                                             {visibleColumns.netAmount !== false && (
                                                 <td className="p-2 text-right text-slate-700 font-semibold w-[80px]">
-                                                    {(item.lineTotal || 0).toFixed(2)}
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <span className="cursor-help">{(item.lineTotal || 0).toFixed(2)}</span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Net = Gross + Tax</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 </td>
                                             )}
                                             <td className="p-2 text-center w-[40px]">
@@ -983,6 +1086,23 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
             </Card>
 
             {/* Additional Notes - Full Width */}
+            <Card>
+                <CardHeader className="py-3">
+                    <CardTitle className="text-base">Terms &amp; Conditions</CardTitle>
+                    <CardDescription className="text-xs">
+                        Defaults come from Admin Settings. Editing here overrides the default for this quotation.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <RichTextEditor
+                        value={quote.terms || ''}
+                        onChange={(html) => setQuote({ ...quote, terms: html })}
+                        placeholder="Enter terms and conditions..."
+                        rows={8}
+                    />
+                </CardContent>
+            </Card>
+
             <Card>
                 <CardHeader className="py-3">
                     <CardTitle className="text-base">Notes</CardTitle>
@@ -1104,6 +1224,10 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                         {[
                             { key: 'serialNumber', label: 'Sl. no.' },
                             { key: 'vehicleNumber', label: 'Vehicle number' },
+                            { key: 'vehicleType', label: 'Vehicle Type' },
+                            { key: 'makeModel', label: 'Make/Model' },
+                            { key: 'year', label: 'Year' },
+                            { key: 'basePrice', label: 'Base Price' },
                             { key: 'description', label: 'Description' },
                             { key: 'rentalBasis', label: 'Rental basis' },
                             { key: 'quantity', label: 'Qty' },

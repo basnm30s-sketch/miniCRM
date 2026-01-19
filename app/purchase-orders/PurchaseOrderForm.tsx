@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
+import RichTextEditor from '@/components/ui/rich-text-editor'
 import {
     Select,
     SelectContent,
@@ -21,20 +23,23 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { FileText, Plus, Trash2, Sheet, FileType } from 'lucide-react'
+import { FileText, Plus, Trash2, Sheet, FileType, ArrowLeft } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     savePurchaseOrder,
     getAllVendors,
     getAllVehicles,
     generateId,
     getAdminSettings,
+    initializeAdminSettings,
 } from '@/lib/storage'
 import { pdfRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
 import type { PurchaseOrder, Vendor, AdminSettings, POItem, Vehicle } from '@/lib/types'
 import type { ValidationError } from '@/lib/validation'
+import { DEFAULT_PO_COLUMNS } from '@/lib/doc-generator/line-item-columns'
 
 interface PurchaseOrderFormProps {
     initialData?: PurchaseOrder
@@ -55,6 +60,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
         amount: 0,
         currency: 'AED',
         status: 'draft',
+        terms: '',
         createdAt: '', // will be set on save if empty
     })
 
@@ -82,19 +88,18 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
     const [isValidForExport, setIsValidForExport] = useState(false)
     const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
-    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
-        serialNumber: true,
-        vehicleNumber: true,
-        description: true,
-        rentalBasis: true,
-        quantity: true,
-        rate: true,
-        grossAmount: true,
-        tax: true,
-        netAmount: true,
-    })
+    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_PO_COLUMNS }))
 
     useEffect(() => {
+        const isHtmlEmpty = (html?: string) => {
+            if (!html) return true
+            const text = html
+                .replace(/&nbsp;/gi, ' ')
+                .replace(/<[^>]*>/g, '')
+                .trim()
+            return text.length === 0
+        }
+
         const loadData = async () => {
             try {
                 const [vendorsData, vehiclesData, settingsData] = await Promise.all([
@@ -104,7 +109,21 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                 ])
                 setVendors(vendorsData)
                 setVehicles(vehiclesData)
-                setAdminSettings(settingsData)
+
+                // Ensure admin settings exist so default terms can be applied
+                let currentSettings = settingsData
+                if (!currentSettings) {
+                    currentSettings = await initializeAdminSettings()
+                }
+                setAdminSettings(currentSettings)
+
+                // If creating new and default terms exist, set them (without overwriting user edits)
+                if (!isEditMode && currentSettings?.defaultTerms) {
+                    setPo((prev) => {
+                        if (!isHtmlEmpty(prev.terms)) return prev
+                        return { ...prev, terms: currentSettings.defaultTerms }
+                    })
+                }
 
                 // Generate PO number if new and not already set
                 if (!isEditMode && !po.number) {
@@ -256,9 +275,18 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                 if (vehicle) {
                     updatedItem.vehicleTypeId = vehicle.id
                     updatedItem.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
+                    updatedItem.vehicleType = vehicle.vehicleType
+                    updatedItem.make = vehicle.make
+                    updatedItem.model = vehicle.model
+                    updatedItem.year = vehicle.year
+                    updatedItem.basePrice = vehicle.basePrice
                     // Auto-fill description from vehicle if not already set
                     if (!updatedItem.description) {
                         updatedItem.description = vehicle.description || ''
+                    }
+                    // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
+                    if (updatedItem.unitPrice === 0 && vehicle.basePrice) {
+                        updatedItem.unitPrice = vehicle.basePrice
                     }
                 }
             }
@@ -269,8 +297,17 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                 if (vehicle) {
                     updatedItem.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
                     updatedItem.vehicleNumber = vehicle.vehicleNumber || ''
+                    updatedItem.vehicleType = vehicle.vehicleType
+                    updatedItem.make = vehicle.make
+                    updatedItem.model = vehicle.model
+                    updatedItem.year = vehicle.year
+                    updatedItem.basePrice = vehicle.basePrice
                     if (!updatedItem.description) {
                         updatedItem.description = vehicle.description || ''
+                    }
+                    // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
+                    if (updatedItem.unitPrice === 0 && vehicle.basePrice) {
+                        updatedItem.unitPrice = vehicle.basePrice
                     }
                 }
             }
@@ -457,9 +494,18 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
         )
     }
 
+    const selectedVendor = vendors.find((v) => v.id === po.vendorId)
+
     return (
         <div className="p-8">
             <div className="mb-4">
+                <Link 
+                    href="/purchase-orders" 
+                    className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-2"
+                >
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back to Purchase Orders
+                </Link>
                 <h1 className="text-2xl font-bold text-slate-900">
                     {isEditMode ? 'Edit Purchase Order' : 'Create New Purchase Order'}
                 </h1>
@@ -468,81 +514,58 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                 </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
-                {/* Main Form */}
-                <div className="col-span-2 space-y-6">
-                    {/* PO Details */}
-                    <Card>
-                        <CardHeader className="py-3">
-                            <CardTitle className="text-base">Purchase Order Details</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="number" className="text-slate-700 text-xs">
-                                        PO Number
-                                    </Label>
-                                    <Input
-                                        id="number"
-                                        value={po.number}
-                                        disabled
-                                        className="mt-1 h-8 bg-slate-50"
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="status" className="text-slate-700 text-xs">
-                                        Status
-                                    </Label>
-                                    <Select
-                                        value={po.status || 'draft'}
-                                        onValueChange={(val) => setPo({ ...po, status: val })}
-                                    >
-                                        <SelectTrigger className="mt-1 h-8">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="draft">Draft</SelectItem>
-                                            <SelectItem value="sent">Sent</SelectItem>
-                                            <SelectItem value="accepted">Accepted</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+            {/* PO Details, Vendor & Summary Row */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+                {/* PO Details */}
+                <Card>
+                    <CardHeader className="py-3">
+                        <CardTitle className="text-base">Purchase Order Details</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 gap-4">
+                            <div>
+                                <Label htmlFor="number" className="text-slate-700 text-xs">
+                                    PO Number
+                                </Label>
+                                <Input
+                                    id="number"
+                                    value={po.number}
+                                    disabled
+                                    className="mt-1 h-8 bg-slate-50"
+                                />
                             </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="date" className="text-slate-700 text-xs">
-                                        PO Date
-                                    </Label>
-                                    <Input
-                                        type="date"
-                                        value={po.date}
-                                        onChange={(e) => setPo({ ...po, date: e.target.value })}
-                                        className="mt-1 h-8"
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="vendor" className="text-slate-700 text-xs">
-                                        Vendor *
-                                    </Label>
-                                    <Select
-                                        value={po.vendorId || ''}
-                                        onValueChange={(val) => setPo({ ...po, vendorId: val })}
-                                    >
-                                        <SelectTrigger className={`mt-1 h-8 ${!po.vendorId ? 'border-red-300' : ''}`}>
-                                            <SelectValue placeholder="Select Vendor" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {vendors.map((v, idx) => (
-                                                <SelectItem key={v.id ?? `v-${idx}`} value={v.id}>
-                                                    {v.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                            <div>
+                                <Label htmlFor="status" className="text-slate-700 text-xs">
+                                    Status
+                                </Label>
+                                <Select
+                                    value={po.status || 'draft'}
+                                    onValueChange={(val) => setPo({ ...po, status: val })}
+                                >
+                                    <SelectTrigger className="mt-1 h-8">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="draft">Draft</SelectItem>
+                                        <SelectItem value="sent">Sent</SelectItem>
+                                        <SelectItem value="accepted">Accepted</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
+                        </div>
 
+                        <div className="grid grid-cols-1 gap-4">
+                            <div>
+                                <Label htmlFor="date" className="text-slate-700 text-xs">
+                                    PO Date
+                                </Label>
+                                <Input
+                                    type="date"
+                                    value={po.date}
+                                    onChange={(e) => setPo({ ...po, date: e.target.value })}
+                                    className="mt-1 h-8"
+                                />
+                            </div>
                             <div>
                                 <Label htmlFor="amount" className="text-slate-700 text-xs">
                                     Amount (AED)
@@ -553,12 +576,136 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                     className="mt-1 h-8 bg-slate-50 font-mono"
                                 />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CardContent>
+                </Card>
 
-                    {/* Line Items */}
-                    <Card>
-                        <CardHeader className="py-3">
+                {/* Vendor Selection */}
+                <Card>
+                    <CardHeader className="py-3">
+                        <CardTitle className="text-base">Vendor</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <Label htmlFor="vendor" className="text-slate-700 text-xs">
+                                Select Vendor *
+                            </Label>
+                            <Select
+                                value={po.vendorId || ''}
+                                onValueChange={(val) => setPo({ ...po, vendorId: val })}
+                            >
+                                <SelectTrigger className={`mt-1 h-8 ${!po.vendorId ? 'border-red-500' : ''}`}>
+                                    <SelectValue placeholder="Select Vendor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {vendors.map((v, idx) => (
+                                        <SelectItem key={v.id ?? `v-${idx}`} value={v.id}>
+                                            {v.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {po.vendorId && selectedVendor && (
+                            <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
+                                <p className="font-semibold text-slate-900">{selectedVendor.name}</p>
+                                {selectedVendor.contactPerson && (
+                                    <p className="text-xs text-slate-600">{selectedVendor.contactPerson}</p>
+                                )}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Summary Sidebar */}
+                <Card className="sticky top-8 h-fit">
+                    <CardHeader className="py-3">
+                        <CardTitle className="text-base">Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-1 pb-4 border-b text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-slate-600">Subtotal:</span>
+                                <span className="font-semibold text-slate-900">AED {(po.subtotal || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-600">Tax:</span>
+                                <span className="font-semibold text-slate-900">AED {(po.tax || 0).toFixed(2)}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-between text-base font-bold pt-2">
+                            <span className="text-slate-700">Total:</span>
+                            <span className="text-blue-600">AED {(po.amount || 0).toFixed(2)}</span>
+                        </div>
+
+                        {validationErrors.length > 0 && (
+                            <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                                <p className="font-semibold">Errors:</p>
+                                <ul className="list-disc list-inside">
+                                    {validationErrors.slice(0, 2).map((e, i) => <li key={i}>{e.message}</li>)}
+                                    {validationErrors.length > 2 && <li>...and more</li>}
+                                </ul>
+                            </div>
+                        )}
+
+                        <div className="pt-4 space-y-2">
+                            <div className="grid grid-cols-3 gap-2">
+                                <Button
+                                    onClick={handleDownloadPDF}
+                                    disabled={!!exportDisabledReason}
+                                    size="sm"
+                                    className="bg-action-pdf hover:bg-action-pdf/90 text-white shadow-sm h-8 px-0"
+                                    title="PDF"
+                                >
+                                    <FileText className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                    onClick={handleDownloadExcel}
+                                    disabled={!!exportDisabledReason}
+                                    size="sm"
+                                    className="bg-action-excel hover:bg-action-excel/90 text-white shadow-sm h-8 px-0"
+                                    title="Excel"
+                                >
+                                    <Sheet className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                    onClick={handleDownloadDocx}
+                                    disabled={!!exportDisabledReason}
+                                    size="sm"
+                                    className="bg-action-word hover:bg-action-word/90 text-white shadow-sm h-8 px-0"
+                                    title="Word"
+                                >
+                                    <FileType className="w-3 h-3" />
+                                </Button>
+                            </div>
+
+                            <Button
+                                onClick={() => handleSave()}
+                                disabled={saving}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md h-9"
+                            >
+                                {saving ? 'Saving...' : 'Save Purchase Order'}
+                            </Button>
+
+                            {onCancel && (
+                                <Button
+                                    variant="outline"
+                                    onClick={onCancel}
+                                    className="w-full shadow-sm hover:bg-slate-50 h-9"
+                                >
+                                    Cancel
+                                </Button>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Line Items - Full Width */}
+            <Card className="mb-6">
+                <CardHeader className="py-3">
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-base">Line Items</CardTitle>
                                 <Button
@@ -578,6 +725,10 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                         <tr>
                                             {visibleColumns.serialNumber !== false && <th className="text-center p-2">#</th>}
                                             {visibleColumns.vehicleNumber !== false && <th className="text-left p-2">Vehicle</th>}
+                                            {visibleColumns.vehicleType !== false && <th className="text-left p-2">Type</th>}
+                                            {visibleColumns.makeModel !== false && <th className="text-left p-2">Make/Model</th>}
+                                            {visibleColumns.year !== false && <th className="text-center p-2">Year</th>}
+                                            {visibleColumns.basePrice !== false && <th className="text-right p-2">Base Price</th>}
                                             {visibleColumns.description !== false && <th className="text-left p-2">Description</th>}
                                             {visibleColumns.rentalBasis !== false && <th className="text-center p-2">Basis</th>}
                                             {visibleColumns.quantity !== false && <th className="text-right p-2">Qty</th>}
@@ -608,13 +759,40 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                                 </SelectTrigger>
                                                                 <SelectContent>
                                                                     <SelectItem value="__manual__">Manual Entry</SelectItem>
-                                                                    {vehicles.map((vehicle, idx) => (
-                                                                        <SelectItem key={vehicle.id ?? `vehicle-${idx}`} value={vehicle.vehicleNumber || ''}>
-                                                                            {vehicle.vehicleNumber || 'Unknown'}
-                                                                        </SelectItem>
-                                                                    ))}
+                                                                    {vehicles.map((vehicle, idx) => {
+                                                                        const displayText = vehicle.make && vehicle.model && vehicle.year
+                                                                            ? `${vehicle.vehicleNumber || 'Unknown'} - ${vehicle.make} ${vehicle.model} (${vehicle.year})`
+                                                                            : vehicle.make && vehicle.model
+                                                                            ? `${vehicle.vehicleNumber || 'Unknown'} - ${vehicle.make} ${vehicle.model}`
+                                                                            : vehicle.vehicleNumber || 'Unknown'
+                                                                        return (
+                                                                            <SelectItem key={vehicle.id ?? `vehicle-${idx}`} value={vehicle.vehicleNumber || ''}>
+                                                                                {displayText}
+                                                                            </SelectItem>
+                                                                        )
+                                                                    })}
                                                                 </SelectContent>
                                                             </Select>
+                                                        </td>
+                                                    )}
+                                                    {visibleColumns.vehicleType !== false && (
+                                                        <td className="p-2 text-left text-slate-700 min-w-[80px]">
+                                                            {item.vehicleType || '-'}
+                                                        </td>
+                                                    )}
+                                                    {visibleColumns.makeModel !== false && (
+                                                        <td className="p-2 text-left text-slate-700 min-w-[120px]">
+                                                            {item.make && item.model ? `${item.make} ${item.model}` : '-'}
+                                                        </td>
+                                                    )}
+                                                    {visibleColumns.year !== false && (
+                                                        <td className="p-2 text-center text-slate-700 min-w-[60px]">
+                                                            {item.year || '-'}
+                                                        </td>
+                                                    )}
+                                                    {visibleColumns.basePrice !== false && (
+                                                        <td className="p-2 text-right text-slate-700 min-w-[80px]">
+                                                            {item.basePrice ? item.basePrice.toFixed(2) : '-'}
                                                         </td>
                                                     )}
                                                     {visibleColumns.description !== false && (
@@ -628,19 +806,28 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                     )}
                                                     {visibleColumns.rentalBasis !== false && (
                                                         <td className="p-2 min-w-[90px]">
-                                                            <Select
-                                                                value={item.rentalBasis || '__none__'}
-                                                                onValueChange={(value) => handleLineItemChange(item.id, 'rentalBasis', value === '__none__' ? undefined : value)}
-                                                            >
-                                                                <SelectTrigger className="h-7 text-xs">
-                                                                    <SelectValue placeholder="-" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="__none__">None</SelectItem>
-                                                                    <SelectItem value="hourly">Hourly</SelectItem>
-                                                                    <SelectItem value="monthly">Monthly</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <div>
+                                                                        <Select
+                                                                            value={item.rentalBasis || '__none__'}
+                                                                            onValueChange={(value) => handleLineItemChange(item.id, 'rentalBasis', value === '__none__' ? undefined : value)}
+                                                                        >
+                                                                            <SelectTrigger className="h-7 text-xs">
+                                                                                <SelectValue placeholder="-" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="__none__">None</SelectItem>
+                                                                                <SelectItem value="hourly">Hourly</SelectItem>
+                                                                                <SelectItem value="monthly">Monthly</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Rental basis: Hourly (rate per hour) or Monthly (rate per month)</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     )}
                                                     {visibleColumns.quantity !== false && (
@@ -667,24 +854,47 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                     )}
                                                     {visibleColumns.grossAmount !== false && (
                                                         <td className="p-2 text-right text-slate-700 w-[80px]">
-                                                            {(item.grossAmount || 0).toFixed(2)}
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="cursor-help">{(item.grossAmount || 0).toFixed(2)}</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Gross = Quantity × Rate</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     )}
                                                     {visibleColumns.tax !== false && (
                                                         <td className="p-2 text-right w-[60px]">
-                                                            <Input
-                                                                type="number"
-                                                                min="0"
-                                                                max="100"
-                                                                value={item.taxPercent}
-                                                                onChange={(e) => handleLineItemChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0)}
-                                                                className="h-7 text-xs text-right px-1"
-                                                            />
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <div>
+                                                                        <Input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            max="100"
+                                                                            value={item.taxPercent}
+                                                                            onChange={(e) => handleLineItemChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0)}
+                                                                            className="h-7 text-xs text-right px-1"
+                                                                        />
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Tax percentage (0-100%). Tax = Gross × Tax% / 100</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     )}
                                                     {visibleColumns.netAmount !== false && (
                                                         <td className="p-2 text-right text-slate-700 font-semibold w-[80px]">
-                                                            {(item.lineTotal || 0).toFixed(2)}
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="cursor-help">{(item.lineTotal || 0).toFixed(2)}</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Net = Gross + Tax</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     )}
                                                     <td className="p-2 text-center w-[40px]">
@@ -709,21 +919,25 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                 Add Line Item
                             </Button>
                         </CardContent>
-                    </Card>
+            </Card>
 
-                    {/* Column Customization Dialog */}
-                    <Dialog open={showColumnCustomizer} onOpenChange={setShowColumnCustomizer}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Customize Columns</DialogTitle>
-                                <DialogDescription>
-                                    Select which columns to display
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-3 py-4">
+            {/* Column Customization Dialog */}
+            <Dialog open={showColumnCustomizer} onOpenChange={setShowColumnCustomizer}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Customize Columns</DialogTitle>
+                        <DialogDescription>
+                            Select which columns to display
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 py-4">
                                 {[
                                     { key: 'serialNumber', label: 'Sl. no.' },
                                     { key: 'vehicleNumber', label: 'Vehicle number' },
+                                    { key: 'vehicleType', label: 'Vehicle Type' },
+                                    { key: 'makeModel', label: 'Make/Model' },
+                                    { key: 'year', label: 'Year' },
+                                    { key: 'basePrice', label: 'Base Price' },
                                     { key: 'description', label: 'Description' },
                                     { key: 'rentalBasis', label: 'Rental basis' },
                                     { key: 'quantity', label: 'Qty' },
@@ -732,129 +946,59 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                     { key: 'tax', label: 'Tax %' },
                                     { key: 'netAmount', label: 'Net amount' },
                                 ].map((col) => (
-                                    <div key={col.key} className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id={col.key}
-                                            checked={visibleColumns[col.key] !== false}
-                                            onCheckedChange={(checked) => {
-                                                setVisibleColumns((prev) => ({
-                                                    ...prev,
-                                                    [col.key]: checked !== false,
-                                                }))
-                                            }}
-                                        />
-                                        <Label htmlFor={col.key} className="text-sm font-normal cursor-pointer">
-                                            {col.label}
-                                        </Label>
-                                    </div>
-                                ))}
+                            <div key={col.key} className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={col.key}
+                                    checked={visibleColumns[col.key] !== false}
+                                    onCheckedChange={(checked) => {
+                                        setVisibleColumns((prev) => ({
+                                            ...prev,
+                                            [col.key]: checked !== false,
+                                        }))
+                                    }}
+                                />
+                                <Label htmlFor={col.key} className="text-sm font-normal cursor-pointer">
+                                    {col.label}
+                                </Label>
                             </div>
-                        </DialogContent>
-                    </Dialog>
+                        ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
 
-                    {/* Notes */}
-                    <Card>
-                        <CardHeader className="py-3">
-                            <CardTitle className="text-base">Notes</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <Textarea
-                                value={po.notes || ''}
-                                onChange={(e) => setPo({ ...po, notes: e.target.value })}
-                                placeholder="Add notes..."
-                                rows={3}
-                                className="text-xs"
-                            />
-                        </CardContent>
-                    </Card>
-                </div>
+            {/* Terms & Conditions - Full Width */}
+            <Card>
+                <CardHeader className="py-3">
+                    <CardTitle className="text-base">Terms &amp; Conditions</CardTitle>
+                    <CardDescription className="text-xs">
+                        Defaults come from Admin Settings. Editing here overrides the default for this purchase order.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <RichTextEditor
+                        value={po.terms || ''}
+                        onChange={(html) => setPo({ ...po, terms: html })}
+                        placeholder="Enter terms and conditions..."
+                        rows={8}
+                    />
+                </CardContent>
+            </Card>
 
-                {/* Summary Sidebar */}
-                <div>
-                    <Card className="sticky top-8">
-                        <CardHeader className="py-3">
-                            <CardTitle className="text-base">Summary</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-1 pb-4 border-b text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-slate-600">Subtotal:</span>
-                                    <span className="font-semibold text-slate-900">AED {(po.subtotal || 0).toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-600">Tax:</span>
-                                    <span className="font-semibold text-slate-900">AED {(po.tax || 0).toFixed(2)}</span>
-                                </div>
-                            </div>
-
-                            <div className="flex justify-between text-base font-bold pt-2">
-                                <span className="text-slate-700">Total:</span>
-                                <span className="text-blue-600">AED {(po.amount || 0).toFixed(2)}</span>
-                            </div>
-
-                            {validationErrors.length > 0 && (
-                                <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
-                                    <p className="font-semibold">Errors:</p>
-                                    <ul className="list-disc list-inside">
-                                        {validationErrors.slice(0, 2).map((e, i) => <li key={i}>{e.message}</li>)}
-                                        {validationErrors.length > 2 && <li>...and more</li>}
-                                    </ul>
-                                </div>
-                            )}
-
-                            <div className="pt-4 space-y-2">
-                                <div className="grid grid-cols-3 gap-2">
-                                    <Button
-                                        onClick={handleDownloadPDF}
-                                        disabled={!!exportDisabledReason}
-                                        size="sm"
-                                        className="bg-action-pdf hover:bg-action-pdf/90 text-white shadow-sm h-8 px-0"
-                                        title="PDF"
-                                    >
-                                        <FileText className="w-3 h-3" />
-                                    </Button>
-                                    <Button
-                                        onClick={handleDownloadExcel}
-                                        disabled={!!exportDisabledReason}
-                                        size="sm"
-                                        className="bg-action-excel hover:bg-action-excel/90 text-white shadow-sm h-8 px-0"
-                                        title="Excel"
-                                    >
-                                        <Sheet className="w-3 h-3" />
-                                    </Button>
-                                    <Button
-                                        onClick={handleDownloadDocx}
-                                        disabled={!!exportDisabledReason}
-                                        size="sm"
-                                        className="bg-action-word hover:bg-action-word/90 text-white shadow-sm h-8 px-0"
-                                        title="Word"
-                                    >
-                                        <FileType className="w-3 h-3" />
-                                    </Button>
-                                </div>
-
-                                <Button
-                                    onClick={() => handleSave()}
-                                    disabled={saving}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md h-9"
-                                >
-                                    {saving ? 'Saving...' : 'Save Purchase Order'}
-                                </Button>
-
-                                {onCancel && (
-                                    <Button
-                                        variant="outline"
-                                        onClick={onCancel}
-                                        className="w-full shadow-sm hover:bg-slate-50 h-9"
-                                    >
-                                        Cancel
-                                    </Button>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
+            {/* Additional Notes - Full Width */}
+            <Card>
+                <CardHeader className="py-3">
+                    <CardTitle className="text-base">Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Textarea
+                        value={po.notes || ''}
+                        onChange={(e) => setPo({ ...po, notes: e.target.value })}
+                        placeholder="Add notes..."
+                        rows={3}
+                        className="text-xs"
+                    />
+                </CardContent>
+            </Card>
         </div>
     )
 }

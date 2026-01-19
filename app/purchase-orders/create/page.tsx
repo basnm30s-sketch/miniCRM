@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import PurchaseOrderForm from '@/app/purchase-orders/PurchaseOrderForm'
@@ -10,6 +11,7 @@ import { PurchaseOrder } from '@/lib/types'
 import { toast } from '@/hooks/use-toast'
 
 export default function CreatePurchaseOrderPage() {
+  const router = useRouter()
   const [initialPO, setInitialPO] = useState<PurchaseOrder | undefined>(undefined)
   const [loading, setLoading] = useState(true)
 
@@ -52,11 +54,10 @@ export default function CreatePurchaseOrderPage() {
       <PurchaseOrderForm
         initialData={initialPO}
         onSave={(savedPO) => {
-          if (!initialPO) {
-            window.location.href = '/purchase-orders'
-          }
+          setInitialPO(savedPO)
+          router.replace(`/purchase-orders/create?id=${savedPO.id}`)
         }}
-        onCancel={() => window.location.href = '/purchase-orders'}
+        onCancel={() => router.push('/purchase-orders')}
       />
     </div>
   )

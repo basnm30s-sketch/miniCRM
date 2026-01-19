@@ -801,6 +801,31 @@ export class ClientSideExcelRenderer implements ExcelRenderer {
       currentRow++
     }
 
+    // Terms section
+    if (invoice.terms || adminSettings.defaultTerms) {
+      currentRow++ // Empty row
+      worksheet.getCell(currentRow, 1).value = 'Terms and Conditions:'
+      this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true })
+      currentRow++
+
+      const terms = invoice.terms || adminSettings.defaultTerms || ''
+      const termsText = terms
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<p[^>]*>/gi, '')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<div[^>]*>/gi, '')
+        .replace(/<[^>]+>/g, '')
+        .trim()
+
+      termsText.split('\n').forEach((line) => {
+        if (!line.trim()) return
+        worksheet.getCell(currentRow, 1).value = line.trim()
+        worksheet.mergeCells(currentRow, 1, currentRow, 4)
+        currentRow++
+      })
+    }
+
     // Notes section
     if (invoice.notes) {
       currentRow++ // Empty row
@@ -1098,6 +1123,31 @@ export class ClientSideExcelRenderer implements ExcelRenderer {
       alignment: { horizontal: 'right', vertical: 'middle' },
     })
     currentRow++
+
+    // Terms section
+    if (po.terms || adminSettings.defaultTerms) {
+      currentRow++ // Empty row
+      worksheet.getCell(currentRow, 1).value = 'Terms and Conditions:'
+      this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true })
+      currentRow++
+
+      const terms = po.terms || adminSettings.defaultTerms || ''
+      const termsText = terms
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<p[^>]*>/gi, '')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<div[^>]*>/gi, '')
+        .replace(/<[^>]+>/g, '')
+        .trim()
+
+      termsText.split('\n').forEach((line) => {
+        if (!line.trim()) return
+        worksheet.getCell(currentRow, 1).value = line.trim()
+        worksheet.mergeCells(currentRow, 1, currentRow, 4)
+        currentRow++
+      })
+    }
 
     // Notes section
     if (po.notes) {

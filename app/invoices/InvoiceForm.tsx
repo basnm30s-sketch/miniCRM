@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import {
     Card,
     CardContent,
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import RichTextEditor from '@/components/ui/rich-text-editor'
 import {
     Select,
     SelectContent,
@@ -28,7 +30,8 @@ import {
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Trash2, FileText, Sheet, FileType, Pencil } from 'lucide-react'
+import { Plus, Trash2, FileText, Sheet, FileType, Pencil, ArrowLeft } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     getAdminSettings,
     initializeAdminSettings,
@@ -43,7 +46,13 @@ import { pdfRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
 import { Invoice, InvoiceItem, AdminSettings, Customer, Vehicle } from '@/lib/types'
-import { validateInvoice, validateInvoiceForExport, ValidationError } from '@/lib/validation'
+import {
+    normalizeInvoiceStatus,
+    validateInvoice,
+    validateInvoiceForExport,
+    ValidationError,
+} from '@/lib/validation'
+import { DEFAULT_INVOICE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
 
 interface InvoiceFormProps {
     initialData?: Invoice
@@ -71,18 +80,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     const [isDirty, setIsDirty] = useState(false)
     const [isInvoiceNumberEditable, setIsInvoiceNumberEditable] = useState(false)
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
-    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
-        serialNumber: true,
-        vehicleNumber: true,
-        description: true,
-        rentalBasis: true,
-        quantity: true,
-        rate: true,
-        grossAmount: true,
-        tax: true,
-        netAmount: true,
-        amountReceived: true,
-    })
+    const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_INVOICE_COLUMNS }))
 
     // Determine if editing based on props or internal logic
     const [invoice, setInvoice] = useState<Invoice>(() => {
@@ -107,7 +105,8 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
             tax: 0,
             total: 0,
             amountReceived: 0,
-            status: 'pending',
+            status: 'draft',
+            terms: '',
             notes: '',
         } as Invoice
 
@@ -117,6 +116,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                 ...initialData,
                 // If initialData has a customer object, extract its ID. Otherwise, use customerId if present.
                 customerId: initialData.customerId || '',
+                status: normalizeInvoiceStatus(initialData.status),
             }
         }
         return defaults
@@ -131,6 +131,15 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     }
 
     useEffect(() => {
+        const isHtmlEmpty = (html?: string) => {
+            if (!html) return true
+            const text = html
+                .replace(/&nbsp;/gi, ' ')
+                .replace(/<[^>]*>/g, '')
+                .trim()
+            return text.length === 0
+        }
+
         async function loadData() {
             try {
                 const settings = await getAdminSettings()
@@ -142,6 +151,14 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                     const initialized = await initializeAdminSettings()
                     setAdminSettings(initialized)
                     currentSettings = initialized
+                }
+
+                // If creating new (no initialData) and default terms exist, set them (without overwriting user edits)
+                if (!initialData && currentSettings?.defaultTerms) {
+                    setInvoice((prev) => {
+                        if (!isHtmlEmpty(prev.terms)) return prev
+                        return { ...prev, terms: currentSettings.defaultTerms }
+                    })
                 }
 
                 const customersData = await getAllCustomers()
@@ -261,8 +278,17 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                     if (vehicle) {
                         updated.vehicleTypeId = vehicle.id
                         updated.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
+                        updated.vehicleType = vehicle.vehicleType
+                        updated.make = vehicle.make
+                        updated.model = vehicle.model
+                        updated.year = vehicle.year
+                        updated.basePrice = vehicle.basePrice
                         if (!updated.description) {
                             updated.description = vehicle.description || ''
+                        }
+                        // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
+                        if (updated.unitPrice === 0 && vehicle.basePrice) {
+                            updated.unitPrice = vehicle.basePrice
                         }
                     }
                 }
@@ -354,7 +380,12 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     }
 
     const handleSaveInvoice = async (): Promise<boolean> => {
-        const validation = await validateInvoice(invoice, {
+        const invoiceForSave: Invoice = {
+            ...invoice,
+            status: normalizeInvoiceStatus(invoice.status),
+        }
+
+        const validation = await validateInvoice(invoiceForSave, {
             checkUniqueness: true,
             excludeInvoiceId: isEditMode ? invoice.id : undefined,
             checkCustomerExists: true,
@@ -375,7 +406,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
         try {
             const now = new Date().toISOString()
             const invoiceToSave: Invoice = {
-                ...invoice,
+                ...invoiceForSave,
                 createdAt: invoice.createdAt || now,
                 updatedAt: now,
             }
@@ -511,6 +542,13 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     return (
         <div className="p-8">
             <div className="mb-4">
+                <Link 
+                    href="/invoices" 
+                    className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-2"
+                >
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back to Invoices
+                </Link>
                 <h1 className="text-2xl font-bold text-slate-900">
                     {isEditMode ? 'Edit Invoice' : 'Create New Invoice'}
                 </h1>
@@ -519,11 +557,10 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                 </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
-                {/* Main Form */}
-                <div className="col-span-2 space-y-6">
-                    {/* Invoice Details */}
-                    <Card>
+            {/* Invoice Details, Customer & Summary Row */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+                {/* Invoice Details */}
+                <Card>
                         <CardHeader className="py-3">
                             <CardTitle className="text-base">Invoice Details</CardTitle>
                         </CardHeader>
@@ -590,17 +627,16 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                 <div>
                                     <Label htmlFor="status" className="text-slate-700 text-xs">Status</Label>
                                     <Select
-                                        value={invoice.status}
-                                        onValueChange={(val: any) => setInvoice({ ...invoice, status: val })}
+                                        value={normalizeInvoiceStatus(invoice.status)}
+                                        onValueChange={(val: any) => setInvoice({ ...invoice, status: normalizeInvoiceStatus(val) })}
                                     >
                                         <SelectTrigger className="h-8 mt-1">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="pending">Pending</SelectItem>
-                                            <SelectItem value="paid">Paid</SelectItem>
-                                            <SelectItem value="overdue">Overdue</SelectItem>
-                                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                                            <SelectItem value="draft">Draft</SelectItem>
+                                            <SelectItem value="invoice_sent">Invoice Sent</SelectItem>
+                                            <SelectItem value="payment_received">Payment Received</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -629,60 +665,172 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                 </div>
                             </div>
                         </CardContent>
-                    </Card>
+                </Card>
 
-                    {/* Customer Selection */}
-                    <Card>
-                        <CardHeader className="py-3">
-                            <CardTitle className="text-base">Customer</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <Label htmlFor="customer" className="text-slate-700 text-xs">Select Customer</Label>
-                                <Select
-                                    value={invoice.customerId}
-                                    onValueChange={(value) => {
-                                        handleCustomerChange(value)
-                                    }}
+                {/* Customer Selection */}
+                <Card>
+                    <CardHeader className="py-3">
+                        <CardTitle className="text-base">Customer</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <Label htmlFor="customer" className="text-slate-700 text-xs">Select Customer</Label>
+                            <Select
+                                value={invoice.customerId}
+                                onValueChange={(value) => {
+                                    handleCustomerChange(value)
+                                }}
+                            >
+                                <SelectTrigger
+                                    className={`mt-1 h-8 ${validationErrors.some((e) => e.field === 'customer') ? 'border-red-500' : ''}`}
                                 >
-                                    <SelectTrigger
-                                        className={`mt-1 h-8 ${validationErrors.some((e) => e.field === 'customer') ? 'border-red-500' : ''}`}
-                                    >
-                                        {selectedCustomerDisplay || (
-                                            <span className="text-muted-foreground text-xs">Select a customer...</span>
-                                        )}
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {customers.map((customer, idx) => (
-                                            <SelectItem key={customer.id ?? `customer-${idx}`} value={customer.id}>
-                                                {customer.name} {customer.company && `(${customer.company})`}
-                                            </SelectItem>
-                                        ))}
-                                        <div className="px-2 py-2 border-t">
-                                            <button type="button" className="text-blue-600 hover:underline text-xs" onClick={() => setShowAddCustomer(true)}>
-                                                + Add Customer
-                                            </button>
-                                        </div>
-                                    </SelectContent>
-                                </Select>
+                                    {selectedCustomerDisplay || (
+                                        <span className="text-muted-foreground text-xs">Select a customer...</span>
+                                    )}
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {customers.map((customer, idx) => (
+                                        <SelectItem key={customer.id ?? `customer-${idx}`} value={customer.id}>
+                                            {customer.name} {customer.company && `(${customer.company})`}
+                                        </SelectItem>
+                                    ))}
+                                    <div className="px-2 py-2 border-t">
+                                        <button type="button" className="text-blue-600 hover:underline text-xs" onClick={() => setShowAddCustomer(true)}>
+                                            + Add Customer
+                                        </button>
+                                    </div>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {invoice.customerId && (
+                            <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
+                                <p className="font-semibold text-slate-900">
+                                    {customers.find(c => c.id === invoice.customerId)?.name}
+                                </p>
+                                {customers.find(c => c.id === invoice.customerId)?.company && (
+                                    <p className="text-xs text-slate-600">
+                                        {customers.find(c => c.id === invoice.customerId)?.company}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Summary Sidebar */}
+                <Card className="sticky top-8 h-fit">
+                    <CardHeader className="py-3">
+                        <CardTitle className="text-base">Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-1 pb-4 border-b text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-slate-600">Subtotal:</span>
+                                <span className="font-semibold text-slate-900">AED {invoice.subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-slate-600">Tax:</span>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-slate-600 text-xs">AED</span>
+                                    <Input
+                                        type="number"
+                                        value={invoice.tax}
+                                        onChange={(e) => handleTaxChange(parseFloat(e.target.value) || 0)}
+                                        className="h-6 w-20 text-right text-xs"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-between text-base font-bold pt-2">
+                            <span className="text-slate-700">Total:</span>
+                            <span className="text-blue-600">AED {invoice.total.toFixed(2)}</span>
+                        </div>
+
+                        <div className="space-y-1 pt-2 border-t text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-slate-600">Amount Received:</span>
+                                <Input
+                                    type="number"
+                                    value={invoice.amountReceived || ''}
+                                    onChange={(e) => setInvoice({ ...invoice, amountReceived: parseFloat(e.target.value) || 0 })}
+                                    className="h-6 w-20 text-right text-xs"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-600">Pending:</span>
+                                <span className={`font-semibold ${((invoice.total || 0) - (invoice.amountReceived || 0)) > 0 ? 'text-orange-600' : 'text-slate-900'}`}>
+                                    AED {((invoice.total || 0) - (invoice.amountReceived || 0)).toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+
+                        {validationErrors.length > 0 && (
+                            <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                                <p className="font-semibold">Errors:</p>
+                                <ul className="list-disc list-inside">
+                                    {validationErrors.slice(0, 2).map((e, i) => <li key={i}>{e.message}</li>)}
+                                    {validationErrors.length > 2 && <li>...and more</li>}
+                                </ul>
+                            </div>
+                        )}
+
+                        <div className="pt-4 space-y-2">
+                            <div className="grid grid-cols-3 gap-2">
+                                <Button
+                                    onClick={handleDownloadPDF}
+                                    disabled={!!exportDisabledReason}
+                                    size="sm"
+                                    className="bg-action-pdf hover:bg-action-pdf/90 text-white shadow-sm h-8 px-0"
+                                    title="PDF"
+                                >
+                                    <FileText className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                    onClick={handleDownloadExcel}
+                                    disabled={!!exportDisabledReason}
+                                    size="sm"
+                                    className="bg-action-excel hover:bg-action-excel/90 text-white shadow-sm h-8 px-0"
+                                    title="Excel"
+                                >
+                                    <Sheet className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                    onClick={handleDownloadDocx}
+                                    disabled={!!exportDisabledReason}
+                                    size="sm"
+                                    className="bg-action-word hover:bg-action-word/90 text-white shadow-sm h-8 px-0"
+                                    title="Word"
+                                >
+                                    <FileType className="w-3 h-3" />
+                                </Button>
                             </div>
 
-                            {invoice.customerId && (
-                                <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
-                                    <p className="font-semibold text-slate-900">
-                                        {customers.find(c => c.id === invoice.customerId)?.name}
-                                    </p>
-                                    {customers.find(c => c.id === invoice.customerId)?.company && (
-                                        <p className="text-xs text-slate-600">
-                                            {customers.find(c => c.id === invoice.customerId)?.company}
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                            <Button
+                                onClick={() => handleSaveInvoice()}
+                                disabled={saving}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md h-9"
+                            >
+                                {saving ? 'Saving...' : 'Save Invoice'}
+                            </Button>
 
-                    {/* Add Customer Modal */}
+                            {onCancel && (
+                                <Button
+                                    variant="outline"
+                                    onClick={onCancel}
+                                    className="w-full shadow-sm hover:bg-slate-50 h-9"
+                                >
+                                    Cancel
+                                </Button>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Add Customer Modal */}
                     {showAddCustomer && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center">
                             <div className="fixed inset-0 bg-black/40" onClick={() => setShowAddCustomer(false)} />
@@ -776,8 +924,8 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                         </div>
                     )}
 
-                    {/* Line Items */}
-                    <Card>
+            {/* Line Items - Full Width */}
+            <Card className="mb-6">
                         <CardHeader className="py-3">
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-base">Line Items</CardTitle>
@@ -798,6 +946,10 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                         <tr>
                                             {visibleColumns.serialNumber !== false && <th className="text-center p-2">#</th>}
                                             {visibleColumns.vehicleNumber !== false && <th className="text-left p-2">Vehicle</th>}
+                                            {visibleColumns.vehicleType !== false && <th className="text-left p-2">Type</th>}
+                                            {visibleColumns.makeModel !== false && <th className="text-left p-2">Make/Model</th>}
+                                            {visibleColumns.year !== false && <th className="text-center p-2">Year</th>}
+                                            {visibleColumns.basePrice !== false && <th className="text-right p-2">Base Price</th>}
                                             {visibleColumns.description !== false && <th className="text-left p-2">Description</th>}
                                             {visibleColumns.rentalBasis !== false && <th className="text-center p-2">Basis</th>}
                                             {visibleColumns.quantity !== false && <th className="text-right p-2">Qty</th>}
@@ -818,25 +970,52 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                             {item.serialNumber || index + 1}
                                                         </td>
                                                     )}
-                                                    {visibleColumns.vehicleNumber !== false && (
-                                                        <td className="p-2 min-w-[100px]">
-                                                            <Select
-                                                                value={item.vehicleNumber || ''}
-                                                                onValueChange={(value) => handleLineItemChange(item.id, 'vehicleNumber', value)}
-                                                            >
-                                                                <SelectTrigger className="h-7 text-xs">
-                                                                    <SelectValue placeholder="Vehicle..." />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {vehicles.map((vehicle, idx) => (
-                                                                        <SelectItem key={vehicle.id ?? `vehicle-${idx}`} value={vehicle.vehicleNumber || ''}>
-                                                                            {vehicle.vehicleNumber || 'Unknown'}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </td>
-                                                    )}
+                                            {visibleColumns.vehicleNumber !== false && (
+                                                <td className="p-2 min-w-[100px]">
+                                                    <Select
+                                                        value={item.vehicleNumber || ''}
+                                                        onValueChange={(value) => handleLineItemChange(item.id, 'vehicleNumber', value)}
+                                                    >
+                                                        <SelectTrigger className="h-7 text-xs">
+                                                            <SelectValue placeholder="Vehicle..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {vehicles.map((vehicle, idx) => {
+                                                                const displayText = vehicle.make && vehicle.model && vehicle.year
+                                                                    ? `${vehicle.vehicleNumber || 'Unknown'} - ${vehicle.make} ${vehicle.model} (${vehicle.year})`
+                                                                    : vehicle.make && vehicle.model
+                                                                    ? `${vehicle.vehicleNumber || 'Unknown'} - ${vehicle.make} ${vehicle.model}`
+                                                                    : vehicle.vehicleNumber || 'Unknown'
+                                                                return (
+                                                                    <SelectItem key={vehicle.id ?? `vehicle-${idx}`} value={vehicle.vehicleNumber || ''}>
+                                                                        {displayText}
+                                                                    </SelectItem>
+                                                                )
+                                                            })}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </td>
+                                            )}
+                                            {visibleColumns.vehicleType !== false && (
+                                                <td className="p-2 text-left text-slate-700 min-w-[80px]">
+                                                    {item.vehicleType || '-'}
+                                                </td>
+                                            )}
+                                            {visibleColumns.makeModel !== false && (
+                                                <td className="p-2 text-left text-slate-700 min-w-[120px]">
+                                                    {item.make && item.model ? `${item.make} ${item.model}` : '-'}
+                                                </td>
+                                            )}
+                                            {visibleColumns.year !== false && (
+                                                <td className="p-2 text-center text-slate-700 min-w-[60px]">
+                                                    {item.year || '-'}
+                                                </td>
+                                            )}
+                                            {visibleColumns.basePrice !== false && (
+                                                <td className="p-2 text-right text-slate-700 min-w-[80px]">
+                                                    {item.basePrice ? item.basePrice.toFixed(2) : '-'}
+                                                </td>
+                                            )}
                                                     {visibleColumns.description !== false && (
                                                         <td className="p-2 min-w-[120px]">
                                                             <Input
@@ -848,18 +1027,27 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                     )}
                                                     {visibleColumns.rentalBasis !== false && (
                                                         <td className="p-2 min-w-[90px]">
-                                                            <Select
-                                                                value={item.rentalBasis || ''}
-                                                                onValueChange={(value) => handleLineItemChange(item.id, 'rentalBasis', value || undefined)}
-                                                            >
-                                                                <SelectTrigger className="h-7 text-xs">
-                                                                    <SelectValue placeholder="-" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="hourly">Hourly</SelectItem>
-                                                                    <SelectItem value="monthly">Monthly</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <div>
+                                                                        <Select
+                                                                            value={item.rentalBasis || ''}
+                                                                            onValueChange={(value) => handleLineItemChange(item.id, 'rentalBasis', value || undefined)}
+                                                                        >
+                                                                            <SelectTrigger className="h-7 text-xs">
+                                                                                <SelectValue placeholder="-" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="hourly">Hourly</SelectItem>
+                                                                                <SelectItem value="monthly">Monthly</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Rental basis: Hourly (rate per hour) or Monthly (rate per month)</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     )}
                                                     {visibleColumns.quantity !== false && (
@@ -886,24 +1074,47 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                     )}
                                                     {visibleColumns.grossAmount !== false && (
                                                         <td className="p-2 text-right text-slate-700 w-[80px]">
-                                                            {(item.grossAmount || 0).toFixed(2)}
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="cursor-help">{(item.grossAmount || 0).toFixed(2)}</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Gross = Quantity × Rate</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     )}
                                                     {visibleColumns.tax !== false && (
                                                         <td className="p-2 text-right w-[60px]">
-                                                            <Input
-                                                                type="number"
-                                                                min="0"
-                                                                max="100"
-                                                                value={item.taxPercent}
-                                                                onChange={(e) => handleLineItemChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0)}
-                                                                className="h-7 text-xs text-right px-1"
-                                                            />
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <div>
+                                                                        <Input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            max="100"
+                                                                            value={item.taxPercent}
+                                                                            onChange={(e) => handleLineItemChange(item.id, 'taxPercent', parseFloat(e.target.value) || 0)}
+                                                                            className="h-7 text-xs text-right px-1"
+                                                                        />
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Tax percentage (0-100%). Tax = Gross × Tax% / 100</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     )}
                                                     {visibleColumns.netAmount !== false && (
                                                         <td className="p-2 text-right text-slate-700 font-semibold w-[80px]">
-                                                            {(item.lineTotal || 0).toFixed(2)}
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="cursor-help">{(item.lineTotal || 0).toFixed(2)}</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Net = Gross + Tax</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </td>
                                                     )}
                                                     {visibleColumns.amountReceived !== false && (
@@ -940,128 +1151,41 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                 Add Line Item
                             </Button>
                         </CardContent>
-                    </Card>
+            </Card>
 
-                    {/* Additional Notes */}
-                    <Card>
-                        <CardHeader className="py-3">
-                            <CardTitle className="text-base">Notes</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <Textarea
-                                value={invoice.notes}
-                                onChange={(e) => setInvoice({ ...invoice, notes: e.target.value })}
-                                placeholder="Add notes..."
-                                rows={3}
-                                className="text-xs"
-                            />
-                        </CardContent>
-                    </Card>
-                </div>
+            {/* Terms & Conditions - Full Width */}
+            <Card>
+                <CardHeader className="py-3">
+                    <CardTitle className="text-base">Terms &amp; Conditions</CardTitle>
+                    <CardDescription className="text-xs">
+                        Defaults come from Admin Settings. Editing here overrides the default for this invoice.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <RichTextEditor
+                        value={invoice.terms || ''}
+                        onChange={(html) => setInvoice({ ...invoice, terms: html })}
+                        placeholder="Enter terms and conditions..."
+                        rows={8}
+                    />
+                </CardContent>
+            </Card>
 
-                {/* Summary Sidebar */}
-                <div>
-                    <Card className="sticky top-8">
-                        <CardHeader className="py-3">
-                            <CardTitle className="text-base">Summary</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-1 pb-4 border-b text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-slate-600">Subtotal:</span>
-                                    <span className="font-semibold text-slate-900">AED {invoice.subtotal.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-slate-600">Tax:</span>
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-slate-600 text-xs">AED</span>
-                                        <Input
-                                            type="number"
-                                            value={invoice.tax}
-                                            onChange={(e) => handleTaxChange(parseFloat(e.target.value) || 0)}
-                                            className="h-6 w-20 text-right text-xs"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex justify-between text-base font-bold pt-2">
-                                <span className="text-slate-700">Total:</span>
-                                <span className="text-blue-600">AED {invoice.total.toFixed(2)}</span>
-                            </div>
-
-                            <div className="space-y-1 pt-2 border-t text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-slate-600">Amount Received:</span>
-                                    <Input
-                                        type="number"
-                                        value={invoice.amountReceived || ''}
-                                        onChange={(e) => setInvoice({ ...invoice, amountReceived: parseFloat(e.target.value) || 0 })}
-                                        className="h-6 w-20 text-right text-xs"
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-slate-600">Pending:</span>
-                                    <span className={`font-semibold ${((invoice.total || 0) - (invoice.amountReceived || 0)) > 0 ? 'text-orange-600' : 'text-slate-900'}`}>
-                                        AED {((invoice.total || 0) - (invoice.amountReceived || 0)).toFixed(2)}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="pt-4 space-y-2">
-                                <div className="grid grid-cols-3 gap-2">
-                                    <Button
-                                        onClick={handleDownloadPDF}
-                                        disabled={!!exportDisabledReason}
-                                        size="sm"
-                                        className="bg-action-pdf hover:bg-action-pdf/90 text-white shadow-sm h-8 px-0"
-                                        title="PDF"
-                                    >
-                                        <FileText className="w-3 h-3" />
-                                    </Button>
-                                    <Button
-                                        onClick={handleDownloadExcel}
-                                        disabled={!!exportDisabledReason}
-                                        size="sm"
-                                        className="bg-action-excel hover:bg-action-excel/90 text-white shadow-sm h-8 px-0"
-                                        title="Excel"
-                                    >
-                                        <Sheet className="w-3 h-3" />
-                                    </Button>
-                                    <Button
-                                        onClick={handleDownloadDocx}
-                                        disabled={!!exportDisabledReason}
-                                        size="sm"
-                                        className="bg-action-word hover:bg-action-word/90 text-white shadow-sm h-8 px-0"
-                                        title="Word"
-                                    >
-                                        <FileType className="w-3 h-3" />
-                                    </Button>
-                                </div>
-
-                                <Button
-                                    onClick={() => handleSaveInvoice()}
-                                    disabled={saving}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md h-9"
-                                >
-                                    {saving ? 'Saving...' : 'Save Invoice'}
-                                </Button>
-
-                                {onCancel && (
-                                    <Button
-                                        variant="outline"
-                                        onClick={onCancel}
-                                        className="w-full shadow-sm hover:bg-slate-50 h-9"
-                                    >
-                                        Cancel
-                                    </Button>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
+            {/* Additional Notes - Full Width */}
+            <Card>
+                <CardHeader className="py-3">
+                    <CardTitle className="text-base">Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Textarea
+                        value={invoice.notes}
+                        onChange={(e) => setInvoice({ ...invoice, notes: e.target.value })}
+                        placeholder="Add notes..."
+                        rows={3}
+                        className="text-xs"
+                    />
+                </CardContent>
+            </Card>
 
             {/* Column Customization Dialog */}
             <Dialog open={showColumnCustomizer} onOpenChange={setShowColumnCustomizer}>
@@ -1076,6 +1200,10 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                         {[
                             { key: 'serialNumber', label: 'Sl. no.' },
                             { key: 'vehicleNumber', label: 'Vehicle number' },
+                            { key: 'vehicleType', label: 'Vehicle Type' },
+                            { key: 'makeModel', label: 'Make/Model' },
+                            { key: 'year', label: 'Year' },
+                            { key: 'basePrice', label: 'Base Price' },
                             { key: 'description', label: 'Description' },
                             { key: 'rentalBasis', label: 'Rental basis' },
                             { key: 'quantity', label: 'Qty' },

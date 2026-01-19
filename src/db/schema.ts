@@ -17,6 +17,9 @@ export const adminSettings = sqliteTable('admin_settings', {
   quoteNumberPattern: text('quoteNumberPattern'),
   currency: text('currency'),
   defaultTerms: text('defaultTerms'),
+  // Doc-type specific defaults (fallback to defaultTerms for backward compatibility)
+  defaultInvoiceTerms: text('defaultInvoiceTerms'),
+  defaultPurchaseOrderTerms: text('defaultPurchaseOrderTerms'),
   showRevenueTrend: integer('showRevenueTrend', { mode: 'boolean' }).default(true),
   showQuickActions: integer('showQuickActions', { mode: 'boolean' }).default(true),
   showReports: integer('showReports', { mode: 'boolean' }),
@@ -156,6 +159,7 @@ export const purchaseOrders = sqliteTable('purchase_orders', {
   amount: real('amount'),
   currency: text('currency'),
   status: text('status'), // 'draft' | 'sent' | 'accepted'
+  terms: text('terms'),
   notes: text('notes'),
   createdAt: text('createdAt'),
 })

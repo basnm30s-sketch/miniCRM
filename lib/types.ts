@@ -80,6 +80,8 @@ export interface AdminSettings {
   quoteNumberPattern: string; // e.g., "AAT-YYYYMMDD-NNNN"
   currency: string; // e.g., "AED"
   defaultTerms?: string; // default Terms and Conditions text
+  defaultInvoiceTerms?: string; // default Terms and Conditions text for invoices
+  defaultPurchaseOrderTerms?: string; // default Terms and Conditions text for purchase orders
   showRevenueTrend?: boolean; // Show/hide revenue trend chart on home page
   showQuickActions?: boolean; // Show/hide quick actions on home page
   showReports?: boolean; // Show/hide Reports menu in sidebar
@@ -154,6 +156,11 @@ export interface QuoteLineItem {
   vehicleTypeId: string;
   vehicleTypeLabel: string; // display name (Item name)
   vehicleNumber?: string; // NEW - from vehicle master
+  vehicleType?: string; // Vehicle type from vehicle master
+  make?: string; // Vehicle make from vehicle master
+  model?: string; // Vehicle model from vehicle master
+  year?: number; // Vehicle year from vehicle master
+  basePrice?: number; // Base price from vehicle master (for reference)
   description?: string; // NEW - from vehicle master
   rentalBasis?: 'hourly' | 'monthly'; // NEW - rental basis selection
   quantity: number; // integer >= 1 (now represents hours or months)
@@ -241,6 +248,7 @@ export interface PurchaseOrder {
   amount?: number;
   currency?: string;
   status?: string; // draft, sent, accepted
+  terms?: string; // Terms and Conditions for this purchase order
   notes?: string;
   createdAt?: string;
 }
@@ -251,6 +259,11 @@ export interface POItem {
   vehicleTypeId?: string; // Optional - reference to vehicle master (for backward compatibility)
   vehicleTypeLabel?: string; // Display name (Item name)
   vehicleNumber?: string; // From vehicle master
+  vehicleType?: string; // Vehicle type from vehicle master
+  make?: string; // Vehicle make from vehicle master
+  model?: string; // Vehicle model from vehicle master
+  year?: number; // Vehicle year from vehicle master
+  basePrice?: number; // Base price from vehicle master (for reference)
   description?: string; // Optional - can be auto-filled from vehicle or manually entered
   rentalBasis?: 'hourly' | 'monthly'; // Rental basis selection
   quantity: number;
@@ -344,6 +357,11 @@ export interface InvoiceItem {
   vehicleTypeId?: string // Optional - reference to vehicle master (for backward compatibility)
   vehicleTypeLabel?: string // Display name (Item name)
   vehicleNumber?: string // From vehicle master
+  vehicleType?: string // Vehicle type from vehicle master
+  make?: string // Vehicle make from vehicle master
+  model?: string // Vehicle model from vehicle master
+  year?: number // Vehicle year from vehicle master
+  basePrice?: number // Base price from vehicle master (for reference)
   description?: string // Optional - can be auto-filled from vehicle or manually entered
   rentalBasis?: 'hourly' | 'monthly' // Rental basis selection
   quantity: number

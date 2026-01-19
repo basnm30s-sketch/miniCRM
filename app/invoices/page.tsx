@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import InvoiceForm from '@/app/invoices/InvoiceForm'
 import { useInvoices, useDeleteInvoice, useUpdateInvoice } from '@/hooks/use-invoices'
 import { useCustomers } from '@/hooks/use-customers'
 import { getAdminSettings } from '@/lib/storage'
+import { useAdminSettings } from '@/hooks/use-admin-settings'
 import { pdfRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
@@ -47,6 +48,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { normalizeInvoiceStatus } from '@/lib/validation'
+import { TwoPaneListHeader } from '@/components/TwoPaneListHeader'
+import { ReadOnlyLineItemsTable } from '@/components/doc-generator/ReadOnlyLineItemsTable'
+import { DEFAULT_INVOICE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
 
 export default function InvoicesPage() {
   const router = useRouter()
@@ -54,43 +59,30 @@ export default function InvoicesPage() {
   const { data: customers = [] } = useCustomers()
   const deleteMutation = useDeleteInvoice()
   const updateMutation = useUpdateInvoice()
+  const { data: adminSettings, isLoading: settingsLoading } = useAdminSettings()
   
-  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null)
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null)
   const [savingAmount, setSavingAmount] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [useTwoPane, setUseTwoPane] = useState(true)
   const [showTerms, setShowTerms] = useState(false)
 
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const settingsData = await getAdminSettings()
-        setAdminSettings(settingsData)
-        
-        // Determine view mode
-        const twoPaneValue = settingsData?.showInvoicesTwoPane
-        const twoPaneEnabled = twoPaneValue === false || twoPaneValue === 0
-          ? false
-          : (twoPaneValue === true || twoPaneValue === 1)
-            ? true
-            : true
-        setUseTwoPane(twoPaneEnabled)
-        
-        // Auto-select first invoice if available and two-pane is enabled
-        if (twoPaneEnabled && invoices.length > 0) {
-          setSelectedInvoice((prev) => prev || invoices[0])
-        }
-      } catch (err) {
-        console.error('Error loading settings:', err)
-      }
-    }
+  const useTwoPane = useMemo(() => {
+    // Backward-compatible default: true when unset
+    return adminSettings?.showInvoicesTwoPane !== false
+  }, [adminSettings?.showInvoicesTwoPane])
 
-    loadSettings()
-  }, [invoices])
+  useEffect(() => {
+    if (!useTwoPane) return
+    if (invoices.length === 0) return
+
+    setSelectedInvoice((prev) => {
+      if (prev && invoices.some((inv) => inv.id === prev.id)) return prev
+      return invoices[0]
+    })
+  }, [useTwoPane, invoices])
 
   const handleDeleteClick = (id: string) => {
     setInvoiceToDelete(id)
@@ -134,30 +126,24 @@ export default function InvoicesPage() {
 
   // Simplified badge colors
   const getStatusColor = (status?: string) => {
-    switch (status) {
+    switch (normalizeInvoiceStatus(status)) {
       case 'payment_received':
-      case 'paid':
         return 'bg-green-100 text-green-700 border-green-200'
       case 'invoice_sent':
-      case 'sent':
         return 'bg-blue-100 text-blue-700 border-blue-200'
-      case 'overdue':
-        return 'bg-red-100 text-red-700 border-red-200'
-      case 'cancelled':
-        return 'bg-slate-100 text-slate-500 border-slate-200 line-through'
       default:
         return 'bg-slate-100 text-slate-600 border-slate-200'
     }
   }
 
   const getStatusDisplay = (status?: string) => {
-    switch (status) {
+    switch (normalizeInvoiceStatus(status)) {
       case 'payment_received':
         return 'Paid'
       case 'invoice_sent':
         return 'Sent'
       default:
-        return (status && status.charAt(0).toUpperCase() + status.slice(1)) || 'Draft'
+        return 'Draft'
     }
   }
 
@@ -205,13 +191,14 @@ export default function InvoicesPage() {
 
   const handleDownloadPDF = async (invoice: Invoice) => {
     try {
-      if (!adminSettings) {
+      const settings = adminSettings || (await getAdminSettings())
+      if (!settings) {
         toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
         return
       }
       const customer = customers.find((c) => c.id === invoice.customerId)
       const customerName = customer?.name || 'Unknown Customer'
-      const blob = await pdfRenderer.renderInvoiceToPdf(invoice, adminSettings, customerName)
+      const blob = await pdfRenderer.renderInvoiceToPdf(invoice, settings, customerName)
       pdfRenderer.downloadPdf(blob, `invoice-${invoice.number}.pdf`)
       toast({ title: 'Success', description: 'PDF downloaded successfully' })
     } catch (error) {
@@ -222,13 +209,14 @@ export default function InvoicesPage() {
 
   const handleDownloadExcel = async (invoice: Invoice) => {
     try {
-      if (!adminSettings) {
+      const settings = adminSettings || (await getAdminSettings())
+      if (!settings) {
         toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
         return
       }
       const customer = customers.find((c) => c.id === invoice.customerId)
       const customerName = customer?.name || 'Unknown Customer'
-      const blob = await excelRenderer.renderInvoiceToExcel(invoice, adminSettings, customerName)
+      const blob = await excelRenderer.renderInvoiceToExcel(invoice, settings, customerName)
       excelRenderer.downloadExcel(blob, `invoice-${invoice.number}.xlsx`)
       toast({ title: 'Success', description: 'Excel file downloaded successfully' })
     } catch (error) {
@@ -239,13 +227,14 @@ export default function InvoicesPage() {
 
   const handleDownloadDocx = async (invoice: Invoice) => {
     try {
-      if (!adminSettings) {
+      const settings = adminSettings || (await getAdminSettings())
+      if (!settings) {
         toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
         return
       }
       const customer = customers.find((c) => c.id === invoice.customerId)
       const customerName = customer?.name || 'Unknown Customer'
-      const blob = await docxRenderer.renderInvoiceToDocx(invoice, adminSettings, customerName)
+      const blob = await docxRenderer.renderInvoiceToDocx(invoice, settings, customerName)
       docxRenderer.downloadDocx(blob, `invoice-${invoice.number}.docx`)
       toast({ title: 'Success', description: 'Word document downloaded successfully' })
     } catch (error) {
@@ -273,14 +262,14 @@ export default function InvoicesPage() {
       const updatedInvoice: Invoice = {
         ...invoice,
         amountReceived: newAmount,
-        status: newAmount >= invoiceTotal ? 'paid' : newAmount > 0 ? 'payment_received' : 'pending' // Auto-update status logic
+        status: newAmount >= invoiceTotal ? 'payment_received' : 'invoice_sent',
       }
 
       const result = await updateMutation.mutateAsync({
         id: invoiceId,
         data: {
           amountReceived: newAmount,
-          status: newAmount >= invoiceTotal ? 'paid' : newAmount > 0 ? 'payment_received' : 'pending',
+          status: newAmount >= invoiceTotal ? 'payment_received' : 'invoice_sent',
         },
       })
       
@@ -295,7 +284,7 @@ export default function InvoicesPage() {
       
       // Update selected invoice if it's the one being edited
       if (selectedInvoice?.id === invoiceId) {
-        setSelectedInvoice({ ...invoice, amountReceived: newAmount, status: newAmount >= invoiceTotal ? 'paid' : newAmount > 0 ? 'payment_received' : 'pending' })
+        setSelectedInvoice({ ...invoice, amountReceived: newAmount, status: newAmount >= invoiceTotal ? 'payment_received' : 'invoice_sent' })
       }
       toast({ title: 'Success', description: 'Amount received updated successfully' })
     } catch (err) {
@@ -313,7 +302,7 @@ export default function InvoicesPage() {
     setIsEditing(false)
   }
 
-  if (loading) {
+  if (loading || settingsLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="text-slate-500 animate-pulse">Loading invoices...</div>
@@ -337,23 +326,32 @@ export default function InvoicesPage() {
           <h1 className="text-2xl font-bold text-slate-900">Invoices</h1>
           <p className="text-sm text-slate-500">Create, manage, and track your invoices</p>
         </div>
-        <Link href="/invoices/create">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-            <Plus className="w-4 h-4 mr-2" />
-            New Invoice
-          </Button>
-        </Link>
+        {!useTwoPane && (
+          <Link href="/invoices/create">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+              <Plus className="w-4 h-4 mr-2" />
+              New Invoice
+            </Button>
+          </Link>
+        )}
       </div>
 
       {useTwoPane ? (
         <div className="flex flex-1 overflow-hidden">
           {/* Left Pane - List View */}
           <div className="w-[380px] border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
-          <div className="p-3 bg-slate-50/50 border-b border-slate-200 sticky top-0 z-10 backdrop-blur-sm">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">
-              All Invoices ({invoices.length})
-            </div>
-          </div>
+          <TwoPaneListHeader
+            title="All Invoices"
+            count={invoices.length}
+            action={
+              <Link href="/invoices/create">
+                <Button size="sm" className="h-7 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Invoice
+                </Button>
+              </Link>
+            }
+          />
 
           <div className="divide-y divide-slate-100">
             {invoices.length === 0 ? (
@@ -515,91 +513,49 @@ export default function InvoicesPage() {
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
-                  {/* Payment Status Card - Prominent */}
-                  <Card className="shadow-sm border-blue-100 bg-blue-50/30">
-                    <CardHeader className="pb-2 pt-3 border-b border-blue-100/50">
-                      <CardTitle className="text-sm font-medium text-blue-900 uppercase tracking-wider flex items-center gap-2">
-                        <CreditCard className="w-4 h-4" />
-                        Payment Details
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-3 grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="block text-slate-500 text-xs mb-1">Total Amount</span>
-                        <span className="text-lg font-bold text-slate-900">AED {(selectedInvoice.total || 0).toFixed(2)}</span>
-                      </div>
-                      <div className="flex flex-col justify-center">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs font-medium text-slate-600">Amount Received</span>
-                          {editingInvoiceId === selectedInvoice.id ? (
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              max={selectedInvoice.total || 0}
-                              defaultValue={selectedInvoice.amountReceived || 0}
-                              onBlur={(e) => {
-                                const newAmount = parseFloat(e.target.value) || 0
-                                handleAmountReceivedChange(selectedInvoice.id, newAmount, selectedInvoice.total || 0)
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  const newAmount = parseFloat((e.target as HTMLInputElement).value) || 0
-                                  handleAmountReceivedChange(selectedInvoice.id, newAmount, selectedInvoice.total || 0)
-                                } else if (e.key === 'Escape') {
-                                  setEditingInvoiceId(null)
-                                }
-                              }}
-                              autoFocus
-                              className="w-28 h-8 text-right bg-white"
-                              disabled={savingAmount}
-                            />
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="text-green-700 font-bold text-lg">AED {(selectedInvoice.amountReceived || 0).toFixed(2)}</span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-slate-400 hover:text-blue-600"
-                                onClick={() => setEditingInvoiceId(selectedInvoice.id)}
-                              >
-                                <Edit3 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mt-1">
-                          <div
-                            className="h-full bg-green-500 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min(100, ((selectedInvoice.amountReceived || 0) / (selectedInvoice.total || 1)) * 100)}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between mt-1">
-                          <span className="text-[10px] text-slate-400">0%</span>
-                          {((selectedInvoice.total || 0) - (selectedInvoice.amountReceived || 0)) > 0.01 && (
-                            <span className="text-[10px] font-medium text-orange-600">
-                              AED {((selectedInvoice.total || 0) - (selectedInvoice.amountReceived || 0)).toFixed(2)} Remaining
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
                   {/* Customer Details & Summary Group */}
                   <div className="grid grid-cols-3 gap-4">
                     {/* Customer Details */}
                     <Card className="col-span-2 shadow-sm border-slate-200">
                       <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Customer Information</CardTitle>
+                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Customer Details</CardTitle>
                       </CardHeader>
-                      <CardContent className="pt-3">
-                        <div className="space-y-1">
-                          <span className="block text-slate-500 text-xs text-sm font-medium text-slate-900">{getCustomerName(selectedInvoice.customerId)}</span>
-                          {/* Would add more customer details here if available in the invoice object directly or by deeper lookup */}
-                        </div>
+                      <CardContent className="pt-3 grid grid-cols-2 gap-4 text-sm">
+                        {(() => {
+                          const customer = getCustomerDetails(selectedInvoice.customerId)
+                          return (
+                            <>
+                              <div>
+                                <span className="block text-slate-500 text-xs mb-1">Customer Name</span>
+                                <span className="font-medium text-slate-900">{customer?.name || getCustomerName(selectedInvoice.customerId) || 'N/A'}</span>
+                              </div>
+                              {customer?.company && (
+                                <div>
+                                  <span className="block text-slate-500 text-xs mb-1">Company</span>
+                                  <span className="font-medium text-slate-900">{customer.company}</span>
+                                </div>
+                              )}
+                              {customer?.email && (
+                                <div>
+                                  <span className="block text-slate-500 text-xs mb-1">Email</span>
+                                  <span className="text-slate-900">{customer.email}</span>
+                                </div>
+                              )}
+                              {customer?.phone && (
+                                <div>
+                                  <span className="block text-slate-500 text-xs mb-1">Phone</span>
+                                  <span className="text-slate-900">{customer.phone}</span>
+                                </div>
+                              )}
+                              {customer?.address && (
+                                <div className="col-span-2">
+                                  <span className="block text-slate-500 text-xs mb-1">Details</span>
+                                  <span className="text-slate-900">{customer.address}</span>
+                                </div>
+                              )}
+                            </>
+                          )
+                        })()}
                       </CardContent>
                     </Card>
 
@@ -621,6 +577,67 @@ export default function InvoicesPage() {
                           <span className="font-semibold text-slate-900">Total</span>
                           <span className="text-xl font-bold text-slate-900">AED {(selectedInvoice.total || 0).toFixed(2)}</span>
                         </div>
+
+                        {/* Payment (merged into Summary for consistency) */}
+                        <div className="pt-3 mt-3 border-t border-slate-100 space-y-2">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-slate-600">Received</span>
+                            {editingInvoiceId === selectedInvoice.id ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max={selectedInvoice.total || 0}
+                                defaultValue={selectedInvoice.amountReceived || 0}
+                                onBlur={(e) => {
+                                  const newAmount = parseFloat(e.target.value) || 0
+                                  handleAmountReceivedChange(selectedInvoice.id, newAmount, selectedInvoice.total || 0)
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const newAmount = parseFloat((e.target as HTMLInputElement).value) || 0
+                                    handleAmountReceivedChange(selectedInvoice.id, newAmount, selectedInvoice.total || 0)
+                                  } else if (e.key === 'Escape') {
+                                    setEditingInvoiceId(null)
+                                  }
+                                }}
+                                autoFocus
+                                className="w-28 h-8 text-right bg-white"
+                                disabled={savingAmount}
+                              />
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-slate-900">AED {(selectedInvoice.amountReceived || 0).toFixed(2)}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-slate-400 hover:text-blue-600"
+                                  onClick={() => setEditingInvoiceId(selectedInvoice.id)}
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex justify-between text-sm text-slate-600">
+                            <span>Pending</span>
+                            <span className="font-semibold text-slate-900">
+                              AED {Math.max(0, (selectedInvoice.total || 0) - (selectedInvoice.amountReceived || 0)).toFixed(2)}
+                            </span>
+                          </div>
+                          {/* Progress bar (optional, kept but inside Summary) */}
+                          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mt-1">
+                            <div
+                              className="h-full bg-green-500 rounded-full transition-all duration-500"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  ((selectedInvoice.amountReceived || 0) / (selectedInvoice.total || 1)) * 100
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   </div>
@@ -628,43 +645,31 @@ export default function InvoicesPage() {
                   {/* Line Items - Full Width */}
                   <Card className="shadow-sm border-slate-200">
                     <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                      <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Invoice Items</CardTitle>
+                      <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Line Items</CardTitle>
                     </CardHeader>
-                    <CardContent className="p-0">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100">
-                          <tr>
-                            <th className="text-left py-3 px-4 font-medium">Description</th>
-                            <th className="text-right py-3 px-4 font-medium">Qty</th>
-                            <th className="text-right py-3 px-4 font-medium">Price</th>
-                            <th className="text-right py-3 px-4 font-medium">Tax</th>
-                            <th className="text-right py-3 px-4 font-medium">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {selectedInvoice.items?.map((item, index) => {
-                            const itemTotal = item.quantity * item.unitPrice
-                            const taxAmount = item.lineTaxAmount || item.tax || 0
-                            const lineTotal = item.lineTotal || (itemTotal + taxAmount)
-
-                            return (
-                              <tr key={index} className="hover:bg-slate-50/50">
-                                <td className="py-3 px-4 font-medium text-slate-700">{item.description || 'Item'}</td>
-                                <td className="py-3 px-4 text-right text-slate-600">{item.quantity}</td>
-                                <td className="py-3 px-4 text-right text-slate-600">AED {item.unitPrice.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right text-slate-500 text-xs">AED {taxAmount.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right font-semibold text-slate-900">AED {lineTotal.toFixed(2)}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
+                    <CardContent className="py-3">
+                      <ReadOnlyLineItemsTable
+                        variant="invoice"
+                        items={(selectedInvoice.items || []) as any}
+                        visibleColumns={DEFAULT_INVOICE_COLUMNS}
+                      />
                     </CardContent>
                   </Card>
 
                   {/* Additional Info (Terms/Notes) */}
                   {(selectedInvoice.terms || selectedInvoice.notes) && (
                     <div className="grid grid-cols-1 gap-4">
+                      {selectedInvoice.notes && (
+                        <Card className="shadow-sm border-slate-200">
+                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
+                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-3">
+                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedInvoice.notes}</p>
+                          </CardContent>
+                        </Card>
+                      )}
+
                       {selectedInvoice.terms && (
                         <Card className="shadow-sm border-slate-200">
                           <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
@@ -683,17 +688,6 @@ export default function InvoicesPage() {
                                 <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showTerms ? 'rotate-180' : ''}`} />
                               </button>
                             )}
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {selectedInvoice.notes && (
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-3">
-                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedInvoice.notes}</p>
                           </CardContent>
                         </Card>
                       )}

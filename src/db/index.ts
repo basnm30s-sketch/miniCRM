@@ -6,6 +6,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import * as path from 'path'
+import * as fs from 'fs'
 import { getDatabasePath } from '../../lib/db-config'
 import * as schema from './schema'
 
@@ -22,6 +23,21 @@ export function getDb() {
 
   try {
     const dbPath = getDatabasePath()
+    
+    // Check if database directory exists, create if it doesn't
+    const dbDir = path.dirname(dbPath)
+    if (!fs.existsSync(dbDir)) {
+      console.log(`Creating database directory: ${dbDir}`)
+      fs.mkdirSync(dbDir, { recursive: true })
+    }
+    
+    // Check if database file exists
+    const dbExists = fs.existsSync(dbPath)
+    if (!dbExists) {
+      console.warn(`Database file does not exist at: ${dbPath}. It will be created on first write.`)
+    }
+    
+    // Initialize database connection
     sqliteInstance = new Database(dbPath)
     
     // Enable foreign keys
@@ -32,9 +48,16 @@ export function getDb() {
     
     console.log(`Drizzle database initialized at: ${dbPath}`)
     return dbInstance
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to initialize Drizzle database:', error)
-    throw error
+    console.error('Error details:', {
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack,
+      name: error?.name,
+    })
+    // Re-throw with more context
+    throw new Error(`Database initialization failed: ${error?.message || 'Unknown error'}`)
   }
 }
 

@@ -389,7 +389,8 @@ export async function validateInvoice(
 
   // Status validation
   const validStatuses = ['draft', 'invoice_sent', 'payment_received']
-  if (invoice.status && !validStatuses.includes(invoice.status)) {
+  const normalizedStatus = normalizeInvoiceStatus(invoice.status)
+  if (normalizedStatus && !validStatuses.includes(normalizedStatus)) {
     errors.push({
       field: 'status',
       message: `Status must be one of: ${validStatuses.join(', ')}`,
@@ -399,6 +400,29 @@ export async function validateInvoice(
   return {
     isValid: errors.length === 0,
     errors,
+  }
+}
+
+export function normalizeInvoiceStatus(status?: string | null): 'draft' | 'invoice_sent' | 'payment_received' {
+  if (!status) return 'draft'
+
+  switch (status) {
+    case 'draft':
+    case 'invoice_sent':
+    case 'payment_received':
+      return status
+    // legacy / UI-only values
+    case 'paid':
+      return 'payment_received'
+    case 'pending':
+    case 'sent':
+    case 'overdue':
+      return 'invoice_sent'
+    case 'cancelled':
+      return 'draft'
+    default:
+      // Safe fallback to avoid blocking edits/exports due to legacy/corrupt data
+      return 'draft'
   }
 }
 

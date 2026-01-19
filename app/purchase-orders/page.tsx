@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
 import PurchaseOrderForm from '@/app/purchase-orders/PurchaseOrderForm'
 import { getAllPurchaseOrders, deletePurchaseOrder, getAllVendors, getAdminSettings, savePurchaseOrder } from '@/lib/storage'
+import { useAdminSettings } from '@/hooks/use-admin-settings'
 import { pdfRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
@@ -44,45 +45,36 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useRouter } from 'next/navigation'
 import { Edit3 } from 'lucide-react'
+import { TwoPaneListHeader } from '@/components/TwoPaneListHeader'
+import { ReadOnlyLineItemsTable } from '@/components/doc-generator/ReadOnlyLineItemsTable'
+import { DEFAULT_PO_COLUMNS } from '@/lib/doc-generator/line-item-columns'
 
 export default function PurchaseOrdersPage() {
   const router = useRouter()
   const [pos, setPos] = useState<PurchaseOrder[]>([])
   const [vendors, setVendors] = useState<Vendor[]>([])
-  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
+  const { data: adminSettings, isLoading: settingsLoading } = useAdminSettings()
   const [loading, setLoading] = useState(true)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [poToDelete, setPoToDelete] = useState<string | null>(null)
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [useTwoPane, setUseTwoPane] = useState(true)
   const [showTerms, setShowTerms] = useState(false)
+
+  const useTwoPane = useMemo(() => {
+    // Backward-compatible default: true when unset
+    return adminSettings?.showPurchaseOrdersTwoPane !== false
+  }, [adminSettings?.showPurchaseOrdersTwoPane])
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [allPos, allVendors, settings] = await Promise.all([
+        const [allPos, allVendors] = await Promise.all([
           getAllPurchaseOrders(),
           getAllVendors(),
-          getAdminSettings(),
         ])
         setPos(allPos)
         setVendors(allVendors)
-        setAdminSettings(settings)
-        
-        // Determine view mode (default to true if not set, but respect explicit false/0)
-        const twoPaneValue = settings?.showPurchaseOrdersTwoPane
-        const twoPaneEnabled = twoPaneValue === false || twoPaneValue === 0
-          ? false
-          : (twoPaneValue === true || twoPaneValue === 1)
-            ? true
-            : true // default to true if null/undefined
-        setUseTwoPane(twoPaneEnabled)
-        
-        // Auto-select first PO if available and two-pane is enabled
-        if (twoPaneEnabled && allPos.length > 0) {
-          setSelectedPO((prev) => prev || allPos[0])
-        }
       } catch (error) {
         console.error('Error loading data:', error)
       } finally {
@@ -92,6 +84,16 @@ export default function PurchaseOrdersPage() {
 
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (!useTwoPane) return
+    if (pos.length === 0) return
+
+    setSelectedPO((prev) => {
+      if (prev && pos.some((p) => p.id === prev.id)) return prev
+      return pos[0]
+    })
+  }, [useTwoPane, pos])
 
   const handleDeleteClick = (id: string) => {
     setPoToDelete(id)
@@ -121,13 +123,14 @@ export default function PurchaseOrdersPage() {
 
   const handleDownloadPDF = async (po: PurchaseOrder) => {
     try {
-      if (!adminSettings) {
+      const settings = adminSettings || (await getAdminSettings())
+      if (!settings) {
         toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
         return
       }
       const vendor = vendors.find((v) => v.id === po.vendorId)
       const vendorName = vendor?.name || 'Unknown Vendor'
-      const blob = await pdfRenderer.renderPurchaseOrderToPdf(po, adminSettings, vendorName)
+      const blob = await pdfRenderer.renderPurchaseOrderToPdf(po, settings, vendorName)
       pdfRenderer.downloadPdf(blob, `po-${po.number}.pdf`)
       toast({ title: 'Success', description: 'PDF downloaded successfully' })
     } catch (error) {
@@ -138,13 +141,14 @@ export default function PurchaseOrdersPage() {
 
   const handleDownloadExcel = async (po: PurchaseOrder) => {
     try {
-      if (!adminSettings) {
+      const settings = adminSettings || (await getAdminSettings())
+      if (!settings) {
         toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
         return
       }
       const vendor = vendors.find((v) => v.id === po.vendorId)
       const vendorName = vendor?.name || 'Unknown Vendor'
-      const blob = await excelRenderer.renderPurchaseOrderToExcel(po, adminSettings, vendorName)
+      const blob = await excelRenderer.renderPurchaseOrderToExcel(po, settings, vendorName)
       excelRenderer.downloadExcel(blob, `po-${po.number}.xlsx`)
       toast({ title: 'Success', description: 'Excel file downloaded successfully' })
     } catch (error) {
@@ -155,13 +159,14 @@ export default function PurchaseOrdersPage() {
 
   const handleDownloadDocx = async (po: PurchaseOrder) => {
     try {
-      if (!adminSettings) {
+      const settings = adminSettings || (await getAdminSettings())
+      if (!settings) {
         toast({ title: 'Error', description: 'Admin settings not configured', variant: 'destructive' })
         return
       }
       const vendor = vendors.find((v) => v.id === po.vendorId)
       const vendorName = vendor?.name || 'Unknown Vendor'
-      const blob = await docxRenderer.renderPurchaseOrderToDocx(po, adminSettings, vendorName)
+      const blob = await docxRenderer.renderPurchaseOrderToDocx(po, settings, vendorName)
       docxRenderer.downloadDocx(blob, `po-${po.number}.docx`)
       toast({ title: 'Success', description: 'Word document downloaded successfully' })
     } catch (error) {
@@ -210,7 +215,7 @@ export default function PurchaseOrdersPage() {
     setIsEditing(false)
   }
 
-  if (loading) {
+  if (loading || settingsLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="text-slate-500 animate-pulse">Loading purchase orders...</div>
@@ -226,23 +231,32 @@ export default function PurchaseOrdersPage() {
           <h1 className="text-2xl font-bold text-slate-900">Purchase Orders</h1>
           <p className="text-sm text-slate-500">Manage and track purchase orders to vendors</p>
         </div>
-        <Link href="/purchase-orders/create">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Create PO
-          </Button>
-        </Link>
+        {!useTwoPane && (
+          <Link href="/purchase-orders/create">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Create PO
+            </Button>
+          </Link>
+        )}
       </div>
 
       {useTwoPane ? (
         <div className="flex flex-1 overflow-hidden">
           {/* Left Pane - List View */}
           <div className="w-[380px] border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
-          <div className="p-3 bg-slate-50/50 border-b border-slate-200 sticky top-0 z-10 backdrop-blur-sm">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">
-              All Orders ({pos.length})
-            </div>
-          </div>
+          <TwoPaneListHeader
+            title="All Orders"
+            count={pos.length}
+            action={
+              <Link href="/purchase-orders/create">
+                <Button size="sm" className="h-7 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create PO
+                </Button>
+              </Link>
+            }
+          />
 
           <div className="divide-y divide-slate-100">
             {pos.length === 0 ? (
@@ -386,7 +400,7 @@ export default function PurchaseOrdersPage() {
                       <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
                         <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider flex items-center gap-2">
                           <Truck className="w-4 h-4" />
-                          Vendor Information
+                          Vendor Details
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="pt-3 grid grid-cols-2 gap-4 text-sm">
@@ -394,34 +408,38 @@ export default function PurchaseOrdersPage() {
                           <span className="block text-slate-500 text-xs mb-1">Vendor Name</span>
                           <span className="font-medium text-slate-900">{getVendorName(selectedPO.vendorId)}</span>
                         </div>
-                        {selectedPO.vendor && (
-                          <>
-                            {selectedPO.vendor.contactPerson && (
-                              <div>
-                                <span className="block text-slate-500 text-xs mb-1">Contact Person</span>
-                                <span className="text-slate-900">{selectedPO.vendor.contactPerson}</span>
-                              </div>
-                            )}
-                            {selectedPO.vendor.email && (
-                              <div>
-                                <span className="block text-slate-500 text-xs mb-1">Email</span>
-                                <span className="text-slate-900">{selectedPO.vendor.email}</span>
-                              </div>
-                            )}
-                            {selectedPO.vendor.phone && (
-                              <div>
-                                <span className="block text-slate-500 text-xs mb-1">Phone</span>
-                                <span className="text-slate-900">{selectedPO.vendor.phone}</span>
-                              </div>
-                            )}
-                            {selectedPO.vendor.address && (
-                              <div className="col-span-2">
-                                <span className="block text-slate-500 text-xs mb-1">Address</span>
-                                <span className="text-slate-900">{selectedPO.vendor.address}</span>
-                              </div>
-                            )}
-                          </>
-                        )}
+                        {(() => {
+                          const vendor = getVendorDetails(selectedPO.vendorId)
+                          if (!vendor) return null
+                          return (
+                            <>
+                              {vendor.contactPerson && (
+                                <div>
+                                  <span className="block text-slate-500 text-xs mb-1">Contact Person</span>
+                                  <span className="text-slate-900">{vendor.contactPerson}</span>
+                                </div>
+                              )}
+                              {vendor.email && (
+                                <div>
+                                  <span className="block text-slate-500 text-xs mb-1">Email</span>
+                                  <span className="text-slate-900">{vendor.email}</span>
+                                </div>
+                              )}
+                              {vendor.phone && (
+                                <div>
+                                  <span className="block text-slate-500 text-xs mb-1">Phone</span>
+                                  <span className="text-slate-900">{vendor.phone}</span>
+                                </div>
+                              )}
+                              {vendor.address && (
+                                <div className="col-span-2">
+                                  <span className="block text-slate-500 text-xs mb-1">Details</span>
+                                  <span className="text-slate-900">{vendor.address}</span>
+                                </div>
+                              )}
+                            </>
+                          )
+                        })()}
                       </CardContent>
                     </Card>
 
@@ -450,41 +468,31 @@ export default function PurchaseOrdersPage() {
                   {/* Line Items - Full Width */}
                   <Card className="shadow-sm border-slate-200">
                     <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                      <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Order Items</CardTitle>
+                      <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Line Items</CardTitle>
                     </CardHeader>
-                    <CardContent className="p-0">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100">
-                          <tr>
-                            <th className="text-left py-3 px-4 font-medium">Description</th>
-                            <th className="text-right py-3 px-4 font-medium">Qty</th>
-                            <th className="text-right py-3 px-4 font-medium">Price</th>
-                            <th className="text-right py-3 px-4 font-medium">Tax</th>
-                            <th className="text-right py-3 px-4 font-medium">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {selectedPO.items?.map((item) => {
-                            const itemTotal = item.quantity * item.unitPrice
-                            const taxAmount = item.tax || item.lineTaxAmount || 0
-                            return (
-                              <tr key={item.id} className="hover:bg-slate-50/50">
-                                <td className="py-3 px-4 font-medium text-slate-700">{item.description || item.vehicleTypeLabel || 'N/A'}</td>
-                                <td className="py-3 px-4 text-right text-slate-600">{item.quantity}</td>
-                                <td className="py-3 px-4 text-right text-slate-600">AED {item.unitPrice.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right text-slate-500 text-xs">AED {taxAmount.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right font-semibold text-slate-900">AED {(itemTotal + taxAmount).toFixed(2)}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
+                    <CardContent className="py-3">
+                      <ReadOnlyLineItemsTable
+                        variant="purchaseOrder"
+                        items={(selectedPO.items || []) as any}
+                        visibleColumns={DEFAULT_PO_COLUMNS}
+                      />
                     </CardContent>
                   </Card>
 
                   {/* Additional Info (Terms/Notes) */}
                   {(selectedPO.terms || selectedPO.notes) && (
                     <div className="grid grid-cols-1 gap-4">
+                      {selectedPO.notes && (
+                        <Card className="shadow-sm border-slate-200">
+                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
+                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-3">
+                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedPO.notes}</p>
+                          </CardContent>
+                        </Card>
+                      )}
+
                       {selectedPO.terms && (
                         <Card className="shadow-sm border-slate-200">
                           <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
@@ -503,17 +511,6 @@ export default function PurchaseOrdersPage() {
                                 <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showTerms ? 'rotate-180' : ''}`} />
                               </button>
                             )}
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {selectedPO.notes && (
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-3">
-                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedPO.notes}</p>
                           </CardContent>
                         </Card>
                       )}

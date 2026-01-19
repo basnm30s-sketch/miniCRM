@@ -239,495 +239,531 @@ export default function AdminSettingsPage() {
   const sealUrl = getBrandingUrl('seal', branding.extensions.seal)
   const signatureUrl = getBrandingUrl('signature', branding.extensions.signature)
 
+  const jumpLinks = [
+    { href: '#company', label: 'Company' },
+    { href: '#branding', label: 'Branding' },
+    { href: '#terms', label: 'Default Terms' },
+    { href: '#configuration', label: 'Home Configuration' },
+    { href: '#pdfFooter', label: 'PDF Footer' },
+  ] as const
+
+  const ToggleRow = ({
+    id,
+    label,
+    description,
+    checked,
+    onCheckedChange,
+  }: {
+    id: string
+    label: string
+    description: string
+    checked: boolean
+    onCheckedChange: (checked: boolean) => void
+  }) => {
+    return (
+      <div className="flex items-center justify-between gap-6">
+        <div className="space-y-0.5">
+          <Label htmlFor={id}>{label}</Label>
+          <p className="text-sm text-gray-500">{description}</p>
+        </div>
+        <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      </div>
+    )
+  }
+
+  const BrandingUploadTile = ({
+    id,
+    title,
+    helpText,
+    uploaded,
+    uploadingThis,
+    previewUrl,
+    onFileChange,
+  }: {
+    id: 'logo' | 'seal' | 'signature'
+    title: string
+    helpText: string
+    uploaded: boolean
+    uploadingThis: boolean
+    previewUrl: string | null
+    onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  }) => {
+    const handleChooseFile = () => {
+      const input = document.getElementById(id) as HTMLInputElement | null
+      input?.click()
+    }
+
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Label htmlFor={id} className="text-sm font-semibold text-gray-900">
+              {title}
+            </Label>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleChooseFile}
+            disabled={uploadingThis}
+          >
+            {uploadingThis ? 'Uploading…' : uploaded ? 'Replace' : 'Upload'}
+          </Button>
+          <Input
+            id={id}
+            type="file"
+            accept="image/*"
+            onChange={onFileChange}
+            disabled={uploadingThis}
+            className="sr-only"
+          />
+        </div>
+
+        <div className="mt-3 flex h-24 items-center justify-center rounded-md border border-slate-200 bg-slate-50 p-2">
+          {uploaded && previewUrl ? (
+            <img
+              src={previewUrl}
+              alt={`${title} preview`}
+              className="max-h-20 max-w-full object-contain"
+            />
+          ) : (
+            <p className="text-xs text-gray-500">No image uploaded</p>
+          )}
+        </div>
+
+        <div className="mt-2 flex items-center justify-between gap-2">
+          {uploaded ? (
+            <p className="text-xs text-action-excel">✓ Uploaded</p>
+          ) : (
+            <p className="text-xs text-gray-500">Not uploaded</p>
+          )}
+        </div>
+
+        <p className="mt-1 text-xs text-gray-500">{helpText}</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6 p-6 pb-24">
-      <div>
-        <h1 className="text-3xl font-bold">Admin Settings</h1>
-        <p className="text-gray-500">Manage company profile and branding for quotes</p>
+    <div className="p-6 pb-24">
+      <div className="-mx-6 mb-6 sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+        <h1 className="text-2xl font-bold">Settings</h1>
       </div>
 
-      {/* Company Profile */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Company Profile</CardTitle>
-          <CardDescription>
-            Basic information about your company
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="companyName">Company Name</Label>
-            <Input
-              id="companyName"
-              value={settings.companyName}
-              onChange={(e) => handleInputChange('companyName', e.target.value)}
-              placeholder="ALMSAR ALZAKI TRANSPORT AND MAINTENANCE"
-            />
+      <div className="lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6">
+        {/* Desktop sticky “Jump to” */}
+        <nav className="hidden lg:block">
+          <div className="sticky top-24 rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm font-semibold text-gray-900">Jump to</p>
+            <div className="mt-3 space-y-1">
+              {jumpLinks.map((l) => (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  className="block rounded px-2 py-1 text-sm text-gray-700 hover:bg-slate-50 hover:text-gray-900"
+                >
+                  {l.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        </nav>
+
+        <div className="space-y-6">
+          {/* Mobile jump links */}
+          <div className="lg:hidden rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-sm font-semibold text-gray-900">Jump to</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {jumpLinks.map((l) => (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-sm text-gray-700 hover:bg-slate-50"
+                >
+                  {l.label}
+                </a>
+              ))}
+            </div>
           </div>
 
-          <div>
-            <Label htmlFor="address">Address</Label>
-            <Textarea
-              id="address"
-              value={settings.address}
-              onChange={(e) => handleInputChange('address', e.target.value)}
-              placeholder="Street address, City, Country"
-              rows={5}
-            />
+          {/* Company + Branding */}
+          <div className="grid items-stretch gap-6 xl:grid-cols-2">
+            <section id="company" className="scroll-mt-24 h-full">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Company Profile</CardTitle>
+                  <CardDescription>Basic information about your company</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <Label htmlFor="companyName">Company Name</Label>
+                      <Input
+                        id="companyName"
+                        value={settings.companyName ?? ''}
+                        onChange={(e) => handleInputChange('companyName', e.target.value)}
+                        placeholder="ALMSAR ALZAKI TRANSPORT AND MAINTENANCE"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea
+                        id="address"
+                        value={settings.address ?? ''}
+                        onChange={(e) => handleInputChange('address', e.target.value)}
+                        placeholder="Street address, City, Country"
+                        rows={5}
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="vatNumber">TRN:</Label>
+                      <Input
+                        id="vatNumber"
+                        value={settings.vatNumber ?? ''}
+                        onChange={(e) => handleInputChange('vatNumber', e.target.value)}
+                        placeholder="e.g., AE123456789"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="currency">Currency</Label>
+                      <Input
+                        id="currency"
+                        value={settings.currency ?? ''}
+                        readOnly
+                        disabled
+                        className="bg-gray-100"
+                      />
+                      <p className="mt-1 text-sm text-gray-500">Currency is fixed to AED</p>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <Label htmlFor="quoteNumberPattern">Doc Number Pattern</Label>
+                      <Input
+                        id="quoteNumberPattern"
+                        value={settings.quoteNumberPattern ?? ''}
+                        onChange={(e) => handleInputChange('quoteNumberPattern', e.target.value)}
+                        placeholder="AAT-YYYYMMDD-NNNN"
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        Use YYYY (year), MM (month), DD (day), NNNN (number)
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="branding" className="scroll-mt-24 h-full">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Branding</CardTitle>
+                  <CardDescription>
+                    Upload logo, seal and signature images (stored as files, auto-used in documents)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <BrandingUploadTile
+                      id="logo"
+                      title="Logo (for header)"
+                      helpText="Max size: 2MB. Recommended: PNG or JPG"
+                      uploaded={branding.logo}
+                      uploadingThis={uploading === 'logo'}
+                      previewUrl={logoUrl}
+                      onFileChange={(e) => handleImageUpload(e, 'logo')}
+                    />
+                    <BrandingUploadTile
+                      id="seal"
+                      title="Seal (for header)"
+                      helpText="Max size: 2MB. Recommended: PNG with transparency"
+                      uploaded={branding.seal}
+                      uploadingThis={uploading === 'seal'}
+                      previewUrl={sealUrl}
+                      onFileChange={(e) => handleImageUpload(e, 'seal')}
+                    />
+                    <BrandingUploadTile
+                      id="signature"
+                      title="Signature (for footer)"
+                      helpText="Max size: 2MB. Recommended: PNG with transparency"
+                      uploaded={branding.signature}
+                      uploadingThis={uploading === 'signature'}
+                      previewUrl={signatureUrl}
+                      onFileChange={(e) => handleImageUpload(e, 'signature')}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
           </div>
 
-          <div>
-            <Label htmlFor="vatNumber">TRN:</Label>
-            <Input
-              id="vatNumber"
-              value={settings.vatNumber}
-              onChange={(e) => handleInputChange('vatNumber', e.target.value)}
-              placeholder="e.g., AE123456789"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="currency">Currency</Label>
-            <Input
-              id="currency"
-              value={settings.currency}
-              readOnly
-              disabled
-              className="bg-gray-100"
-            />
-            <p className="text-sm text-gray-500 mt-1">Currency is fixed to AED</p>
-          </div>
-
-          <div>
-            <Label htmlFor="quoteNumberPattern">Quote Number Pattern</Label>
-            <Input
-              id="quoteNumberPattern"
-              value={settings.quoteNumberPattern}
-              onChange={(e) => handleInputChange('quoteNumberPattern', e.target.value)}
-              placeholder="AAT-YYYYMMDD-NNNN"
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              Use YYYY (year), MM (month), DD (day), NNNN (number)
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Default Terms & Conditions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Default Terms & Conditions</CardTitle>
-          <CardDescription>These terms will be used as the default when creating a new quote.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RichTextEditor
-            value={settings.defaultTerms || ''}
-            onChange={(html) => handleInputChange('defaultTerms' as keyof typeof settings, html)}
-            placeholder="Default terms and conditions (will be copied into new quotes)."
-            rows={6}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Branding Images */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Branding</CardTitle>
-          <CardDescription>Upload logo, seal and signature images (stored as files, auto-used in documents)</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Logo */}
-          <div>
-            <Label htmlFor="logo">Logo (for header)</Label>
-            <Input
-              id="logo"
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleImageUpload(e, 'logo')}
-              disabled={uploading === 'logo'}
-              className="mb-2"
-            />
-            {uploading === 'logo' && <p className="text-sm text-primary">Uploading...</p>}
-            {branding.logo && logoUrl && (
-              <div className="mt-2">
-                <img
-                  src={logoUrl}
-                  alt="Logo preview"
-                  style={{ maxHeight: '80px', maxWidth: '200px' }}
-                  className="border rounded p-2"
+          {/* Default Terms & Conditions */}
+          <section id="terms" className="scroll-mt-24">
+            <Card>
+              <CardHeader>
+                <CardTitle>Default Terms & Conditions</CardTitle>
+                <CardDescription>
+                  These terms will be used as the default when creating a new quote.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RichTextEditor
+                  value={settings.defaultTerms || ''}
+                  onChange={(html) => handleInputChange('defaultTerms' as keyof typeof settings, html)}
+                  placeholder="Default terms and conditions (will be copied into new quotes)."
+                  rows={6}
                 />
-                <p className="text-sm text-action-excel mt-1">✓ Logo uploaded</p>
-              </div>
-            )}
-            {!branding.logo && (
-              <p className="text-sm text-gray-500 mt-1">No logo uploaded yet</p>
-            )}
-            <p className="text-sm text-gray-500 mt-1">Max size: 2MB. Recommended: PNG or JPG</p>
-          </div>
+              </CardContent>
+            </Card>
+          </section>
 
-          {/* Seal */}
-          <div>
-            <Label htmlFor="seal">Seal (for header)</Label>
-            <Input
-              id="seal"
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleImageUpload(e, 'seal')}
-              disabled={uploading === 'seal'}
-              className="mb-2"
-            />
-            {uploading === 'seal' && <p className="text-sm text-primary">Uploading...</p>}
-            {branding.seal && sealUrl && (
-              <div className="mt-2">
-                <img
-                  src={sealUrl}
-                  alt="Seal preview"
-                  style={{ maxHeight: '100px', maxWidth: '100px' }}
-                  className="border rounded p-2"
-                />
-                <p className="text-sm text-action-excel mt-1">✓ Seal uploaded</p>
-              </div>
-            )}
-            {!branding.seal && (
-              <p className="text-sm text-gray-500 mt-1">No seal uploaded yet</p>
-            )}
-            <p className="text-sm text-gray-500 mt-1">Max size: 2MB. Recommended: PNG with transparency</p>
-          </div>
-
-          {/* Signature */}
-          <div>
-            <Label htmlFor="signature">Signature (for footer)</Label>
-            <Input
-              id="signature"
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleImageUpload(e, 'signature')}
-              disabled={uploading === 'signature'}
-              className="mb-2"
-            />
-            {uploading === 'signature' && <p className="text-sm text-blue-600">Uploading...</p>}
-            {branding.signature && signatureUrl && (
-              <div className="mt-2">
-                <img
-                  src={signatureUrl}
-                  alt="Signature preview"
-                  style={{ maxHeight: '60px', maxWidth: '150px' }}
-                  className="border rounded p-2"
-                />
-                <p className="text-sm text-green-600 mt-1">✓ Signature uploaded</p>
-              </div>
-            )}
-            {!branding.signature && (
-              <p className="text-sm text-gray-500 mt-1">No signature uploaded yet</p>
-            )}
-            <p className="text-sm text-gray-500 mt-1">Max size: 2MB. Recommended: PNG with transparency</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Configuration</CardTitle>
-          <CardDescription>
-            Control which sections are displayed on the home screen
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Sidebar & Navigation */}
-          <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Sidebar & Navigation</h4>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="showReports">Show Reports Menu</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Reports menu item in the sidebar
-                </p>
-              </div>
-              <Switch
-                id="showReports"
-                checked={settings.showReports === true}
-                onCheckedChange={(checked) => handleInputChange('showReports', checked)}
-              />
+          {/* Configuration */}
+          <section id="configuration" className="scroll-mt-24">
+            <div className="mb-3">
+              <h2 className="text-xl font-semibold text-gray-900">Home Configuration</h2>
+              <p className="text-sm text-gray-500">Control which sections are displayed on the home screen</p>
             </div>
 
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showVehicleDashboard">Show Vehicle Dashboard</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Vehicle Dashboard menu item in the sidebar
-                </p>
-              </div>
-              <Switch
-                id="showVehicleDashboard"
-                checked={settings.showVehicleDashboard === true}
-                onCheckedChange={(checked) => handleInputChange('showVehicleDashboard', checked)}
-              />
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Sidebar & Navigation</CardTitle>
+                  <CardDescription>What shows up in the sidebar navigation.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ToggleRow
+                    id="showReports"
+                    label="Show Reports Menu"
+                    description="Display the Reports menu item in the sidebar"
+                    checked={settings.showReports === true}
+                    onCheckedChange={(checked) => handleInputChange('showReports', checked)}
+                  />
+                  <ToggleRow
+                    id="showVehicleDashboard"
+                    label="Show Vehicle Dashboard"
+                    description="Display the Vehicle Dashboard menu item in the sidebar"
+                    checked={settings.showVehicleDashboard === true}
+                    onCheckedChange={(checked) => handleInputChange('showVehicleDashboard', checked)}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Document list views</CardTitle>
+                  <CardDescription>Choose two-pane vs table-only views.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ToggleRow
+                    id="showQuotationsTwoPane"
+                    label="Quotations Two-Pane View"
+                    description="Display quotations in two-pane layout (list + detail). Disable for table-only view."
+                    checked={settings.showQuotationsTwoPane === true}
+                    onCheckedChange={(checked) => handleInputChange('showQuotationsTwoPane', checked)}
+                  />
+                  <ToggleRow
+                    id="showPurchaseOrdersTwoPane"
+                    label="Purchase Orders Two-Pane View"
+                    description="Display purchase orders in two-pane layout (list + detail). Disable for table-only view."
+                    checked={settings.showPurchaseOrdersTwoPane === true}
+                    onCheckedChange={(checked) => handleInputChange('showPurchaseOrdersTwoPane', checked)}
+                  />
+                  <ToggleRow
+                    id="showInvoicesTwoPane"
+                    label="Invoices Two-Pane View"
+                    description="Display invoices in two-pane layout (list + detail). Disable for table-only view."
+                    checked={settings.showInvoicesTwoPane === true}
+                    onCheckedChange={(checked) => handleInputChange('showInvoicesTwoPane', checked)}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Top section</CardTitle>
+                  <CardDescription>Controls what appears at the top of Home.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ToggleRow
+                    id="showQuickActions"
+                    label="Show Quick Actions"
+                    description="Display the quick actions section on the home screen"
+                    checked={settings.showQuickActions === true}
+                    onCheckedChange={(checked) => handleInputChange('showQuickActions', checked)}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Overview cards</CardTitle>
+                  <CardDescription>Top row cards on the Home dashboard.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ToggleRow
+                    id="showQuotationsInvoicesCard"
+                    label="Show Quotations & Invoices Card"
+                    description="Display the Quotations & Invoices overview card"
+                    checked={settings.showQuotationsInvoicesCard === true}
+                    onCheckedChange={(checked) => handleInputChange('showQuotationsInvoicesCard', checked)}
+                  />
+                  <ToggleRow
+                    id="showEmployeeSalariesCard"
+                    label="Show Employee Salaries Card"
+                    description="Display the Employee Salaries overview card"
+                    checked={settings.showEmployeeSalariesCard === true}
+                    onCheckedChange={(checked) => handleInputChange('showEmployeeSalariesCard', checked)}
+                  />
+                  <ToggleRow
+                    id="showVehicleRevenueExpensesCard"
+                    label="Show Vehicle Revenue & Expenses Card"
+                    description="Display the Vehicle Revenue & Expenses overview card"
+                    checked={settings.showVehicleRevenueExpensesCard === true}
+                    onCheckedChange={(checked) => handleInputChange('showVehicleRevenueExpensesCard', checked)}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">KPIs</CardTitle>
+                  <CardDescription>Middle row KPI sections.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ToggleRow
+                    id="showActivityThisMonth"
+                    label="Show Activity This Month"
+                    description="Display the Activity This Month metrics section"
+                    checked={settings.showActivityThisMonth === true}
+                    onCheckedChange={(checked) => handleInputChange('showActivityThisMonth', checked)}
+                  />
+                  <ToggleRow
+                    id="showFinancialHealth"
+                    label="Show Financial Health"
+                    description="Display the Financial Health metrics section"
+                    checked={settings.showFinancialHealth === true}
+                    onCheckedChange={(checked) => handleInputChange('showFinancialHealth', checked)}
+                  />
+                  <ToggleRow
+                    id="showBusinessOverview"
+                    label="Show Business Overview"
+                    description="Display the Business Overview metrics section"
+                    checked={settings.showBusinessOverview === true}
+                    onCheckedChange={(checked) => handleInputChange('showBusinessOverview', checked)}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Analytics & Reports</CardTitle>
+                  <CardDescription>Bottom section analytics cards.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ToggleRow
+                    id="showRevenueTrend"
+                    label="Show Revenue Trend Chart"
+                    description="Display the revenue trend chart"
+                    checked={settings.showRevenueTrend === true}
+                    onCheckedChange={(checked) => handleInputChange('showRevenueTrend', checked)}
+                  />
+                  <ToggleRow
+                    id="showTopCustomers"
+                    label="Show Top Customers by Value"
+                    description="Display the Top Customers by Value card"
+                    checked={settings.showTopCustomers === true}
+                    onCheckedChange={(checked) => handleInputChange('showTopCustomers', checked)}
+                  />
+                  <ToggleRow
+                    id="showActivitySummary"
+                    label="Show Activity Summary"
+                    description="Display the Activity Summary card"
+                    checked={settings.showActivitySummary === true}
+                    onCheckedChange={(checked) => handleInputChange('showActivitySummary', checked)}
+                  />
+                </CardContent>
+              </Card>
             </div>
+          </section>
 
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showQuotationsTwoPane">Quotations Two-Pane View</Label>
-                <p className="text-sm text-gray-500">
-                  Display quotations in two-pane layout (list + detail). Disable for table-only view.
-                </p>
-              </div>
-              <Switch
-                id="showQuotationsTwoPane"
-                checked={settings.showQuotationsTwoPane === true}
-                onCheckedChange={(checked) => handleInputChange('showQuotationsTwoPane', checked)}
-              />
-            </div>
+          {/* Footer Settings */}
+          <section id="pdfFooter" className="scroll-mt-24">
+            <Card>
+              <CardHeader>
+                <CardTitle>PDF Footer Settings</CardTitle>
+                <CardDescription>
+                  Configure footer address and contact details for PDF documents (English and Arabic)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-gray-900">English</h4>
+                    <div>
+                      <Label htmlFor="footerAddressEnglish">Footer Address (English)</Label>
+                      <Textarea
+                        id="footerAddressEnglish"
+                        value={settings.footerAddressEnglish || ''}
+                        onChange={(e) =>
+                          handleInputChange('footerAddressEnglish' as keyof typeof settings, e.target.value)
+                        }
+                        placeholder="Company address in English"
+                        rows={3}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="footerContactEnglish">Footer Contact Details (English)</Label>
+                      <Textarea
+                        id="footerContactEnglish"
+                        value={settings.footerContactEnglish || ''}
+                        onChange={(e) =>
+                          handleInputChange('footerContactEnglish' as keyof typeof settings, e.target.value)
+                        }
+                        placeholder="Phone, Email, Website in English"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
 
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showPurchaseOrdersTwoPane">Purchase Orders Two-Pane View</Label>
-                <p className="text-sm text-gray-500">
-                  Display purchase orders in two-pane layout (list + detail). Disable for table-only view.
-                </p>
-              </div>
-              <Switch
-                id="showPurchaseOrdersTwoPane"
-                checked={settings.showPurchaseOrdersTwoPane === true}
-                onCheckedChange={(checked) => handleInputChange('showPurchaseOrdersTwoPane', checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showInvoicesTwoPane">Invoices Two-Pane View</Label>
-                <p className="text-sm text-gray-500">
-                  Display invoices in two-pane layout (list + detail). Disable for table-only view.
-                </p>
-              </div>
-              <Switch
-                id="showInvoicesTwoPane"
-                checked={settings.showInvoicesTwoPane === true}
-                onCheckedChange={(checked) => handleInputChange('showInvoicesTwoPane', checked)}
-              />
-            </div>
-          </div>
-
-          {/* Top Section */}
-          <div className="pt-4 border-t border-gray-200">
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Top Section</h4>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="showQuickActions">Show Quick Actions</Label>
-                <p className="text-sm text-gray-500">
-                  Display the quick actions section on the home screen
-                </p>
-              </div>
-              <Switch
-                id="showQuickActions"
-                checked={settings.showQuickActions === true}
-                onCheckedChange={(checked) => handleInputChange('showQuickActions', checked)}
-              />
-            </div>
-          </div>
-
-          {/* Overview Cards */}
-          <div className="pt-4 border-t border-gray-200">
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Overview Cards (Top Row)</h4>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="showQuotationsInvoicesCard">Show Quotations & Invoices Card</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Quotations & Invoices overview card
-                </p>
-              </div>
-              <Switch
-                id="showQuotationsInvoicesCard"
-                checked={settings.showQuotationsInvoicesCard === true}
-                onCheckedChange={(checked) => handleInputChange('showQuotationsInvoicesCard', checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showEmployeeSalariesCard">Show Employee Salaries Card</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Employee Salaries overview card
-                </p>
-              </div>
-              <Switch
-                id="showEmployeeSalariesCard"
-                checked={settings.showEmployeeSalariesCard === true}
-                onCheckedChange={(checked) => handleInputChange('showEmployeeSalariesCard', checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showVehicleRevenueExpensesCard">Show Vehicle Revenue & Expenses Card</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Vehicle Revenue & Expenses overview card
-                </p>
-              </div>
-              <Switch
-                id="showVehicleRevenueExpensesCard"
-                checked={settings.showVehicleRevenueExpensesCard === true}
-                onCheckedChange={(checked) => handleInputChange('showVehicleRevenueExpensesCard', checked)}
-              />
-            </div>
-          </div>
-
-          {/* KPIs */}
-          <div className="pt-4 border-t border-gray-200">
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Key Performance Indicators (Middle Row)</h4>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="showActivityThisMonth">Show Activity This Month</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Activity This Month metrics section
-                </p>
-              </div>
-              <Switch
-                id="showActivityThisMonth"
-                checked={settings.showActivityThisMonth === true}
-                onCheckedChange={(checked) => handleInputChange('showActivityThisMonth', checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showFinancialHealth">Show Financial Health</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Financial Health metrics section
-                </p>
-              </div>
-              <Switch
-                id="showFinancialHealth"
-                checked={settings.showFinancialHealth === true}
-                onCheckedChange={(checked) => handleInputChange('showFinancialHealth', checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showBusinessOverview">Show Business Overview</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Business Overview metrics section
-                </p>
-              </div>
-              <Switch
-                id="showBusinessOverview"
-                checked={settings.showBusinessOverview === true}
-                onCheckedChange={(checked) => handleInputChange('showBusinessOverview', checked)}
-              />
-            </div>
-          </div>
-
-          {/* Analytics & Reports */}
-          <div className="pt-4 border-t border-gray-200">
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Analytics & Reports (Bottom Section)</h4>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="showRevenueTrend">Show Revenue Trend Chart</Label>
-                <p className="text-sm text-gray-500">
-                  Display the revenue trend chart
-                </p>
-              </div>
-              <Switch
-                id="showRevenueTrend"
-                checked={settings.showRevenueTrend === true}
-                onCheckedChange={(checked) => handleInputChange('showRevenueTrend', checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showTopCustomers">Show Top Customers by Value</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Top Customers by Value card
-                </p>
-              </div>
-              <Switch
-                id="showTopCustomers"
-                checked={settings.showTopCustomers === true}
-                onCheckedChange={(checked) => handleInputChange('showTopCustomers', checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between mt-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="showActivitySummary">Show Activity Summary</Label>
-                <p className="text-sm text-gray-500">
-                  Display the Activity Summary card
-                </p>
-              </div>
-              <Switch
-                id="showActivitySummary"
-                checked={settings.showActivitySummary === true}
-                onCheckedChange={(checked) => handleInputChange('showActivitySummary', checked)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Footer Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>PDF Footer Settings</CardTitle>
-          <CardDescription>
-            Configure footer address and contact details for PDF documents (English and Arabic)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="footerAddressEnglish">Footer Address (English)</Label>
-            <Textarea
-              id="footerAddressEnglish"
-              value={settings.footerAddressEnglish || ''}
-              onChange={(e) => handleInputChange('footerAddressEnglish' as keyof typeof settings, e.target.value)}
-              placeholder="Company address in English"
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="footerAddressArabic">Footer Address (Arabic)</Label>
-            <Textarea
-              id="footerAddressArabic"
-              value={settings.footerAddressArabic || ''}
-              onChange={(e) => handleInputChange('footerAddressArabic' as keyof typeof settings, e.target.value)}
-              placeholder="عنوان الشركة بالعربية"
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="footerContactEnglish">Footer Contact Details (English)</Label>
-            <Textarea
-              id="footerContactEnglish"
-              value={settings.footerContactEnglish || ''}
-              onChange={(e) => handleInputChange('footerContactEnglish' as keyof typeof settings, e.target.value)}
-              placeholder="Phone, Email, Website in English"
-              rows={2}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="footerContactArabic">Footer Contact Details (Arabic)</Label>
-            <Textarea
-              id="footerContactArabic"
-              value={settings.footerContactArabic || ''}
-              onChange={(e) => handleInputChange('footerContactArabic' as keyof typeof settings, e.target.value)}
-              placeholder="الهاتف، البريد الإلكتروني، الموقع الإلكتروني بالعربية"
-              rows={2}
-            />
-          </div>
-        </CardContent>
-      </Card>
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-gray-900">Arabic</h4>
+                    <div>
+                      <Label htmlFor="footerAddressArabic">Footer Address (Arabic)</Label>
+                      <Textarea
+                        id="footerAddressArabic"
+                        value={settings.footerAddressArabic || ''}
+                        onChange={(e) =>
+                          handleInputChange('footerAddressArabic' as keyof typeof settings, e.target.value)
+                        }
+                        placeholder="عنوان الشركة بالعربية"
+                        rows={3}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="footerContactArabic">Footer Contact Details (Arabic)</Label>
+                      <Textarea
+                        id="footerContactArabic"
+                        value={settings.footerContactArabic || ''}
+                        onChange={(e) =>
+                          handleInputChange('footerContactArabic' as keyof typeof settings, e.target.value)
+                        }
+                        placeholder="الهاتف، البريد الإلكتروني، الموقع الإلكتروني بالعربية"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        </div>
+      </div>
 
       {/* Save Button */}
-      <div className="sticky bottom-0 bg-white border-t border-slate-200 p-4 flex justify-end gap-2 z-10 shadow-sm mt-6">
+      <div className="sticky bottom-0 z-10 mt-6 flex justify-end gap-2 border-t border-slate-200 bg-white p-4 shadow-sm">
         <Button variant="outline">Cancel</Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save Settings'}

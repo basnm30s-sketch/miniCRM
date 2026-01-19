@@ -9,6 +9,14 @@ export function useInvoices() {
   return useQuery({
     queryKey: ['invoices'],
     queryFn: getAllInvoices,
+    retry: 1, // Retry once on failure
+    retryDelay: 1000, // Wait 1 second before retry
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    // Return empty array on error instead of throwing
+    throwOnError: false,
+    // Provide default value to prevent undefined errors
+    placeholderData: [],
   })
 }
 

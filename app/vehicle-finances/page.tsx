@@ -272,7 +272,7 @@ function VehicleFinancesContent() {
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50">
           {filteredVehicles.length === 0 ? (
             <div className="text-center py-8 text-slate-500 text-sm">
               {searchQuery ? 'No vehicles match your filters.' : 'No vehicles found.'}

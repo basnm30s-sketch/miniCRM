@@ -33,6 +33,29 @@ export function formatReferenceError(entityName: string, references: Array<{ typ
   return `Cannot delete ${entityName} as it is referenced in:\n${refList}`
 }
 
+function ensureTermsColumns(db: Db) {
+  // Lightweight runtime migrations for older DBs
+  try {
+    const poInfo = db.prepare("PRAGMA table_info(purchase_orders)").all() as any[]
+    const poCols = poInfo.map((c: any) => c.name)
+    if (!poCols.includes('terms')) {
+      db.exec('ALTER TABLE purchase_orders ADD COLUMN terms TEXT')
+    }
+  } catch (error: any) {
+    console.log('Migration check (purchase_orders.terms):', error.message)
+  }
+
+  try {
+    const invInfo = db.prepare("PRAGMA table_info(invoices)").all() as any[]
+    const invCols = invInfo.map((c: any) => c.name)
+    if (!invCols.includes('terms')) {
+      db.exec('ALTER TABLE invoices ADD COLUMN terms TEXT')
+    }
+  } catch (error: any) {
+    console.log('Migration check (invoices.terms):', error.message)
+  }
+}
+
 // ==================== CUSTOMERS ====================
 export const customersAdapter = {
   getAll: (): any[] => {
@@ -477,6 +500,7 @@ export const payslipsAdapter = {
         overtimeRate: row.overtimeRate != null ? row.overtimeRate : undefined,
         overtimePay: row.overtimePay != null ? row.overtimePay : undefined,
         deductions: row.deductions || 0,
+        deductionRemarks: row.deductionRemarks || undefined,
         netPay: row.netPay || 0,
         status: row.status || 'draft',
         notes: row.notes || undefined,
@@ -506,6 +530,7 @@ export const payslipsAdapter = {
         overtimeRate: row.overtimeRate != null ? row.overtimeRate : undefined,
         overtimePay: row.overtimePay != null ? row.overtimePay : undefined,
         deductions: row.deductions || 0,
+        deductionRemarks: row.deductionRemarks || undefined,
         netPay: row.netPay || 0,
         status: row.status || 'draft',
         notes: row.notes || undefined,
@@ -533,6 +558,7 @@ export const payslipsAdapter = {
         overtimeRate: row.overtimeRate != null ? row.overtimeRate : undefined,
         overtimePay: row.overtimePay != null ? row.overtimePay : undefined,
         deductions: row.deductions || 0,
+        deductionRemarks: row.deductionRemarks || undefined,
         netPay: row.netPay || 0,
         status: row.status || 'draft',
         notes: row.notes || undefined,
@@ -565,8 +591,8 @@ export const payslipsAdapter = {
       }
 
       const stmt = db.prepare(`
-        INSERT INTO payslips (id, employeeId, month, year, baseSalary, overtimeHours, overtimeRate, overtimePay, deductions, netPay, status, notes, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO payslips (id, employeeId, month, year, baseSalary, overtimeHours, overtimeRate, overtimePay, deductions, deductionRemarks, netPay, status, notes, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         data.id,
@@ -578,6 +604,7 @@ export const payslipsAdapter = {
         data.overtimeRate != null ? data.overtimeRate : null,
         data.overtimePay != null ? data.overtimePay : null,
         data.deductions || 0,
+        data.deductionRemarks != null && String(data.deductionRemarks).trim() !== '' ? String(data.deductionRemarks) : null,
         data.netPay || 0,
         data.status || 'processed',
         data.notes != null ? data.notes : null,
@@ -600,7 +627,7 @@ export const payslipsAdapter = {
     const now = new Date().toISOString()
     const stmt = db.prepare(`
       UPDATE payslips 
-      SET employeeId = ?, month = ?, year = ?, baseSalary = ?, overtimeHours = ?, overtimeRate = ?, overtimePay = ?, deductions = ?, netPay = ?, status = ?, notes = ?, updatedAt = ?
+      SET employeeId = ?, month = ?, year = ?, baseSalary = ?, overtimeHours = ?, overtimeRate = ?, overtimePay = ?, deductions = ?, deductionRemarks = ?, netPay = ?, status = ?, notes = ?, updatedAt = ?
       WHERE id = ?
     `)
     stmt.run(
@@ -612,6 +639,7 @@ export const payslipsAdapter = {
       data.overtimeRate != null ? data.overtimeRate : null,
       data.overtimePay != null ? data.overtimePay : null,
       data.deductions || 0,
+      data.deductionRemarks != null && String(data.deductionRemarks).trim() !== '' ? String(data.deductionRemarks) : null,
       data.netPay || 0,
       data.status || 'processed',
       data.notes != null ? data.notes : null,
@@ -907,6 +935,18 @@ export const adminAdapter = {
       if (!columnNames.includes('showInvoicesTwoPane')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1')
       }
+      if (!columnNames.includes('footerAddressEnglish')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressEnglish TEXT')
+      }
+      if (!columnNames.includes('footerAddressArabic')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressArabic TEXT')
+      }
+      if (!columnNames.includes('footerContactEnglish')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactEnglish TEXT')
+      }
+      if (!columnNames.includes('footerContactArabic')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactArabic TEXT')
+      }
     } catch (error: any) {
       console.log('Migration check:', error.message)
     }
@@ -1003,6 +1043,10 @@ export const adminAdapter = {
       quoteNumberPattern: row.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
       currency: row.currency || 'AED',
       defaultTerms: row.defaultTerms || '',
+      footerAddressEnglish: row.footerAddressEnglish || '',
+      footerAddressArabic: row.footerAddressArabic || '',
+      footerContactEnglish: row.footerContactEnglish || '',
+      footerContactArabic: row.footerContactArabic || '',
       showRevenueTrend,
       showQuickActions,
       showReports,
@@ -1079,6 +1123,18 @@ export const adminAdapter = {
       if (!columnNames.includes('showInvoicesTwoPane')) {
         db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1')
       }
+      if (!columnNames.includes('footerAddressEnglish')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressEnglish TEXT')
+      }
+      if (!columnNames.includes('footerAddressArabic')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressArabic TEXT')
+      }
+      if (!columnNames.includes('footerContactEnglish')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactEnglish TEXT')
+      }
+      if (!columnNames.includes('footerContactArabic')) {
+        db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactArabic TEXT')
+      }
     } catch (error: any) {
       console.log('Migration check in save:', error.message)
     }
@@ -1126,6 +1182,7 @@ export const adminAdapter = {
         UPDATE admin_settings 
         SET companyName = ?, address = ?, vatNumber = ?, logoUrl = ?, sealUrl = ?, 
             signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, 
+            footerAddressEnglish = ?, footerAddressArabic = ?, footerContactEnglish = ?, footerContactArabic = ?,
             showRevenueTrend = ?, showQuickActions = ?, showReports = ?, showVehicleFinances = ?, 
             showQuotationsInvoicesCard = ?, showQuotationsTwoPane = ?, showPurchaseOrdersTwoPane = ?, showInvoicesTwoPane = ?, showEmployeeSalariesCard = ?, showVehicleRevenueExpensesCard = ?, 
             showActivityThisMonth = ?, showFinancialHealth = ?, showBusinessOverview = ?, 
@@ -1142,6 +1199,10 @@ export const adminAdapter = {
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
         data.defaultTerms || '',
+        data.footerAddressEnglish || '',
+        data.footerAddressArabic || '',
+        data.footerContactEnglish || '',
+        data.footerContactArabic || '',
         showRevenueTrend,
         showQuickActions,
         showReports,
@@ -1164,11 +1225,12 @@ export const adminAdapter = {
       const stmt = db.prepare(`
         INSERT INTO admin_settings (id, companyName, address, vatNumber, logoUrl, sealUrl, 
                                     signatureUrl, quoteNumberPattern, currency, defaultTerms, 
+                                    footerAddressEnglish, footerAddressArabic, footerContactEnglish, footerContactArabic,
                                     showRevenueTrend, showQuickActions, showReports, showVehicleFinances, 
                                     showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, 
                                     showActivityThisMonth, showFinancialHealth, showBusinessOverview, 
                                     showTopCustomers, showActivitySummary, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         data.id || 'settings_1',
@@ -1181,6 +1243,10 @@ export const adminAdapter = {
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
         data.defaultTerms || '',
+        data.footerAddressEnglish || '',
+        data.footerAddressArabic || '',
+        data.footerContactEnglish || '',
+        data.footerContactArabic || '',
         showRevenueTrend,
         showQuickActions,
         showReports,
@@ -1513,6 +1579,7 @@ export const purchaseOrdersAdapter = {
     const db = getDb()
     if (!db) return []
     try {
+      ensureTermsColumns(db)
       const pos = db.prepare('SELECT * FROM purchase_orders ORDER BY createdAt DESC').all() as any[]
     return pos.map(po => {
       const items = db.prepare('SELECT * FROM po_items WHERE purchaseOrderId = ?').all(po.id) as any[]
@@ -1544,6 +1611,7 @@ export const purchaseOrdersAdapter = {
       amount: po.amount || 0,
       currency: po.currency || 'AED',
       status: po.status || 'draft',
+      terms: po.terms || '',
       notes: po.notes || '',
       createdAt: po.createdAt,
     }
@@ -1557,6 +1625,7 @@ export const purchaseOrdersAdapter = {
   getById: (id: string): any | null => {
     const db = getDb()
     if (!db) return null
+    ensureTermsColumns(db)
     const po = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(id) as any
     if (!po) return null
 
@@ -1588,6 +1657,7 @@ export const purchaseOrdersAdapter = {
       amount: po.amount || 0,
       currency: po.currency || 'AED',
       status: po.status || 'draft',
+      terms: po.terms || '',
       notes: po.notes || '',
       createdAt: po.createdAt,
     }
@@ -1598,12 +1668,13 @@ export const purchaseOrdersAdapter = {
     if (!db) {
       throw new Error('Database is not available. App is using client-side storage.')
     }
+    ensureTermsColumns(db)
     const now = new Date().toISOString()
 
     // Insert purchase order
     const poStmt = db.prepare(`
-      INSERT INTO purchase_orders (id, number, date, vendorId, subtotal, tax, amount, currency, status, notes, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO purchase_orders (id, number, date, vendorId, subtotal, tax, amount, currency, status, terms, notes, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     poStmt.run(
       data.id,
@@ -1615,6 +1686,7 @@ export const purchaseOrdersAdapter = {
       data.amount || 0,
       data.currency || 'AED',
       data.status || 'draft',
+      data.terms || '',
       data.notes || '',
       now
     )
@@ -1660,12 +1732,13 @@ export const purchaseOrdersAdapter = {
     if (!db) {
       throw new Error('Database is not available. App is using client-side storage.')
     }
+    ensureTermsColumns(db)
 
     // Update purchase order
     const poStmt = db.prepare(`
       UPDATE purchase_orders 
       SET number = ?, date = ?, vendorId = ?, subtotal = ?, tax = ?, amount = ?, 
-          currency = ?, status = ?, notes = ?
+          currency = ?, status = ?, terms = ?, notes = ?
       WHERE id = ?
     `)
     poStmt.run(
@@ -1677,6 +1750,7 @@ export const purchaseOrdersAdapter = {
       data.amount || 0,
       data.currency || 'AED',
       data.status || 'draft',
+      data.terms || '',
       data.notes || '',
       id
     )
@@ -1738,6 +1812,7 @@ export const invoicesAdapter = {
     const db = getDb()
     if (!db) return []
     try {
+      ensureTermsColumns(db)
       const invoices = db.prepare('SELECT * FROM invoices ORDER BY createdAt DESC').all() as any[]
     return invoices.map(invoice => {
       const items = db.prepare('SELECT * FROM invoice_items WHERE invoiceId = ?').all(invoice.id) as any[]
@@ -1774,7 +1849,9 @@ export const invoicesAdapter = {
       amountReceived: invoice.amountReceived || 0,
       status: invoice.status || 'draft',
       notes: invoice.notes || '',
+      terms: invoice.terms || '',
       createdAt: invoice.createdAt,
+      updatedAt: invoice.updatedAt,
     }
   })
     } catch (error) {
@@ -1786,6 +1863,7 @@ export const invoicesAdapter = {
   getById: (id: string): any | null => {
     const db = getDb()
     if (!db) return null
+    ensureTermsColumns(db)
     const invoice = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id) as any
     if (!invoice) return null
 
@@ -1813,7 +1891,9 @@ export const invoicesAdapter = {
       amountReceived: invoice.amountReceived || 0,
       status: invoice.status || 'draft',
       notes: invoice.notes || '',
+      terms: invoice.terms || '',
       createdAt: invoice.createdAt,
+      updatedAt: invoice.updatedAt,
     }
   },
 
@@ -1822,6 +1902,7 @@ export const invoicesAdapter = {
     if (!db) {
       throw new Error('Database is not available. App is using client-side storage.')
     }
+    ensureTermsColumns(db)
     const now = new Date().toISOString()
 
     // Validate required fields
@@ -1871,8 +1952,8 @@ export const invoicesAdapter = {
     // Use NULL instead of empty strings for optional foreign keys to satisfy FK constraints
     const invoiceStmt = db.prepare(`
       INSERT INTO invoices (id, number, date, dueDate, customerId, vendorId, purchaseOrderId, quoteId, 
-                            subtotal, tax, total, amountReceived, status, notes, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            subtotal, tax, total, amountReceived, status, notes, terms, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     try {
@@ -1891,7 +1972,9 @@ export const invoicesAdapter = {
         data.amountReceived || 0,
         data.status || 'draft',
         data.notes || '',
+        data.terms || '',
         now
+        ,now
       )
     } catch (error: any) {
       // Log the actual error for debugging
@@ -1962,6 +2045,8 @@ export const invoicesAdapter = {
     if (!db) {
       throw new Error('Database is not available. App is using client-side storage.')
     }
+    ensureTermsColumns(db)
+    const now = new Date().toISOString()
 
     // Check if invoice exists first
     const existing = invoicesAdapter.getById(id)
@@ -2017,7 +2102,7 @@ export const invoicesAdapter = {
     const invoiceStmt = db.prepare(`
       UPDATE invoices 
       SET number = ?, date = ?, dueDate = ?, customerId = ?, vendorId = ?, purchaseOrderId = ?, quoteId = ?,
-          subtotal = ?, tax = ?, total = ?, amountReceived = ?, status = ?, notes = ?
+          subtotal = ?, tax = ?, total = ?, amountReceived = ?, status = ?, notes = ?, terms = ?, updatedAt = ?
       WHERE id = ?
     `)
 
@@ -2036,6 +2121,8 @@ export const invoicesAdapter = {
         data.amountReceived || 0,
         data.status || 'draft',
         data.notes || '',
+        data.terms || '',
+        now,
         id
       )
     } catch (error: any) {

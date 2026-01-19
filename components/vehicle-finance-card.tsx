@@ -1,9 +1,7 @@
 'use client'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { TrendingUp, TrendingDown, DollarSign, ArrowRight } from 'lucide-react'
-import Link from 'next/link'
+import { TrendingUp, TrendingDown } from 'lucide-react'
 import type { Vehicle } from '@/lib/types'
 import type { VehicleProfitabilitySummary } from '@/lib/types'
 
@@ -52,8 +50,8 @@ export function VehicleFinanceCard({ vehicle, profitability, onClick, isSelected
       className={`hover:shadow-lg transition-all ${borderColor} ${bgColor} cursor-pointer ${selectionStyles}`}
       onClick={onClick}
     >
-      <CardContent className="p-4">
-        <div className="space-y-3">
+      <CardContent className="p-3">
+        <div className="space-y-2">
           {/* Header */}
           <div>
             <h3 className="font-bold text-lg text-slate-900">{vehicle.vehicleNumber}</h3>
@@ -67,15 +65,15 @@ export function VehicleFinanceCard({ vehicle, profitability, onClick, isSelected
             <>
               <div className="grid grid-cols-3 gap-2 text-sm">
                 <div>
-                  <p className="text-xs text-slate-600 mb-1">Revenue</p>
+                  <p className="text-xs text-slate-600 mb-0.5">Revenue</p>
                   <p className="font-semibold text-blue-600">{formatCurrency(profitability!.allTimeRevenue)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-600 mb-1">Expenses</p>
+                  <p className="text-xs text-slate-600 mb-0.5">Expenses</p>
                   <p className="font-semibold text-red-600">{formatCurrency(profitability!.allTimeExpenses)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-600 mb-1">Profit</p>
+                  <p className="text-xs text-slate-600 mb-0.5">Profit</p>
                   <div className="flex items-center gap-1">
                     {isProfitable ? (
                       <TrendingUp className="w-3 h-3 text-green-600" />
@@ -89,7 +87,7 @@ export function VehicleFinanceCard({ vehicle, profitability, onClick, isSelected
                 </div>
               </div>
               {profitMargin !== 0 && (
-                <div className="pt-2 border-t border-slate-200">
+                <div className="pt-1 border-t border-slate-200">
                   <p className="text-xs text-slate-600">
                     Profit Margin: <span className={`font-semibold ${isProfitable ? 'text-green-600' : 'text-red-600'}`}>
                       {profitMargin.toFixed(1)}%
@@ -99,16 +97,10 @@ export function VehicleFinanceCard({ vehicle, profitability, onClick, isSelected
               )}
             </>
           ) : (
-            <div className="py-4 text-center">
+            <div className="py-2 text-center">
               <p className="text-sm text-slate-500">No financial data</p>
             </div>
           )}
-
-          {/* Action Button - Visual only now since entire card is clickable */}
-          <Button variant="outline" className="w-full" size="sm">
-            View Details
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
         </div>
       </CardContent>
     </Card>

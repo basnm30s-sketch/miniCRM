@@ -550,6 +550,7 @@ export default function PayslipsPage() {
                       <TableHead className="text-right">Hourly Overtime Pay (AED)</TableHead>
                       <TableHead className="text-right">Overtime Pay (AED)</TableHead>
                       <TableHead className="text-right">Deductions (AED)</TableHead>
+                      <TableHead>Reason</TableHead>
                       <TableHead className="text-right">Net Pay (AED)</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
@@ -576,6 +577,9 @@ export default function PayslipsPage() {
                           </TableCell>
                           <TableCell className="text-right text-slate-600">
                             {payslip.deductions.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {payslip.deductionRemarks?.trim() ? payslip.deductionRemarks.trim() : '-'}
                           </TableCell>
                           <TableCell className="text-right font-semibold text-slate-900">
                             {payslip.netPay.toFixed(2)}
@@ -618,7 +622,7 @@ export default function PayslipsPage() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-slate-500 py-8">
+                        <TableCell colSpan={10} className="text-center text-slate-500 py-8">
                           No payslips found for this month.
                         </TableCell>
                       </TableRow>

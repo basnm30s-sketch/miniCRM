@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertCircle, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { getAllVehicles, getAllEmployees, getAllExpenseCategories, saveVehicleTransaction, generateId, getAllInvoices, getAllPurchaseOrders, getAllQuotes } from '@/lib/storage'
+import { toast } from '@/hooks/use-toast'
+import { getAllVehicles, getAllEmployees, getAllExpenseCategories, saveVehicleTransaction, generateId, getAllInvoices, getAllPurchaseOrders, getAllQuotes, getInvoiceById, getAllVehicleTransactions } from '@/lib/storage'
 import type { VehicleTransaction, VehicleTransactionType, Employee, ExpenseCategory, Invoice, PurchaseOrder, Quote } from '@/lib/types'
 
 interface VehicleTransactionFormProps {
@@ -28,6 +29,7 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [invoiceValidation, setInvoiceValidation] = useState<{ warning: string | null, cumulative: number, invoiceTotal: number } | null>(null)
 
   const [formData, setFormData] = useState({
     vehicleId: vehicleId || transaction?.vehicleId || '',
@@ -89,6 +91,15 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
         throw new Error('Category is required for expenses')
       }
 
+      // Validate invoice amount for revenue transactions
+      if (formData.transactionType === 'revenue' && formData.invoiceId) {
+        const isValid = await validateInvoiceAmount()
+        if (!isValid) {
+          const errorMessage = invoiceValidation?.warning || 'Cumulative amount exceeds invoice total'
+          throw new Error(errorMessage)
+        }
+      }
+
       // Validate date range (12 months back, no future)
       const txDate = new Date(formData.date)
       const today = new Date()
@@ -122,7 +133,12 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
       await saveVehicleTransaction(transactionData)
       onSave()
     } catch (err: any) {
-      setError(err?.message || 'Failed to save transaction')
+      toast({
+        title: 'Error',
+        description: err?.message || 'Failed to save transaction',
+        variant: 'destructive'
+      })
+      setError(null) // Clear error state since we're using toast
     } finally {
       setSaving(false)
     }
@@ -148,6 +164,87 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
       }
     }
   }
+
+  const handleInvoiceChange = (value: string) => {
+    const invoiceId = value === '__none__' ? '' : value
+    setFormData(prev => ({ ...prev, invoiceId }))
+    
+    if (invoiceId) {
+      const selectedInvoice = invoices.find(inv => inv.id === invoiceId)
+      if (selectedInvoice && selectedInvoice.total != null) {
+        setFormData(prev => ({ ...prev, amount: selectedInvoice.total.toString() }))
+      }
+    }
+    // If cleared, don't modify amount - user may have edited it
+  }
+
+  // Validation helper function
+  const validateInvoiceAmount = async (): Promise<boolean> => {
+    if (formData.transactionType !== 'revenue' || !formData.invoiceId || !formData.amount) {
+      setInvoiceValidation(null)
+      return true
+    }
+    
+    const amount = parseFloat(formData.amount)
+    if (isNaN(amount) || amount <= 0) {
+      setInvoiceValidation(null)
+      return true
+    }
+    
+    try {
+      const invoice = await getInvoiceById(formData.invoiceId)
+      if (!invoice || !invoice.total) {
+        setInvoiceValidation(null)
+        return true
+      }
+      
+      const allTransactions = await getAllVehicleTransactions()
+      const existingTransactions = allTransactions.filter(
+        tx => tx.transactionType === 'revenue' && 
+             tx.invoiceId === formData.invoiceId &&
+             (!transaction || tx.id !== transaction.id) // Exclude current if editing
+      )
+      
+      const cumulative = existingTransactions.reduce((sum, tx) => sum + (tx.amount || 0), 0)
+      const newTotal = cumulative + amount
+      
+      if (newTotal > invoice.total) {
+        const remaining = invoice.total - cumulative
+        setInvoiceValidation({
+          warning: `Amount exceeds invoice total. Remaining: ${remaining.toFixed(2)} AED`,
+          cumulative,
+          invoiceTotal: invoice.total
+        })
+        return false
+      } else {
+        setInvoiceValidation({
+          warning: null,
+          cumulative,
+          invoiceTotal: invoice.total
+        })
+        return true
+      }
+    } catch (error) {
+      console.error('Validation error:', error)
+      setInvoiceValidation(null)
+      return true // Don't block on validation errors
+    }
+  }
+
+  // Real-time validation when invoiceId or amount changes
+  useEffect(() => {
+    if (formData.transactionType === 'revenue' && formData.invoiceId && formData.amount) {
+      const amount = parseFloat(formData.amount)
+      if (!isNaN(amount) && amount > 0) {
+        validateInvoiceAmount()
+      } else {
+        setInvoiceValidation(null)
+      }
+    } else {
+      setInvoiceValidation(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.invoiceId, formData.amount, formData.transactionType])
 
   if (loading) {
     return <div className="p-4 text-slate-500">Loading...</div>
@@ -230,7 +327,7 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
           <Label htmlFor="invoiceId">Linked Invoice (Optional)</Label>
           <Select
             value={formData.invoiceId || '__none__'}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, invoiceId: value === '__none__' ? '' : value }))}
+            onValueChange={(value) => handleInvoiceChange(value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select invoice (optional)" />
@@ -244,6 +341,22 @@ export default function VehicleTransactionForm({ vehicleId, transaction, onSave,
               ))}
             </SelectContent>
           </Select>
+          {invoiceValidation && (
+            <>
+              {invoiceValidation.warning ? (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{invoiceValidation.warning}</AlertDescription>
+                </Alert>
+              ) : (
+                <Alert variant="default">
+                  <AlertDescription>
+                    Cumulative revenue for this invoice: {invoiceValidation.cumulative.toFixed(2)} AED / {invoiceValidation.invoiceTotal.toFixed(2)} AED ({(invoiceValidation.invoiceTotal - invoiceValidation.cumulative).toFixed(2)} AED remaining)
+                  </AlertDescription>
+                </Alert>
+              )}
+            </>
+          )}
         </div>
       )}
 

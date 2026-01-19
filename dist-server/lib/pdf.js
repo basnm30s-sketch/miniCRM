@@ -44,6 +44,79 @@ const api_client_1 = require("@/lib/api-client");
  * Renders quote preview HTML to canvas, then converts to PDF with admin branding
  */
 class ClientSidePDFRenderer {
+    addCanvasToPdf(pdf, canvas, footerStamp) {
+        // Add the rendered canvas to the PDF, supporting multi-page output when content exceeds one page.
+        const imgData = canvas.toDataURL('image/jpeg', 0.85); // Balance of quality and size
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const margin = 10;
+        const imgWidth = pdfWidth - margin * 2;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        const footerHeightMm = footerStamp ? (footerStamp.pixelHeight * imgWidth) / footerStamp.pixelWidth : 0;
+        const pageContentHeight = pdfHeight - margin * 2 - footerHeightMm;
+        let heightLeft = imgHeight;
+        let pageOffsetY = margin;
+        const stampFooter = () => {
+            if (!footerStamp || footerHeightMm <= 0)
+                return;
+            const footerY = pdfHeight - margin - footerHeightMm;
+            // Cover any underlying content to avoid overlap
+            pdf.setFillColor(255, 255, 255);
+            pdf.rect(margin, footerY, imgWidth, footerHeightMm, 'F');
+            pdf.addImage(footerStamp.imgData, 'PNG', margin, footerY, imgWidth, footerHeightMm);
+        };
+        // First page
+        pdf.addImage(imgData, 'JPEG', margin, pageOffsetY, imgWidth, imgHeight);
+        stampFooter();
+        heightLeft -= pageContentHeight;
+        // Additional pages (draw the same image with a negative offset to show the next slice)
+        while (heightLeft > 0) {
+            pdf.addPage();
+            pageOffsetY = margin - (imgHeight - heightLeft);
+            pdf.addImage(imgData, 'JPEG', margin, pageOffsetY, imgWidth, imgHeight);
+            stampFooter();
+            heightLeft -= pageContentHeight;
+        }
+    }
+    async renderFooterToStamp(adminSettings, html2canvas, scale) {
+        const footerHtml = this.buildFooterHtml(adminSettings);
+        if (!footerHtml)
+            return null;
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        container.style.width = '210mm';
+        container.style.height = 'auto';
+        // Keep horizontal padding for alignment; add a small bottom buffer to avoid html2canvas clipping text descenders
+        container.style.padding = '0 20px 6px';
+        container.style.backgroundColor = 'white';
+        container.style.fontFamily = 'Arial, sans-serif';
+        container.style.fontSize = '10px';
+        container.style.color = '#333333';
+        container.style.margin = '0';
+        container.innerHTML = footerHtml;
+        document.body.appendChild(container);
+        try {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const canvas = await html2canvas(container, {
+                scale,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                allowTaint: true,
+                foreignObjectRendering: false,
+                ignoreElements: (el) => {
+                    return el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK' || el.tagName === 'SVG';
+                },
+            });
+            // Prefer PNG for sharper small text in the footer
+            const imgData = canvas.toDataURL('image/png');
+            return { imgData, pixelWidth: canvas.width, pixelHeight: canvas.height };
+        }
+        finally {
+            document.body.removeChild(container);
+        }
+    }
     async renderQuoteToPdf(quote, adminSettings) {
         // Dynamic imports to avoid bundling if not used
         const html2canvas = (await Promise.resolve().then(() => __importStar(require('html2canvas')))).default;
@@ -85,6 +158,7 @@ class ClientSidePDFRenderer {
         // Wait a bit for images in HTML to load
         await new Promise(resolve => setTimeout(resolve, 500));
         try {
+            const footerStamp = await this.renderFooterToStamp(adminSettings, html2canvas, 2.5);
             // Render container to canvas
             const canvas = await html2canvas(container, {
                 scale: 2.5, // Higher DPI for better quality
@@ -113,17 +187,7 @@ class ClientSidePDFRenderer {
                 unit: 'mm',
                 format: 'a4',
             });
-            // Add canvas to PDF
-            const imgData = canvas.toDataURL('image/jpeg', 0.85); // Use JPEG for balance of quality and size
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const imgWidth = pdfWidth - 20; // margins
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            // Check if content fits on one page
-            if (imgHeight > pdfHeight - 40) {
-                console.warn('Quote content exceeds one page; consider using server-side PDF rendering');
-            }
-            pdf.addImage(imgData, 'JPEG', 10, 10, imgWidth, imgHeight);
+            this.addCanvasToPdf(pdf, canvas, footerStamp);
             // Return PDF as blob
             return pdf.output('blob');
         }
@@ -184,6 +248,7 @@ class ClientSidePDFRenderer {
         document.body.appendChild(container);
         await new Promise(resolve => setTimeout(resolve, 500));
         try {
+            const footerStamp = await this.renderFooterToStamp(adminSettings, html2canvas, 2.5);
             const canvas = await html2canvas(container, {
                 scale: 2.5,
                 useCORS: true,
@@ -200,12 +265,7 @@ class ClientSidePDFRenderer {
                 unit: 'mm',
                 format: 'a4',
             });
-            const imgData = canvas.toDataURL('image/jpeg', 0.85);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const imgWidth = pdfWidth - 20;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            pdf.addImage(imgData, 'JPEG', 10, 10, imgWidth, imgHeight);
+            this.addCanvasToPdf(pdf, canvas, footerStamp);
             return pdf.output('blob');
         }
         finally {
@@ -245,6 +305,7 @@ class ClientSidePDFRenderer {
         document.body.appendChild(container);
         await new Promise(resolve => setTimeout(resolve, 500));
         try {
+            const footerStamp = await this.renderFooterToStamp(adminSettings, html2canvas, 2.5);
             const canvas = await html2canvas(container, {
                 scale: 2.5,
                 useCORS: true,
@@ -261,12 +322,7 @@ class ClientSidePDFRenderer {
                 unit: 'mm',
                 format: 'a4',
             });
-            const imgData = canvas.toDataURL('image/jpeg', 0.85);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const imgWidth = pdfWidth - 20;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            pdf.addImage(imgData, 'JPEG', 10, 10, imgWidth, imgHeight);
+            this.addCanvasToPdf(pdf, canvas, footerStamp);
             return pdf.output('blob');
         }
         finally {
@@ -274,27 +330,27 @@ class ClientSidePDFRenderer {
         }
     }
     buildFooterHtml(adminSettings) {
-        const footerAddressEn = adminSettings.footerAddressEnglish || '';
-        const footerAddressAr = adminSettings.footerAddressArabic || '';
-        const footerContactEn = adminSettings.footerContactEnglish || '';
-        const footerContactAr = adminSettings.footerContactArabic || '';
+        const footerAddressEn = (adminSettings.footerAddressEnglish || '').trim();
+        const footerAddressAr = (adminSettings.footerAddressArabic || '').trim();
+        const footerContactEn = (adminSettings.footerContactEnglish || '').trim();
+        const footerContactAr = (adminSettings.footerContactArabic || '').trim();
         if (!footerAddressEn && !footerAddressAr && !footerContactEn && !footerContactAr) {
             return '';
         }
+        const dividerGapPx = 1;
+        const footerBottomBufferPx = 6;
         return `
-    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; font-size: 12px;">
-      ${footerAddressEn || footerAddressAr ? `
-        <div style="margin-bottom: 10px;">
-          ${footerAddressEn ? `<div style="margin-bottom: 5px;">${footerAddressEn}</div>` : ''}
-          ${footerAddressAr ? `<div style="margin-bottom: 5px; direction: rtl; text-align: right;">${footerAddressAr}</div>` : ''}
+    <div style="padding-top: ${dividerGapPx}px; padding-bottom: ${footerBottomBufferPx}px; border-top: 1px solid #ccc; font-size: 10px; line-height: 1.25; overflow: visible;">
+      <div style="display: flex; justify-content: space-between; gap: 12px; margin-top: 0;">
+        <div style="flex: 1; white-space: pre-wrap; display: flex; flex-direction: column; gap: ${dividerGapPx}px; overflow: visible;">
+          ${footerAddressEn ? `<div style="margin: 0; padding: 0;">${footerAddressEn}</div>` : ''}
+          ${footerContactEn ? `<div style="margin: 0; padding: 0;">${footerContactEn}</div>` : ''}
         </div>
-      ` : ''}
-      ${footerContactEn || footerContactAr ? `
-        <div>
-          ${footerContactEn ? `<div style="margin-bottom: 5px;">${footerContactEn}</div>` : ''}
-          ${footerContactAr ? `<div style="margin-bottom: 5px; direction: rtl; text-align: right;">${footerContactAr}</div>` : ''}
+        <div style="flex: 1; direction: rtl; text-align: right; white-space: pre-wrap; display: flex; flex-direction: column; gap: ${dividerGapPx}px; overflow: visible;">
+          ${footerAddressAr ? `<div style="margin: 0; padding: 0;">${footerAddressAr}</div>` : ''}
+          ${footerContactAr ? `<div style="margin: 0; padding: 0;">${footerContactAr}</div>` : ''}
         </div>
-      ` : ''}
+      </div>
     </div>
     `;
     }
@@ -305,22 +361,27 @@ class ClientSidePDFRenderer {
         // Seal and signature are rendered in the footer so they move dynamically with document content
         const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : '';
         const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : '';
+        // Table styles: ensure long text wraps within cells, while numeric values don't split (e.g. "250.00")
+        const thStyle = 'padding: 6px; vertical-align: top; white-space: normal; overflow-wrap: break-word; word-break: break-word;';
+        const tdBaseStyle = 'padding: 6px; border-bottom: 1px solid #ccc; vertical-align: top;';
+        const tdTextWrapStyle = `${tdBaseStyle} white-space: normal; overflow-wrap: break-word; word-break: break-word;`;
+        const tdVehicleWrapStyle = `${tdBaseStyle} white-space: normal; overflow-wrap: anywhere; word-break: break-all;`;
+        const tdNumberStyle = `${tdBaseStyle} white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
         const itemsHtml = quote.items
             .map((item, index) => {
             // Calculate grossAmount if not present
             const grossAmount = item.grossAmount ?? (item.quantity * item.unitPrice);
             return `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: center;">${item.serialNumber ?? index + 1}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: left;">${item.vehicleTypeLabel || ''}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: left;">${item.vehicleNumber || ''}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: left;">${item.description || ''}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: center;">${item.rentalBasis || ''}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.quantity}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.unitPrice.toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${grossAmount.toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${(item.lineTaxAmount || 0).toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${(item.lineTotal || 0).toFixed(2)}</td>
+        <td style="${tdNumberStyle} text-align: center;">${item.serialNumber ?? index + 1}</td>
+        <td style="${tdVehicleWrapStyle} text-align: left;">${item.vehicleNumber || ''}</td>
+        <td style="${tdTextWrapStyle} text-align: left;">${item.description || ''}</td>
+        <td style="${tdTextWrapStyle} text-align: center;">${item.rentalBasis || ''}</td>
+        <td style="${tdNumberStyle} text-align: right;">${item.quantity}</td>
+        <td style="${tdNumberStyle} text-align: right;">${item.unitPrice.toFixed(2)}</td>
+        <td style="${tdNumberStyle} text-align: right;">${grossAmount.toFixed(2)}</td>
+        <td style="${tdNumberStyle} text-align: right;">${(item.lineTaxAmount || 0).toFixed(2)}</td>
+        <td style="${tdNumberStyle} text-align: right;">${(item.lineTotal || 0).toFixed(2)}</td>
       </tr>
     `;
         })
@@ -368,19 +429,29 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse; table-layout: fixed;">
+        <table style="width: 100%; margin-bottom: 20px; font-size: 12px; border-collapse: collapse; table-layout: fixed;">
+          <colgroup>
+            <col style="width: 5%;" />
+            <col style="width: 15%;" />
+            <col style="width: 32%;" />
+            <col style="width: 10%;" />
+            <col style="width: 6%;" />
+            <col style="width: 8%;" />
+            <col style="width: 9%;" />
+            <col style="width: 7%;" />
+            <col style="width: 8%;" />
+          </colgroup>
           <thead>
             <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
-              <th style="padding: 8px; text-align: center;">Sl. no.</th>
-              <th style="padding: 8px; text-align: left;">Item name</th>
-              <th style="padding: 8px; text-align: left;">Vehicle number</th>
-              <th style="padding: 8px; text-align: left;">Description</th>
-              <th style="padding: 8px; text-align: center;">Rental basis</th>
-              <th style="padding: 8px; text-align: right;">Qty</th>
-              <th style="padding: 8px; text-align: right;">Rate</th>
-              <th style="padding: 8px; text-align: right;">Gross amount</th>
-              <th style="padding: 8px; text-align: right;">Tax</th>
-              <th style="padding: 8px; text-align: right;">Net amount</th>
+              <th style="${thStyle} text-align: center;">Sl. no.</th>
+              <th style="${thStyle} text-align: left;">Vehicle number</th>
+              <th style="${thStyle} text-align: left;">Description</th>
+              <th style="${thStyle} text-align: center;">Rental basis</th>
+              <th style="${thStyle} text-align: right;">Qty</th>
+              <th style="${thStyle} text-align: right;">Rate</th>
+              <th style="${thStyle} text-align: right;">Gross amount</th>
+              <th style="${thStyle} text-align: right;">Tax</th>
+              <th style="${thStyle} text-align: right;">Net amount</th>
             </tr>
           </thead>
           <tbody>
@@ -421,17 +492,17 @@ class ClientSidePDFRenderer {
             // Replace consecutive <br><br> with <br><br> for double spacing (already handled)
             const termsHtml = formattedTerms && formattedTerms.length > 0
                 ? `
-              <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; font-size: 13px;">
-                <h4 style="margin: 0 0 5px 0;">Terms and Conditions:</h4>
-                <div style="margin: 0; white-space: pre-line;">${formattedTerms}</div>
+              <div style="margin-bottom: 20px; padding: 10px; background-color: #f0f0f0; font-size: 14px; line-height: 1.4;">
+                <h4 style="margin: 0 0 6px 0; font-size: 15px; font-weight: bold; line-height: 1.2;">Terms and Conditions:</h4>
+                <div style="margin: 0; white-space: pre-line; line-height: 1.4;">${formattedTerms}</div>
               </div>
             `
                 : '';
             const notesHtml = quote.notes
                 ? `
-        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 13px;">
-          <h4 style="margin: 0 0 5px 0;">Notes:</h4>
-          <p style="margin: 0; white-space: pre-wrap;">${quote.notes}</p>
+        <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px; line-height: 1.4;">
+          <h4 style="margin: 0 0 6px 0; font-size: 15px; font-weight: bold; line-height: 1.2;">Notes:</h4>
+          <p style="margin: 0; white-space: pre-wrap; line-height: 1.4;">${quote.notes}</p>
         </div>
         `
                 : '';
@@ -441,17 +512,16 @@ class ClientSidePDFRenderer {
         <!-- Footer with Signature and Seal (placed after items so position follows content) -->
         <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; font-size: 13px;">
           <div style="flex: 1;">
-            <p style="margin: 0 0 6px 0; font-size: 13px;">Authorized By:</p>
+            <p style="margin: 0 0 6px 0; font-size: 13px; font-weight: bold;">Authorized By:</p>
             <div style="margin-top: 6px;">${signatureImg}</div>
           </div>
           <div style="width: 240px; text-align: right;">
             <div style="margin-bottom: 6px;">${sealImg}</div>
-              <div style="margin-top: 18px;"> <p style="margin: 0;">Date: ${quote.date}</p> </div>
+              <div style="margin-top: 18px;"> <p style="margin: 0; font-weight: bold; font-size: 13px;">Date: ${quote.date}</p> </div>
           </div>
         </div>
         
-        <!-- Footer with Address and Contact Details -->
-        ${this.buildFooterHtml(adminSettings)}
+        <!-- Address/contact footer is stamped at bottom of every PDF page -->
           <!-- Terms -->
       </div>
     `;
@@ -462,14 +532,16 @@ class ClientSidePDFRenderer {
         const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
         const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : '';
         const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : '';
+        const thStyle = 'padding: 8px; vertical-align: top;';
+        const tdWrapStyle = 'padding: 8px; border-bottom: 1px solid #ccc; white-space: normal; overflow-wrap: anywhere; word-break: break-word; vertical-align: top;';
         const itemsHtml = po.items
             .map((item) => `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc;">${item.description}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.quantity}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.unitPrice.toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${(item.tax || 0).toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${(item.total || 0).toFixed(2)}</td>
+        <td style="${tdWrapStyle} text-align: left;">${item.description}</td>
+        <td style="${tdWrapStyle} text-align: right;">${item.quantity}</td>
+        <td style="${tdWrapStyle} text-align: right;">${item.unitPrice.toFixed(2)}</td>
+        <td style="${tdWrapStyle} text-align: right;">${(item.tax || 0).toFixed(2)}</td>
+        <td style="${tdWrapStyle} text-align: right;">${(item.total || 0).toFixed(2)}</td>
       </tr>
     `)
             .join('');
@@ -509,14 +581,21 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse;">
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse; table-layout: fixed;">
+          <colgroup>
+            <col style="width: 55%;" />
+            <col style="width: 10%;" />
+            <col style="width: 15%;" />
+            <col style="width: 10%;" />
+            <col style="width: 10%;" />
+          </colgroup>
           <thead>
             <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
-              <th style="padding: 8px; text-align: left;">Description</th>
-              <th style="padding: 8px; text-align: right;">Qty</th>
-              <th style="padding: 8px; text-align: right;">Unit Price (${po.currency})</th>
-              <th style="padding: 8px; text-align: right;">Tax (${po.currency})</th>
-              <th style="padding: 8px; text-align: right;">Total (${po.currency})</th>
+              <th style="${thStyle} text-align: left;">Description</th>
+              <th style="${thStyle} text-align: right;">Qty</th>
+              <th style="${thStyle} text-align: right;">Unit Price (${po.currency})</th>
+              <th style="${thStyle} text-align: right;">Tax (${po.currency})</th>
+              <th style="${thStyle} text-align: right;">Total (${po.currency})</th>
             </tr>
           </thead>
           <tbody>
@@ -550,8 +629,7 @@ class ClientSidePDFRenderer {
           </div>
         </div>
         
-        <!-- Footer with Address and Contact Details -->
-        ${this.buildFooterHtml(adminSettings)}
+        <!-- Address/contact footer is stamped at bottom of every PDF page -->
       </div>
     `;
     }
@@ -561,13 +639,15 @@ class ClientSidePDFRenderer {
         const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
         const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : '';
         const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : '';
+        const thStyle = 'padding: 8px; vertical-align: top;';
+        const tdWrapStyle = 'padding: 8px; border-bottom: 1px solid #ccc; white-space: normal; overflow-wrap: anywhere; word-break: break-word; vertical-align: top;';
         const itemsHtml = invoice.items
             .map((item) => `
       <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc;">${item.description}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.quantity}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${item.unitPrice.toFixed(2)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">${(item.total || 0).toFixed(2)}</td>
+        <td style="${tdWrapStyle} text-align: left;">${item.description}</td>
+        <td style="${tdWrapStyle} text-align: right;">${item.quantity}</td>
+        <td style="${tdWrapStyle} text-align: right;">${item.unitPrice.toFixed(2)}</td>
+        <td style="${tdWrapStyle} text-align: right;">${(item.total || 0).toFixed(2)}</td>
       </tr>
     `)
             .join('');
@@ -607,13 +687,19 @@ class ClientSidePDFRenderer {
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse;">
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse; table-layout: fixed;">
+          <colgroup>
+            <col style="width: 60%;" />
+            <col style="width: 10%;" />
+            <col style="width: 15%;" />
+            <col style="width: 15%;" />
+          </colgroup>
           <thead>
             <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
-              <th style="padding: 8px; text-align: left;">Description</th>
-              <th style="padding: 8px; text-align: right;">Qty</th>
-              <th style="padding: 8px; text-align: right;">Unit Price</th>
-              <th style="padding: 8px; text-align: right;">Total</th>
+              <th style="${thStyle} text-align: left;">Description</th>
+              <th style="${thStyle} text-align: right;">Qty</th>
+              <th style="${thStyle} text-align: right;">Unit Price</th>
+              <th style="${thStyle} text-align: right;">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -655,8 +741,7 @@ class ClientSidePDFRenderer {
           </div>
         </div>
         
-        <!-- Footer with Address and Contact Details -->
-        ${this.buildFooterHtml(adminSettings)}
+        <!-- Address/contact footer is stamped at bottom of every PDF page -->
       </div>
     `;
     }

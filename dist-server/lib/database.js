@@ -6,39 +6,6 @@
  * Note: This module is optional. If better-sqlite3 is not installed,
  * the app will gracefully fall back to localStorage.
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -49,28 +16,14 @@ exports.isDatabaseAvailable = isDatabaseAvailable;
 exports.closeDatabase = closeDatabase;
 exports.isDatabaseInitialized = isDatabaseInitialized;
 exports.getInitError = getInitError;
-const path = __importStar(require("path"));
-const fs = __importStar(require("fs"));
 // Import better-sqlite3
 const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
-// Removed Electron-specific imports - using project folder for all environments
+const db_config_1 = require("./db-config");
 let db = null;
 let dbPath = null;
 let initAttempted = false;
 let initFailed = false;
 let initError = null;
-/**
- * Get the database path
- * Always uses ./data directory in project folder for portability
- */
-function getDatabasePath() {
-    // Always use project folder for portability
-    const dbDir = path.join(process.cwd(), 'data');
-    if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true });
-    }
-    return path.join(dbDir, process.env.DB_FILENAME || 'imanage.db');
-}
 /**
  * Initialize the database connection
  * Creates database file and tables if they don't exist
@@ -89,7 +42,7 @@ function initDatabase() {
         initAttempted = true;
     }
     try {
-        dbPath = getDatabasePath();
+        dbPath = (0, db_config_1.getDatabasePath)();
         db = new better_sqlite3_1.default(dbPath);
         // Enable foreign keys
         db.pragma('foreign_keys = ON');
@@ -488,13 +441,37 @@ function createTables(database) {
       amountReceived REAL DEFAULT 0,
       status TEXT,
       notes TEXT,
+      terms TEXT,
       createdAt TEXT,
+      updatedAt TEXT,
       FOREIGN KEY (customerId) REFERENCES customers(id),
       FOREIGN KEY (vendorId) REFERENCES vendors(id),
       FOREIGN KEY (purchaseOrderId) REFERENCES purchase_orders(id),
       FOREIGN KEY (quoteId) REFERENCES quotes(id)
     )
   `);
+    // Migrate existing invoices table to add new columns if they don't exist
+    const invoiceNewColumns = [
+        { name: 'terms', type: 'TEXT' },
+        { name: 'updatedAt', type: 'TEXT' },
+    ];
+    invoiceNewColumns.forEach(({ name, type }) => {
+        try {
+            database.prepare(`SELECT ${name} FROM invoices LIMIT 1`).get();
+        }
+        catch (error) {
+            try {
+                database.exec(`ALTER TABLE invoices ADD COLUMN ${name} ${type}`);
+                console.log(`Added ${name} column to invoices table`);
+            }
+            catch (alterError) {
+                const errorMsg = alterError?.message || String(alterError);
+                if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+                    console.warn(`Migration warning for ${name}:`, errorMsg);
+                }
+            }
+        }
+    });
     // Invoice Items
     database.exec(`
     CREATE TABLE IF NOT EXISTS invoice_items (
@@ -670,13 +647,35 @@ function createTables(database) {
       description TEXT,
       employeeId TEXT,
       invoiceId TEXT,
+      purchaseOrderId TEXT,
+      quoteId TEXT,
       createdAt TEXT,
       updatedAt TEXT,
       FOREIGN KEY (vehicleId) REFERENCES vehicles(id) ON DELETE CASCADE,
       FOREIGN KEY (employeeId) REFERENCES employees(id),
-      FOREIGN KEY (invoiceId) REFERENCES invoices(id)
+      FOREIGN KEY (invoiceId) REFERENCES invoices(id),
+      FOREIGN KEY (purchaseOrderId) REFERENCES purchase_orders(id),
+      FOREIGN KEY (quoteId) REFERENCES quotes(id)
     )
   `);
+    // Migration: Add purchaseOrderId and quoteId columns if they don't exist
+    try {
+        const transactionTableInfo = database.prepare("PRAGMA table_info(vehicle_transactions)").all();
+        const transactionColumnNames = transactionTableInfo.map((col) => col.name);
+        const newTransactionColumns = [
+            { name: 'purchaseOrderId', type: 'TEXT' },
+            { name: 'quoteId', type: 'TEXT' },
+        ];
+        for (const col of newTransactionColumns) {
+            if (!transactionColumnNames.includes(col.name)) {
+                database.exec(`ALTER TABLE vehicle_transactions ADD COLUMN ${col.name} ${col.type}`);
+                console.log(`Added ${col.name} column to vehicle_transactions table`);
+            }
+        }
+    }
+    catch (error) {
+        console.log('Vehicle transaction migration note:', error.message);
+    }
     // Create indexes for better performance
     database.exec(`
     CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customerId);

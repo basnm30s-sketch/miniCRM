@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
@@ -36,6 +37,7 @@ import {
 } from 'lucide-react'
 import { useQuotes, useDeleteQuote } from '@/hooks/use-quotes'
 import { getAdminSettings } from '@/lib/storage'
+import { useAdminSettings } from '@/hooks/use-admin-settings'
 import { ClientSidePDFRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
@@ -43,45 +45,36 @@ import type { Quote, AdminSettings } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { TwoPaneListHeader } from '@/components/TwoPaneListHeader'
+import { ReadOnlyLineItemsTable } from '@/components/doc-generator/ReadOnlyLineItemsTable'
+import { DEFAULT_QUOTE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
 
 export default function QuotationsPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { data: quotes = [], isLoading: loading, error: quotesError } = useQuotes()
   const deleteMutation = useDeleteQuote()
+  const { data: adminSettings, isLoading: settingsLoading } = useAdminSettings()
   
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
   const [showTerms, setShowTerms] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
-  const [useTwoPane, setUseTwoPane] = useState(true)
+
+  const useTwoPane = useMemo(() => {
+    // Backward-compatible default: true when unset
+    return adminSettings?.showQuotationsTwoPane !== false
+  }, [adminSettings?.showQuotationsTwoPane])
 
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const settings = await getAdminSettings()
-        setAdminSettings(settings)
-        
-        // Determine view mode
-        const twoPaneValue = settings?.showQuotationsTwoPane
-        const twoPaneEnabled = twoPaneValue === false || twoPaneValue === 0
-          ? false
-          : (twoPaneValue === true || twoPaneValue === 1)
-            ? true
-            : true
-        setUseTwoPane(twoPaneEnabled)
-        
-        // Auto-select first quote if available and two-pane is enabled
-        if (twoPaneEnabled && quotes.length > 0) {
-          setSelectedQuote((prev) => prev || quotes[0])
-        }
-      } catch (error) {
-        console.error('Error loading settings:', error)
-      }
-    }
+    if (!useTwoPane) return
+    if (quotes.length === 0) return
 
-    loadSettings()
-  }, [quotes])
+    setSelectedQuote((prev) => {
+      if (prev && quotes.some((q) => q.id === prev.id)) return prev
+      return quotes[0]
+    })
+  }, [useTwoPane, quotes])
 
   const handleDelete = async () => {
     if (!deleteId) return
@@ -233,9 +226,9 @@ export default function QuotationsPage() {
   }
 
   const handleQuoteSave = (savedQuote: Quote) => {
-    setQuotes((prev) => prev.map((q) => (q.id === savedQuote.id ? savedQuote : q)))
     setSelectedQuote(savedQuote)
     setIsEditing(false)
+    queryClient.invalidateQueries({ queryKey: ['quotes'] })
   }
 
   // Helper functions for table display
@@ -263,7 +256,7 @@ export default function QuotationsPage() {
     return colors[status] || 'bg-gray-100 text-gray-700 border-gray-300'
   }
 
-  if (loading) {
+  if (loading || settingsLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="text-slate-500 animate-pulse">Loading quotations...</div>
@@ -492,22 +485,23 @@ export default function QuotationsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Quotations</h1>
           <p className="text-sm text-slate-500">Manage and track your customer quotations</p>
         </div>
-        <Link href="/quotes/create">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-            <Plus className="w-4 h-4 mr-2" />
-            New Quotation
-          </Button>
-        </Link>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Pane - List View */}
         <div className="w-[380px] border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
-          <div className="p-3 bg-slate-50/50 border-b border-slate-200 sticky top-0 z-10 backdrop-blur-sm">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">
-              All Quotations ({quotes.length})
-            </div>
-          </div>
+          <TwoPaneListHeader
+            title="All Quotations"
+            count={quotes.length}
+            action={
+              <Link href="/quotes/create">
+                <Button size="sm" className="h-7 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Quotation
+                </Button>
+              </Link>
+            }
+          />
 
           <div className="divide-y divide-slate-100">
             {quotes.length === 0 ? (
@@ -719,32 +713,12 @@ export default function QuotationsPage() {
                     <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
                       <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Line Items</CardTitle>
                     </CardHeader>
-                    <CardContent className="p-0">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100">
-                          <tr>
-                            <th className="text-left py-3 px-4 font-medium">Description</th>
-                            <th className="text-right py-3 px-4 font-medium">Qty</th>
-                            <th className="text-right py-3 px-4 font-medium">Price</th>
-                            <th className="text-right py-3 px-4 font-medium">Tax</th>
-                            <th className="text-right py-3 px-4 font-medium">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {selectedQuote.items.map((item) => {
-                            const lineTotal = item.quantity * item.unitPrice + (item.quantity * item.unitPrice * item.taxPercent) / 100
-                            return (
-                              <tr key={item.id} className="hover:bg-slate-50/50">
-                                <td className="py-3 px-4 font-medium text-slate-700">{item.vehicleTypeLabel || 'Item'}</td>
-                                <td className="py-3 px-4 text-right text-slate-600">{item.quantity}</td>
-                                <td className="py-3 px-4 text-right text-slate-600">{item.unitPrice.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right text-slate-500 text-xs">{item.taxPercent}%</td>
-                                <td className="py-3 px-4 text-right font-semibold text-slate-900">{lineTotal.toFixed(2)}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
+                    <CardContent className="py-3">
+                      <ReadOnlyLineItemsTable
+                        variant="quote"
+                        items={selectedQuote.items}
+                        visibleColumns={DEFAULT_QUOTE_COLUMNS}
+                      />
                     </CardContent>
                   </Card>
 

@@ -9,47 +9,86 @@ import { revalidatePath } from 'next/cache'
  */
 export async function getAllInvoices() {
   try {
-    const invoicesList = await db
-      .select()
-      .from(invoices)
-      .orderBy(desc(invoices.createdAt))
+    // Check if database is available
+    if (!db) {
+      console.error('Database instance is not available')
+      return []
+    }
+
+    // Fetch invoices list
+    let invoicesList
+    try {
+      invoicesList = await db
+        .select()
+        .from(invoices)
+        .orderBy(desc(invoices.createdAt))
+    } catch (dbError: any) {
+      console.error('Error querying invoices table:', dbError)
+      // If table doesn't exist or query fails, return empty array
+      if (dbError.message?.includes('no such table') || dbError.message?.includes('SQLITE_ERROR')) {
+        console.warn('Invoices table may not exist yet, returning empty array')
+        return []
+      }
+      throw dbError
+    }
+
+    // If no invoices, return empty array early
+    if (!invoicesList || invoicesList.length === 0) {
+      return []
+    }
 
     // Fetch items for each invoice
     const invoicesWithItems = await Promise.all(
       invoicesList.map(async (invoice) => {
-        const items = await db
-          .select()
-          .from(invoiceItems)
-          .where(eq(invoiceItems.invoiceId, invoice.id))
+        try {
+          const items = await db
+            .select()
+            .from(invoiceItems)
+            .where(eq(invoiceItems.invoiceId, invoice.id))
 
-        return {
-          ...invoice,
-          items: items.map(item => ({
-            id: item.id,
-            serialNumber: item.serialNumber || undefined,
-            vehicleTypeId: item.vehicleTypeId || undefined,
-            vehicleTypeLabel: item.vehicleTypeLabel || undefined,
-            vehicleNumber: item.vehicleNumber || undefined,
-            description: item.description || undefined,
-            rentalBasis: item.rentalBasis || undefined,
-            quantity: item.quantity || 0,
-            unitPrice: item.unitPrice || 0,
-            taxPercent: item.taxPercent || undefined,
-            tax: item.tax || undefined,
-            grossAmount: item.grossAmount || undefined,
-            lineTaxAmount: item.lineTaxAmount || undefined,
-            lineTotal: item.lineTotal || undefined,
-            total: item.total || 0,
-            amountReceived: item.amountReceived || undefined,
-          })),
+          return {
+            ...invoice,
+            items: items.map(item => ({
+              id: item.id,
+              serialNumber: item.serialNumber || undefined,
+              vehicleTypeId: item.vehicleTypeId || undefined,
+              vehicleTypeLabel: item.vehicleTypeLabel || undefined,
+              vehicleNumber: item.vehicleNumber || undefined,
+              description: item.description || undefined,
+              rentalBasis: item.rentalBasis || undefined,
+              quantity: item.quantity || 0,
+              unitPrice: item.unitPrice || 0,
+              taxPercent: item.taxPercent || undefined,
+              tax: item.tax || undefined,
+              grossAmount: item.grossAmount || undefined,
+              lineTaxAmount: item.lineTaxAmount || undefined,
+              lineTotal: item.lineTotal || undefined,
+              total: item.total || 0,
+              amountReceived: item.amountReceived || undefined,
+            })),
+          }
+        } catch (itemError: any) {
+          console.error(`Error fetching items for invoice ${invoice.id}:`, itemError)
+          // Return invoice without items if items query fails
+          return {
+            ...invoice,
+            items: [],
+          }
         }
       })
     )
 
     return invoicesWithItems
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching invoices:', error)
-    throw new Error('Failed to fetch invoices')
+    console.error('Error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+    })
+    // Return empty array instead of throwing to prevent UI crashes
+    // The error is logged for debugging
+    return []
   }
 }
 
