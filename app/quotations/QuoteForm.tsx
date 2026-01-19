@@ -467,9 +467,12 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
 
     const selectedCustomerDisplay = useMemo(() => {
         if (!quote.customer?.id) return null
-        const customer = customers.find((c) => c.id === quote.customer.id)
-        if (!customer) return null
-        return `${customer.name}${customer.company ? ` (${customer.company})` : ''}`
+        const customer = customers.find((c) => c.id === quote.customer.id) || quote.customer
+        const name = (customer?.name || '').trim()
+        const company = (customer?.company || '').trim()
+        if (!name && !company) return null
+        if (name && company) return `${name} (${company})`
+        return name || company
     }, [quote.customer?.id, customers])
 
     const handleCustomerChange = (customerId: string) => {
@@ -843,10 +846,43 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                         </div>
 
                         {quote.customer.id && (
-                            <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
-                                <p className="font-semibold text-slate-900">{quote.customer.name}</p>
-                                {quote.customer.company && <p className="text-xs text-slate-600">{quote.customer.company}</p>}
-                            </div>
+                            (() => {
+                                const displayCustomer =
+                                    customers.find((c) => c.id === quote.customer.id) || quote.customer
+                                const name = (displayCustomer?.name || '').trim()
+                                const company = (displayCustomer?.company || '').trim()
+                                const email = (displayCustomer?.email || '').trim()
+                                const phone = (displayCustomer?.phone || '').trim()
+                                const address = (displayCustomer?.address || '').trim()
+
+                                return (
+                                    <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
+                                        <p className="font-semibold text-slate-900">
+                                            {name || company || 'N/A'}
+                                        </p>
+                                        {name && company && (
+                                            <p className="text-xs text-slate-600">{company}</p>
+                                        )}
+
+                                        <div className="mt-2 space-y-1 text-xs">
+                                            <div className="flex justify-between gap-3">
+                                                <span className="text-slate-500">Email</span>
+                                                <span className="text-slate-900 truncate">{email || '—'}</span>
+                                            </div>
+                                            <div className="flex justify-between gap-3">
+                                                <span className="text-slate-500">Phone</span>
+                                                <span className="text-slate-900 truncate">{phone || '—'}</span>
+                                            </div>
+                                            <div className="flex justify-between gap-3">
+                                                <span className="text-slate-500">Address</span>
+                                                <span className="text-slate-900 text-right line-clamp-2">
+                                                    {address || '—'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })()
                         )}
                     </CardContent>
                 </Card>

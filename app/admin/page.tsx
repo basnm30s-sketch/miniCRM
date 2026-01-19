@@ -44,6 +44,11 @@ export default function AdminSettingsPage() {
         // Load admin settings from database
         const stored = await getAdminSettings()
         if (stored) {
+          // Backward compatibility: newer API returns `showVehicleDashboard`,
+          // older/legacy payloads may still include `showVehicleFinances`.
+          const rawShowVehicleDashboard =
+            (stored as any).showVehicleDashboard ?? (stored as any).showVehicleFinances
+
           const settingsWithBooleans: AdminSettings = {
             ...stored,
             showRevenueTrend: (stored as any).showRevenueTrend === false || (stored as any).showRevenueTrend === 0
@@ -55,9 +60,9 @@ export default function AdminSettingsPage() {
             showReports: (stored as any).showReports === false || (stored as any).showReports === 0
               ? false
               : ((stored as any).showReports === true || (stored as any).showReports === 1 ? true : false),
-            showVehicleDashboard: (stored as any).showVehicleFinances === false || (stored as any).showVehicleFinances === 0
+            showVehicleDashboard: rawShowVehicleDashboard === false || rawShowVehicleDashboard === 0
               ? false
-              : ((stored as any).showVehicleFinances === true || (stored as any).showVehicleFinances === 1 ? true : false),
+              : (rawShowVehicleDashboard === true || rawShowVehicleDashboard === 1 ? true : false),
             showQuotationsInvoicesCard: (stored as any).showQuotationsInvoicesCard === false || (stored as any).showQuotationsInvoicesCard === 0
               ? false
               : ((stored as any).showQuotationsInvoicesCard === true || (stored as any).showQuotationsInvoicesCard === 1 ? true : true),
