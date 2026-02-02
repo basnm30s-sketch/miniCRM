@@ -148,7 +148,7 @@ export default function PurchaseOrdersPage() {
       }
       const vendor = vendors.find((v) => v.id === po.vendorId)
       const vendorName = vendor?.name || 'Unknown Vendor'
-      const blob = await excelRenderer.renderPurchaseOrderToExcel(po, settings, vendorName)
+      const blob = await excelRenderer.renderPurchaseOrderToExcel(po, settings, vendorName, { visibleColumns: DEFAULT_PO_COLUMNS })
       excelRenderer.downloadExcel(blob, `po-${po.number}.xlsx`)
       toast({ title: 'Success', description: 'Excel file downloaded successfully' })
     } catch (error) {

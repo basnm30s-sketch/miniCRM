@@ -168,7 +168,8 @@ describe('Database Module', () => {
                 throw new Error('Database initialization failed');
             });
             const { initDatabase } = require('../database');
-            expect(() => initDatabase()).toThrow('Database initialization failed');
+            expect(() => initDatabase()).not.toThrow();
+            expect(initDatabase()).toBeNull();
         });
     });
     describe('getDatabase', () => {

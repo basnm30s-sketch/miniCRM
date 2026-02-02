@@ -48,8 +48,16 @@ exports.saveBrandingFile = saveBrandingFile;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const uuid_1 = require("uuid");
-const UPLOAD_BASE_DIR = path.join(process.cwd(), 'data', 'uploads');
-const BRANDING_BASE_DIR = path.join(process.cwd(), 'data', 'branding');
+/**
+ * IMPORTANT: In packaged Electron builds, process.cwd() may point to the install directory
+ * (often not writable), which can break Settings loading and wipe data on reinstall.
+ *
+ * Use IMANAGE_DATA_DIR when provided (set by Electron main process) to store data
+ * under app.getPath('userData')/data.
+ */
+const DATA_DIR = process.env.IMANAGE_DATA_DIR || path.join(process.cwd(), 'data');
+const UPLOAD_BASE_DIR = path.join(DATA_DIR, 'uploads');
+const BRANDING_BASE_DIR = path.join(DATA_DIR, 'branding');
 // Ensure upload directories exist
 function ensureDirectories() {
     const dirs = [
@@ -69,9 +77,15 @@ function ensureBrandingDirectory() {
         fs.mkdirSync(BRANDING_BASE_DIR, { recursive: true });
     }
 }
-// Initialize directories on module load
-ensureDirectories();
-ensureBrandingDirectory();
+// Avoid hard-failing server startup if the directory is not writable.
+// We'll create directories lazily on first use too.
+try {
+    ensureDirectories();
+    ensureBrandingDirectory();
+}
+catch (error) {
+    console.error('File storage initialization warning:', error);
+}
 /**
  * Save uploaded file
  * @param file Buffer or file data
@@ -101,11 +115,21 @@ function getFilePath(relativePath) {
     if (path.isAbsolute(relativePath)) {
         return relativePath;
     }
-    // Convert relative path to absolute
-    if (relativePath.startsWith('./')) {
-        return path.join(process.cwd(), relativePath.substring(2));
+    // Legacy stored paths in DB are like:
+    // - ./data/uploads/...
+    // - ./data/branding/...
+    // Map those to DATA_DIR regardless of current CWD.
+    const normalized = relativePath.replace(/\\/g, '/');
+    if (normalized.startsWith('./data/')) {
+        return path.join(DATA_DIR, normalized.substring('./data/'.length));
     }
-    return path.join(process.cwd(), relativePath);
+    if (normalized.startsWith('data/')) {
+        return path.join(DATA_DIR, normalized.substring('data/'.length));
+    }
+    if (normalized.startsWith('./')) {
+        return path.join(DATA_DIR, normalized.substring('./'.length));
+    }
+    return path.join(DATA_DIR, normalized);
 }
 /**
  * Read file

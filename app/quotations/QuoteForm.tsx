@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import Link from 'next/link'
 import {
     Card,
     CardContent,
@@ -30,7 +29,7 @@ import {
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Trash2, FileText, Sheet, FileType, Pencil, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, FileText, Sheet, FileType, Pencil } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     getAdminSettings,
@@ -43,6 +42,7 @@ import {
     saveQuote,
     saveCustomer,
 } from '@/lib/storage'
+import { saveVehicle } from '@/lib/api-client'
 import { pdfRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
@@ -69,7 +69,16 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     const [newCustomerEmail, setNewCustomerEmail] = useState('')
     const [newCustomerPhone, setNewCustomerPhone] = useState('')
     const [newCustomerAddress, setNewCustomerAddress] = useState('')
+    const [showAddVehicle, setShowAddVehicle] = useState(false)
+    const [newVehicleLineItemId, setNewVehicleLineItemId] = useState<string | null>(null)
+    const [newVehicleNumber, setNewVehicleNumber] = useState('')
+    const [newVehicleType, setNewVehicleType] = useState('')
+    const [newVehicleMake, setNewVehicleMake] = useState('')
+    const [newVehicleModel, setNewVehicleModel] = useState('')
+    const [newVehicleYear, setNewVehicleYear] = useState('')
+    const [newVehicleBasePrice, setNewVehicleBasePrice] = useState('')
     const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+    const [submitAttempted, setSubmitAttempted] = useState(false)
     const [isValidForExport, setIsValidForExport] = useState(false)
     const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
     const [isDirty, setIsDirty] = useState(false)
@@ -80,16 +89,17 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_QUOTE_COLUMNS }))
 
     // Determine if editing based on props or internal logic
+    // Use deterministic placeholders for create to avoid hydration #418; resolve in loadData useEffect
     const [quote, setQuote] = useState<Quote>(initialData || {
-        id: generateId(),
+        id: 'new',
         number: '',
-        date: new Date().toISOString().split('T')[0],
+        date: '',
         validUntil: undefined,
         currency: 'AED',
         customer: { id: '', name: '', company: '', email: '', phone: '', address: '' },
         items: [
             {
-                id: generateId(),
+                id: 'new-item-0',
                 vehicleTypeId: '',
                 vehicleTypeLabel: '',
                 quantity: 1,
@@ -209,6 +219,22 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
 
         async function loadData() {
             try {
+                // Replace deterministic placeholders with real ids/date when creating (client-only, avoids hydration #418)
+                if (!initialData) {
+                    setQuote((prev) => {
+                        if (prev.id !== 'new' && prev.id !== '') return prev
+                        return {
+                            ...prev,
+                            id: generateId(),
+                            date: prev.date || new Date().toISOString().split('T')[0],
+                            items: prev.items.map((it, i) => ({
+                                ...it,
+                                id: (i === 0 && (it.id === 'new-item-0' || !it.id)) ? generateId() : it.id,
+                            })),
+                        }
+                    })
+                }
+
                 // Load admin settings
                 const settings = await getAdminSettings()
                 let currentSettings = settings
@@ -344,7 +370,8 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
         const newItems = quote.items.map((item) => {
             if (item.id === itemId) {
                 const updated = { ...item, [field]: value }
-                console.log('[Quote Line Item Validation]', {
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('[Quote Line Item Validation]', {
                     itemId: item.id,
                     fieldBeingChanged: field,
                     currentValues: {
@@ -359,6 +386,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                       lineTotal: item.lineTotal || 'MISSING',
                     }
                   })
+                }
 
                 // If changing vehicle number, find vehicle and update related fields
                 if (field === 'vehicleNumber' && value) {
@@ -517,6 +545,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
 
         if (!validation.isValid) {
             setValidationErrors(validation.errors)
+            setSubmitAttempted(true)
             const firstError = validation.errors[0]
             toast({
                 title: 'Validation Error',
@@ -531,25 +560,30 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
             const now = new Date().toISOString()
             const quoteToSave: Quote = {
                 ...quote,
-                createdAt: quote.createdAt || now,
+                createdAt: quote.createdAt,
                 updatedAt: now,
             }
-            await saveQuote(quoteToSave)
-            setQuote(quoteToSave)
-            setSavedSnapshot(snapshotQuote(quoteToSave))
+            const saved = await saveQuote(quoteToSave)
+            const savedQuote = saved && typeof saved === 'object' ? saved : quoteToSave
+            const toState = { ...savedQuote, createdAt: savedQuote.createdAt || now }
+            setQuote(toState)
+            setSavedSnapshot(snapshotQuote(toState))
             setIsDirty(false)
             
-            // Persist column preferences for this specific quote
             if (typeof window !== 'undefined') {
-                const storageKey = getVisibleColumnsStorageKey(quoteToSave.id)
+                const storageKey = getVisibleColumnsStorageKey(toState.id)
                 localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
             }
             
             toast({ title: 'Saved', description: `Quote ${quote.number} saved successfully` })
             setValidationErrors([])
 
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'quotes' } }))
+            }
+
             if (onSave) {
-                onSave(quoteToSave)
+                onSave(toState)
             }
             return true
         } catch (err) {
@@ -654,7 +688,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
 
         setGenerating(true)
         try {
-            const excelBlob = await excelRenderer.renderQuoteToExcel(quote, adminSettings)
+            const excelBlob = await excelRenderer.renderQuoteToExcel(quote, adminSettings, { visibleColumns })
             const filename = `quote-${quote.number}.xlsx`
             excelRenderer.downloadExcel(excelBlob, filename)
             toast({ title: 'Success', description: 'Excel file downloaded successfully' })
@@ -713,13 +747,6 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     return (
         <div className="p-8">
             <div className="mb-4">
-                <Link 
-                    href="/quotations" 
-                    className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-2"
-                >
-                    <ArrowLeft className="w-4 h-4 mr-1" />
-                    Back to Quotations
-                </Link>
                 <h1 className="text-2xl font-bold text-slate-900">
                     {isEditMode ? 'Edit Quotation' : 'Create New Quotation'}
                 </h1>
@@ -824,7 +851,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                 }}
                             >
                                 <SelectTrigger
-                                    className={`mt-1 h-8 ${validationErrors.some((e) => e.field === 'customer') ? 'border-red-500' : ''}`}
+                                    className={`mt-1 h-8 ${validationErrors.some((e) => e.field === 'customer') && submitAttempted ? 'border-red-500' : ''}`}
                                 >
                                     {selectedCustomerDisplay || (
                                         <span className="text-muted-foreground text-xs">Select a customer...</span>
@@ -854,6 +881,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                 const email = (displayCustomer?.email || '').trim()
                                 const phone = (displayCustomer?.phone || '').trim()
                                 const address = (displayCustomer?.address || '').trim()
+                                const hasContact = [email, phone, address].some((s) => (s || '').trim() !== '')
 
                                 return (
                                     <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
@@ -863,23 +891,24 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                         {name && company && (
                                             <p className="text-xs text-slate-600">{company}</p>
                                         )}
-
-                                        <div className="mt-2 space-y-1 text-xs">
-                                            <div className="flex justify-between gap-3">
-                                                <span className="text-slate-500">Email</span>
-                                                <span className="text-slate-900 truncate">{email || '—'}</span>
+                                        {hasContact && (
+                                            <div className="mt-2 space-y-1 text-xs">
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-slate-500">Email</span>
+                                                    <span className="text-slate-900 truncate">{email || '—'}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-slate-500">Phone</span>
+                                                    <span className="text-slate-900 truncate">{phone || '—'}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-slate-500">Address</span>
+                                                    <span className="text-slate-900 text-right line-clamp-2">
+                                                        {address || '—'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="flex justify-between gap-3">
-                                                <span className="text-slate-500">Phone</span>
-                                                <span className="text-slate-900 truncate">{phone || '—'}</span>
-                                            </div>
-                                            <div className="flex justify-between gap-3">
-                                                <span className="text-slate-500">Address</span>
-                                                <span className="text-slate-900 text-right line-clamp-2">
-                                                    {address || '—'}
-                                                </span>
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
                                 )
                             })()
@@ -1039,6 +1068,14 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                                     </SelectItem>
                                                                 )
                                                             })}
+                                                            <div className="px-2 py-2 border-t">
+                                                                <button type="button" className="text-blue-600 hover:underline text-xs" onClick={() => {
+                                                                    setNewVehicleLineItemId(item.id)
+                                                                    setShowAddVehicle(true)
+                                                                }}>
+                                                                    + Add Vehicle
+                                                                </button>
+                                                            </div>
                                                         </SelectContent>
                                                     </Select>
                                                 </td>
@@ -1307,9 +1344,138 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                     setNewCustomerPhone('')
                                     setNewCustomerAddress('')
                                     toast({ title: 'Created', description: 'Customer created and selected' })
+
+                                    if (typeof window !== 'undefined') {
+                                        window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'customers' } }))
+                                    }
                                 } catch (err) {
                                     console.error('Failed to create customer', err)
                                     toast({ title: 'Error', description: 'Failed to create customer', variant: 'destructive' })
+                                }
+                            }}>Create</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Vehicle Modal */}
+            {showAddVehicle && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="fixed inset-0 bg-black/40" onClick={() => {
+                        setShowAddVehicle(false)
+                        setNewVehicleLineItemId(null)
+                    }} />
+                    <div className="bg-white rounded p-6 z-10 w-full max-w-md shadow-xl">
+                        <h3 className="text-lg font-semibold mb-4">Add Vehicle</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <Label htmlFor="quote-vehicle-number" className="text-slate-700 text-sm mb-1 block">Vehicle Number <span className="text-red-500">*</span></Label>
+                                <Input 
+                                    id="quote-vehicle-number"
+                                    placeholder="Vehicle Number" 
+                                    value={newVehicleNumber} 
+                                    onChange={(e) => setNewVehicleNumber(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="quote-vehicle-type" className="text-slate-700 text-sm mb-1 block">Vehicle Type</Label>
+                                <Input 
+                                    id="quote-vehicle-type"
+                                    placeholder="Vehicle Type" 
+                                    value={newVehicleType} 
+                                    onChange={(e) => setNewVehicleType(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="quote-vehicle-make" className="text-slate-700 text-sm mb-1 block">Make</Label>
+                                <Input 
+                                    id="quote-vehicle-make"
+                                    placeholder="Make" 
+                                    value={newVehicleMake} 
+                                    onChange={(e) => setNewVehicleMake(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="quote-vehicle-model" className="text-slate-700 text-sm mb-1 block">Model</Label>
+                                <Input 
+                                    id="quote-vehicle-model"
+                                    placeholder="Model" 
+                                    value={newVehicleModel} 
+                                    onChange={(e) => setNewVehicleModel(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="quote-vehicle-year" className="text-slate-700 text-sm mb-1 block">Year</Label>
+                                <Input 
+                                    id="quote-vehicle-year"
+                                    type="number"
+                                    placeholder="Year" 
+                                    value={newVehicleYear} 
+                                    onChange={(e) => setNewVehicleYear(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="quote-vehicle-base-price" className="text-slate-700 text-sm mb-1 block">Base Price</Label>
+                                <Input 
+                                    id="quote-vehicle-base-price"
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Base Price" 
+                                    value={newVehicleBasePrice} 
+                                    onChange={(e) => setNewVehicleBasePrice(e.target.value)} 
+                                />
+                            </div>
+                        </div>
+                        <div className="mt-4 flex justify-end gap-2">
+                            <Button variant="outline" onClick={() => {
+                                setShowAddVehicle(false)
+                                setNewVehicleLineItemId(null)
+                            }}>Cancel</Button>
+                            <Button onClick={async () => {
+                                if (!newVehicleNumber.trim()) {
+                                    toast({ title: 'Validation', description: 'Vehicle Number is required', variant: 'destructive' })
+                                    return
+                                }
+                                const id = generateId()
+                                const vehicle = {
+                                    id,
+                                    vehicleNumber: newVehicleNumber.trim(),
+                                    vehicleType: newVehicleType.trim() || null,
+                                    make: newVehicleMake.trim() || null,
+                                    model: newVehicleModel.trim() || null,
+                                    year: newVehicleYear.trim() ? parseInt(newVehicleYear.trim(), 10) : null,
+                                    basePrice: newVehicleBasePrice.trim() ? parseFloat(newVehicleBasePrice.trim()) : null,
+                                    status: 'active' as const,
+                                    createdAt: new Date().toISOString(),
+                                }
+                                try {
+                                    await saveVehicle(vehicle)
+                                    const updated = await getAllVehicles()
+                                    setVehicles(updated)
+                                    
+                                    // Auto-select the new vehicle in the line item
+                                    // handleLineItemChange will automatically update related fields (vehicleType, make, model, year, basePrice, description)
+                                    if (newVehicleLineItemId) {
+                                        handleLineItemChange(newVehicleLineItemId, 'vehicleNumber', vehicle.vehicleNumber)
+                                    }
+                                    
+                                    setShowAddVehicle(false)
+                                    setNewVehicleLineItemId(null)
+                                    // Reset fields
+                                    setNewVehicleNumber('')
+                                    setNewVehicleType('')
+                                    setNewVehicleMake('')
+                                    setNewVehicleModel('')
+                                    setNewVehicleYear('')
+                                    setNewVehicleBasePrice('')
+                                    toast({ title: 'Created', description: 'Vehicle created and selected' })
+
+                                    if (typeof window !== 'undefined') {
+                                        window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'vehicles' } }))
+                                    }
+                                } catch (err) {
+                                    console.error('Failed to create vehicle', err)
+                                    toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to create vehicle', variant: 'destructive' })
                                 }
                             }}>Create</Button>
                         </div>

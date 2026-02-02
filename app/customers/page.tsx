@@ -111,6 +111,10 @@ export default function CustomersPage() {
         return
       }
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'customers' } }))
+      }
+
       // Reset form
       setNewName('')
       setNewCompany('')
@@ -139,6 +143,11 @@ export default function CustomersPage() {
             description: result.error || 'Failed to delete customer',
             variant: 'destructive',
           })
+          return
+        }
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'customers' } }))
         }
       } catch (err) {
         console.error('Failed to delete customer', err)

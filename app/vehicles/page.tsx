@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Plus, Edit2, Trash2, Car, AlertCircle, TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
 import { useVehicles, useCreateVehicle, useUpdateVehicle, useDeleteVehicle, useCreateVehicleTransaction } from '@/hooks/use-vehicles'
-import { getVehicleProfitability, getAllVehicleTransactions } from '@/actions/vehicles'
+import { getVehicleProfitability, getAllVehicleTransactions } from '@/lib/api-client'
 
 // Helper to generate unique IDs
 function generateId(): string {
@@ -103,14 +103,19 @@ export default function VehiclesPage() {
 
   const loadProfitabilityData = async () => {
     const data: Record<string, any> = {}
-    for (const vehicle of vehicles) {
-      try {
-        // Use the hook's query function directly
-        const profitability = await getVehicleProfitability(vehicle.id)
-        data[vehicle.id] = profitability
-      } catch (error) {
-        console.error(`Error loading profitability for vehicle ${vehicle.id}:`, error)
-      }
+    const CONCURRENCY = 3
+    for (let i = 0; i < vehicles.length; i += CONCURRENCY) {
+      const batch = vehicles.slice(i, i + CONCURRENCY)
+      await Promise.all(
+        batch.map(async (vehicle) => {
+          try {
+            const profitability = await getVehicleProfitability(vehicle.id)
+            data[vehicle.id] = profitability
+          } catch (error) {
+            console.error(`Error loading profitability for vehicle ${vehicle.id}:`, error)
+          }
+        })
+      )
     }
     setProfitabilityData(data)
   }
@@ -194,14 +199,16 @@ export default function VehiclesPage() {
     }
 
     try {
-      console.log('Form data before submission:', {
-        vehicleId,
-        isUpdate,
-        vehicleNumber: form.vehicleNumber,
-        vehicleNumberLength: form.vehicleNumber?.length,
-        hasVehicleNumber: !!form.vehicleNumber && form.vehicleNumber.trim().length > 0,
-      })
-      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Form data before submission:', {
+          vehicleId,
+          isUpdate,
+          vehicleNumber: form.vehicleNumber,
+          vehicleNumberLength: form.vehicleNumber?.length,
+          hasVehicleNumber: !!form.vehicleNumber && form.vehicleNumber.trim().length > 0,
+        })
+      }
+
       let result
       if (isUpdate) {
         result = await updateMutation.mutateAsync({
@@ -228,6 +235,7 @@ export default function VehiclesPage() {
             description: safeTrim(form.description),
             basePrice: form.basePrice ? parseFloat(form.basePrice) : null,
             notes: safeTrim(form.notes),
+            createdAt: vehicles.find(v => v.id === editingId)?.createdAt,
           },
         })
       } else {
@@ -261,12 +269,17 @@ export default function VehiclesPage() {
           description: safeTrim(form.description),
           basePrice: form.basePrice ? parseFloat(form.basePrice) : null,
           notes: safeTrim(form.notes),
+          type: safeTrim(form.vehicleType),
         })
       }
 
       if (!result.success) {
         setError(result.error || 'Failed to save vehicle')
         return
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'vehicles' } }))
       }
 
       // Optional: Auto-create expense entry for purchase price (only on create)
@@ -344,6 +357,11 @@ export default function VehiclesPage() {
         const result = await deleteMutation.mutateAsync(id)
         if (!result.success) {
           alert(result.error || 'Failed to delete vehicle')
+          return
+        }
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'vehicles' } }))
         }
       } catch (err: any) {
         alert(err?.message || 'Failed to delete vehicle')
@@ -475,7 +493,7 @@ export default function VehiclesPage() {
       {/* Add/Edit Vehicle Modal */}
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/40" onClick={closeModal} />
+          <div className="fixed inset-0 bg-black/40" onClick={closeModal} tabIndex={-1} aria-hidden="true" />
           <div className="bg-white rounded-lg shadow-xl z-10 w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-slate-200 sticky top-0 bg-white z-10 rounded-t-lg">
               <h3 className="text-xl font-semibold text-slate-900">
@@ -515,6 +533,7 @@ export default function VehiclesPage() {
                         placeholder="e.g., DXB A-12345"
                         value={form.vehicleNumber}
                         onChange={(e) => updateForm('vehicleNumber', e.target.value)}
+                        autoFocus
                       />
                     </div>
                     <div>

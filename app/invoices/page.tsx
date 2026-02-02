@@ -199,7 +199,8 @@ export default function InvoicesPage() {
       const customer = customers.find((c) => c.id === invoice.customerId)
       const customerName = customer?.name || 'Unknown Customer'
       const blob = await pdfRenderer.renderInvoiceToPdf(invoice, settings, customerName)
-      pdfRenderer.downloadPdf(blob, `invoice-${invoice.number}.pdf`)
+      const numPart = (invoice.number || '').replace(/^Invoice-?/i, '') || invoice.number || 'invoice'
+      pdfRenderer.downloadPdf(blob, `invoice-${numPart}.pdf`)
       toast({ title: 'Success', description: 'PDF downloaded successfully' })
     } catch (error) {
       console.error('Error generating PDF:', error)
@@ -216,8 +217,9 @@ export default function InvoicesPage() {
       }
       const customer = customers.find((c) => c.id === invoice.customerId)
       const customerName = customer?.name || 'Unknown Customer'
-      const blob = await excelRenderer.renderInvoiceToExcel(invoice, settings, customerName)
-      excelRenderer.downloadExcel(blob, `invoice-${invoice.number}.xlsx`)
+      const blob = await excelRenderer.renderInvoiceToExcel(invoice, settings, customerName, { visibleColumns: DEFAULT_INVOICE_COLUMNS })
+      const numPart = (invoice.number || '').replace(/^Invoice-?/i, '') || invoice.number || 'invoice'
+      excelRenderer.downloadExcel(blob, `invoice-${numPart}.xlsx`)
       toast({ title: 'Success', description: 'Excel file downloaded successfully' })
     } catch (error) {
       console.error('Error generating Excel:', error)
@@ -235,7 +237,8 @@ export default function InvoicesPage() {
       const customer = customers.find((c) => c.id === invoice.customerId)
       const customerName = customer?.name || 'Unknown Customer'
       const blob = await docxRenderer.renderInvoiceToDocx(invoice, settings, customerName)
-      docxRenderer.downloadDocx(blob, `invoice-${invoice.number}.docx`)
+      const numPart = (invoice.number || '').replace(/^Invoice-?/i, '') || invoice.number || 'invoice'
+      docxRenderer.downloadDocx(blob, `invoice-${numPart}.docx`)
       toast({ title: 'Success', description: 'Word document downloaded successfully' })
     } catch (error) {
       console.error('Error generating DOCX:', error)

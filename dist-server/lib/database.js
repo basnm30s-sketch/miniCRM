@@ -690,6 +690,11 @@ function createTables(database) {
     CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_date ON vehicle_transactions(date);
     CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_month ON vehicle_transactions(month);
     CREATE INDEX IF NOT EXISTS idx_vehicle_transactions_type ON vehicle_transactions(transactionType);
+    CREATE INDEX IF NOT EXISTS idx_quotes_number ON quotes(number);
+    CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(number);
+    CREATE INDEX IF NOT EXISTS idx_purchase_orders_number ON purchase_orders(number);
+    CREATE INDEX IF NOT EXISTS idx_vehicles_vehicleNumber ON vehicles(vehicleNumber);
+    CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
   `);
 }
 /**

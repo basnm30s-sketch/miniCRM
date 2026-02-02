@@ -164,7 +164,7 @@ async function getQuoteById(id) {
     return apiClient.getQuoteById(id);
 }
 async function saveQuote(quote) {
-    await apiClient.saveQuote(quote);
+    return apiClient.saveQuote(quote);
 }
 async function deleteQuote(id) {
     await apiClient.deleteQuote(id);

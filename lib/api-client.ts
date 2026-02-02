@@ -3,6 +3,20 @@
  * Provides functions matching storage.ts API but calls backend API endpoints
  */
 
+import type {
+  AdminSettings,
+  Customer,
+  Vendor,
+  Employee,
+  Vehicle,
+  Quote,
+  PurchaseOrder,
+  Invoice,
+  Payslip,
+  VehicleTransaction,
+  ExpenseCategory,
+} from './types'
+
 // Use relative paths for Vercel/Next.js API routes, or explicit URL for Express server
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://localhost:3001/api')
 
@@ -75,16 +89,61 @@ export async function waitForApiServer(
   return false
 }
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 8000
+
+/**
+ * fetch with AbortController-based timeout to avoid hanging when server is unresponsive.
+ * @param url URL to fetch
+ * @param init Optional RequestInit (method, headers, body, etc.)
+ * @param timeoutMs Timeout in ms (default 8000). Set to 0 to disable.
+ */
+async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS
+): Promise<Response> {
+  const controller = timeoutMs > 0 ? new AbortController() : null
+  const timeoutId =
+    controller && timeoutMs > 0 ? setTimeout(() => controller!.abort(), timeoutMs) : null
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: init?.signal ?? controller?.signal,
+    })
+    if (timeoutId) clearTimeout(timeoutId)
+    return response
+  } catch (error: any) {
+    if (timeoutId) clearTimeout(timeoutId)
+    if (error?.name === 'AbortError') {
+      throw new Error('Request timeout')
+    }
+    throw error
+  }
+}
+
 async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
   try {
+    // Avoid requests hanging forever (common when local backend is stuck).
+    // Use existing signal if provided; otherwise attach a timeout signal.
+    const controller = options?.signal ? null : new AbortController()
+    const timeoutMs =
+      typeof options?.signal === 'undefined'
+        ? 8000
+        : 0
+    const timeoutId =
+      controller && timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null
+
     const response = await fetch(url, {
       ...options,
+      signal: options?.signal ?? controller?.signal,
       headers: {
         'Content-Type': 'application/json',
         ...options?.headers,
       },
     })
+
+    if (timeoutId) clearTimeout(timeoutId)
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}`
@@ -110,6 +169,9 @@ async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T
 
     return response.json()
   } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Request timeout')
+    }
     // Re-throw with more context
     if (error.message && !error.message.includes('Network error')) {
       // Don't log 404 errors as they're expected in some cases
@@ -123,16 +185,16 @@ async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T
 }
 
 // ==================== ADMIN SETTINGS ====================
-export async function getAdminSettings(): Promise<any | null> {
+export async function getAdminSettings(): Promise<AdminSettings | null> {
   try {
-    return await apiRequest<any>('/admin/settings')
+    return await apiRequest<AdminSettings>('/admin/settings')
   } catch (error) {
     console.error('Failed to get admin settings:', error)
     return null
   }
 }
 
-export async function saveAdminSettings(settings: any): Promise<void> {
+export async function saveAdminSettings(settings: AdminSettings): Promise<void> {
   try {
     await apiRequest('/admin/settings', {
       method: 'POST',
@@ -145,24 +207,22 @@ export async function saveAdminSettings(settings: any): Promise<void> {
 }
 
 // ==================== CUSTOMERS ====================
-export async function getAllCustomers(): Promise<any[]> {
+export async function getAllCustomers(): Promise<Customer[]> {
   try {
-    return await apiRequest<any[]>('/customers') || []
+    return await apiRequest<Customer[]>('/customers') || []
   } catch (error) {
     console.error('Failed to get customers:', error)
     return []
   }
 }
 
-export async function getCustomerById(id: string): Promise<any | null> {
+export async function getCustomerById(id: string): Promise<Customer | null> {
   try {
     // Remove trailing slash if present and ensure no double slashes
     const cleanId = id.replace(/\/$/, '')
     const url = `${API_BASE_URL}/customers/${cleanId}`
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    const response = await fetchWithTimeout(url, {
+      headers: { 'Content-Type': 'application/json' },
     })
     
     // Handle 404 as expected - return null instead of throwing
@@ -192,7 +252,7 @@ export async function getCustomerById(id: string): Promise<any | null> {
   }
 }
 
-export async function saveCustomer(customer: any, isUpdate?: boolean): Promise<void> {
+export async function saveCustomer(customer: Customer, isUpdate?: boolean): Promise<void> {
   try {
     // If isUpdate flag is provided, use it directly
     // Otherwise, check if customer exists by trying to get it
@@ -246,22 +306,20 @@ export async function deleteCustomer(id: string): Promise<void> {
 }
 
 // ==================== VENDORS ====================
-export async function getAllVendors(): Promise<any[]> {
+export async function getAllVendors(): Promise<Vendor[]> {
   try {
-    return await apiRequest<any[]>('/vendors') || []
+    return await apiRequest<Vendor[]>('/vendors') || []
   } catch (error) {
     console.error('Failed to get vendors:', error)
     return []
   }
 }
 
-export async function getVendorById(id: string): Promise<any | null> {
+export async function getVendorById(id: string): Promise<Vendor | null> {
   try {
     const url = `${API_BASE_URL}/vendors/${id}`
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    const response = await fetchWithTimeout(url, {
+      headers: { 'Content-Type': 'application/json' },
     })
     
     // Handle 404 as expected - return null instead of throwing
@@ -291,27 +349,34 @@ export async function getVendorById(id: string): Promise<any | null> {
   }
 }
 
-export async function saveVendor(vendor: any): Promise<void> {
+export async function saveVendor(vendor: Vendor): Promise<void> {
   try {
-    // Check if vendor exists by trying to get it
+    // New vendors (no createdAt) don't exist yet — POST directly to avoid 404 from getVendorById
+    const isNew = !vendor.createdAt
+    if (isNew) {
+      await apiRequest('/vendors', {
+        method: 'POST',
+        body: JSON.stringify(vendor),
+      })
+      return
+    }
+
+    // For possibly existing vendors, check then update or create
     let existingVendor = null
     if (vendor.id) {
       try {
         existingVendor = await getVendorById(vendor.id)
-      } catch (error) {
-        // Vendor doesn't exist, will create new one
+      } catch {
         existingVendor = null
       }
     }
 
     if (existingVendor) {
-      // Update existing vendor
       await apiRequest(`/vendors/${vendor.id}`, {
         method: 'PUT',
         body: JSON.stringify(vendor),
       })
     } else {
-      // Create new vendor
       await apiRequest('/vendors', {
         method: 'POST',
         body: JSON.stringify(vendor),
@@ -335,22 +400,20 @@ export async function deleteVendor(id: string): Promise<void> {
 }
 
 // ==================== EMPLOYEES ====================
-export async function getAllEmployees(): Promise<any[]> {
+export async function getAllEmployees(): Promise<Employee[]> {
   try {
-    return await apiRequest<any[]>('/employees') || []
+    return await apiRequest<Employee[]>('/employees') || []
   } catch (error) {
     console.error('Failed to get employees:', error)
     return []
   }
 }
 
-export async function getEmployeeById(id: string): Promise<any | null> {
+export async function getEmployeeById(id: string): Promise<Employee | null> {
   try {
     const url = `${API_BASE_URL}/employees/${id}`
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    const response = await fetchWithTimeout(url, {
+      headers: { 'Content-Type': 'application/json' },
     })
     
     // Handle 404 as expected - return null instead of throwing
@@ -380,27 +443,34 @@ export async function getEmployeeById(id: string): Promise<any | null> {
   }
 }
 
-export async function saveEmployee(employee: any): Promise<void> {
+export async function saveEmployee(employee: Employee): Promise<void> {
   try {
-    // Check if employee exists by trying to get it
+    // New employees (no createdAt) don't exist yet — POST directly to avoid 404 from getEmployeeById
+    const isNew = !employee.createdAt
+    if (isNew) {
+      await apiRequest('/employees', {
+        method: 'POST',
+        body: JSON.stringify(employee),
+      })
+      return
+    }
+
+    // For possibly existing employees, check then update or create
     let existingEmployee = null
     if (employee.id) {
       try {
         existingEmployee = await getEmployeeById(employee.id)
-      } catch (error) {
-        // Employee doesn't exist, will create new one
+      } catch {
         existingEmployee = null
       }
     }
 
     if (existingEmployee) {
-      // Update existing employee
       await apiRequest(`/employees/${employee.id}`, {
         method: 'PUT',
         body: JSON.stringify(employee),
       })
     } else {
-      // Create new employee
       await apiRequest('/employees', {
         method: 'POST',
         body: JSON.stringify(employee),
@@ -424,22 +494,20 @@ export async function deleteEmployee(id: string): Promise<void> {
 }
 
 // ==================== VEHICLES ====================
-export async function getAllVehicles(): Promise<any[]> {
+export async function getAllVehicles(): Promise<Vehicle[]> {
   try {
-    return await apiRequest<any[]>('/vehicles') || []
+    return await apiRequest<Vehicle[]>('/vehicles') || []
   } catch (error) {
     console.error('Failed to get vehicles:', error)
     return []
   }
 }
 
-export async function getVehicleById(id: string): Promise<any | null> {
+export async function getVehicleById(id: string): Promise<Vehicle | null> {
   try {
     const url = `${API_BASE_URL}/vehicles/${id}`
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    const response = await fetchWithTimeout(url, {
+      headers: { 'Content-Type': 'application/json' },
     })
     
     // Handle 404 as expected - return null instead of throwing
@@ -469,27 +537,34 @@ export async function getVehicleById(id: string): Promise<any | null> {
   }
 }
 
-export async function saveVehicle(vehicle: any): Promise<void> {
+export async function saveVehicle(vehicle: Vehicle): Promise<void> {
   try {
-    // Check if vehicle exists by trying to get it
+    // New vehicles (no createdAt) don't exist yet — POST directly to avoid 404 from getVehicleById
+    const isNew = !vehicle.createdAt
+    if (isNew) {
+      await apiRequest('/vehicles', {
+        method: 'POST',
+        body: JSON.stringify(vehicle),
+      })
+      return
+    }
+
+    // For possibly existing vehicles, check then update or create
     let existingVehicle = null
     if (vehicle.id) {
       try {
         existingVehicle = await getVehicleById(vehicle.id)
-      } catch (error) {
-        // Vehicle doesn't exist, will create new one
+      } catch {
         existingVehicle = null
       }
     }
 
     if (existingVehicle) {
-      // Update existing vehicle
       await apiRequest(`/vehicles/${vehicle.id}`, {
         method: 'PUT',
         body: JSON.stringify(vehicle),
       })
     } else {
-      // Create new vehicle
       await apiRequest('/vehicles', {
         method: 'POST',
         body: JSON.stringify(vehicle),
@@ -513,22 +588,20 @@ export async function deleteVehicle(id: string): Promise<void> {
 }
 
 // ==================== QUOTES ====================
-export async function getAllQuotes(): Promise<any[]> {
+export async function getAllQuotes(): Promise<Quote[]> {
   try {
-    return await apiRequest<any[]>('/quotes') || []
+    return await apiRequest<Quote[]>('/quotes') || []
   } catch (error) {
     console.error('Failed to get quotes:', error)
     return []
   }
 }
 
-export async function getQuoteById(id: string): Promise<any | null> {
+export async function getQuoteById(id: string): Promise<Quote | null> {
   try {
     const url = `${API_BASE_URL}/quotes/${id}`
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    const response = await fetchWithTimeout(url, {
+      headers: { 'Content-Type': 'application/json' },
     })
     
     // Handle 404 as expected - return null instead of throwing
@@ -558,28 +631,33 @@ export async function getQuoteById(id: string): Promise<any | null> {
   }
 }
 
-export async function saveQuote(quote: any): Promise<void> {
+export async function saveQuote(quote: Quote): Promise<Quote> {
   try {
-    // Check if quote exists by trying to get it
-    let existingQuote = null
-    if (quote.id) {
-      existingQuote = await getQuoteById(quote.id)
-      // getQuoteById returns null if not found, doesn't throw
-    }
-
-    if (existingQuote) {
-      // Update existing quote
-      await apiRequest(`/quotes/${quote.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(quote),
-      })
-    } else {
-      // Create new quote
-      await apiRequest('/quotes', {
+    // New quotes (no createdAt) don't exist yet — POST directly to avoid 404 from getQuoteById
+    const isNew = !quote.createdAt
+    if (isNew) {
+      return await apiRequest('/quotes', {
         method: 'POST',
         body: JSON.stringify(quote),
       })
     }
+
+    // For possibly existing quotes, check then update or create
+    let existingQuote = null
+    if (quote.id) {
+      existingQuote = await getQuoteById(quote.id)
+    }
+
+    if (existingQuote) {
+      return await apiRequest(`/quotes/${quote.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(quote),
+      })
+    }
+    return await apiRequest('/quotes', {
+      method: 'POST',
+      body: JSON.stringify(quote),
+    })
   } catch (error) {
     console.error('Failed to save quote:', error)
     throw error
@@ -598,22 +676,20 @@ export async function deleteQuote(id: string): Promise<void> {
 }
 
 // ==================== PURCHASE ORDERS ====================
-export async function getAllPurchaseOrders(): Promise<any[]> {
+export async function getAllPurchaseOrders(): Promise<PurchaseOrder[]> {
   try {
-    return await apiRequest<any[]>('/purchase-orders') || []
+    return await apiRequest<PurchaseOrder[]>('/purchase-orders') || []
   } catch (error) {
     console.error('Failed to get purchase orders:', error)
     return []
   }
 }
 
-export async function getPurchaseOrderById(id: string): Promise<any | null> {
+export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | null> {
   try {
     const url = `${API_BASE_URL}/purchase-orders/${id}`
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    const response = await fetchWithTimeout(url, {
+      headers: { 'Content-Type': 'application/json' },
     })
     
     // Handle 404 as expected - return null instead of throwing
@@ -643,27 +719,34 @@ export async function getPurchaseOrderById(id: string): Promise<any | null> {
   }
 }
 
-export async function savePurchaseOrder(po: any): Promise<void> {
+export async function savePurchaseOrder(po: PurchaseOrder): Promise<void> {
   try {
-    // Check if purchase order exists by trying to get it
+    // New POs (no createdAt) don't exist yet — POST directly to avoid 404 from getPurchaseOrderById
+    const isNew = !po.createdAt
+    if (isNew) {
+      await apiRequest('/purchase-orders', {
+        method: 'POST',
+        body: JSON.stringify(po),
+      })
+      return
+    }
+
+    // For possibly existing POs, check then update or create
     let existingPO = null
     if (po.id) {
       try {
         existingPO = await getPurchaseOrderById(po.id)
-      } catch (error) {
-        // Purchase order doesn't exist, will create new one
+      } catch {
         existingPO = null
       }
     }
 
     if (existingPO) {
-      // Update existing purchase order
       await apiRequest(`/purchase-orders/${po.id}`, {
         method: 'PUT',
         body: JSON.stringify(po),
       })
     } else {
-      // Create new purchase order
       await apiRequest('/purchase-orders', {
         method: 'POST',
         body: JSON.stringify(po),
@@ -687,16 +770,16 @@ export async function deletePurchaseOrder(id: string): Promise<void> {
 }
 
 // ==================== INVOICES ====================
-export async function getAllInvoices(): Promise<any[]> {
+export async function getAllInvoices(): Promise<Invoice[]> {
   try {
-    return await apiRequest<any[]>('/invoices') || []
+    return await apiRequest<Invoice[]>('/invoices') || []
   } catch (error) {
     console.error('Failed to get invoices:', error)
     return []
   }
 }
 
-export async function getInvoiceById(id: string): Promise<any | null> {
+export async function getInvoiceById(id: string): Promise<Invoice | null> {
   try {
     return await apiRequest<any>(`/invoices/${id}`)
   } catch (error: any) {
@@ -710,32 +793,34 @@ export async function getInvoiceById(id: string): Promise<any | null> {
   }
 }
 
-export async function saveInvoice(invoice: any): Promise<void> {
+export async function saveInvoice(invoice: Invoice): Promise<void> {
   try {
-    // If invoice has an ID, check if it exists first
+    // New invoices (no createdAt) don't exist yet — POST directly to avoid 404 from getInvoiceById
+    const isNew = !invoice.createdAt
+    if (isNew) {
+      await apiRequest('/invoices', {
+        method: 'POST',
+        body: JSON.stringify(invoice),
+      })
+      return
+    }
+
+    // For possibly existing invoices, check then update or create
     if (invoice.id) {
       const existing = await getInvoiceById(invoice.id)
       if (existing) {
-        // Invoice exists, update it
         await apiRequest(`/invoices/${invoice.id}`, {
           method: 'PUT',
           body: JSON.stringify(invoice),
         })
         return
       }
-      // Invoice doesn't exist, create it
-      await apiRequest('/invoices', {
-        method: 'POST',
-        body: JSON.stringify(invoice),
-      })
-      return
-    } else {
-      // No ID, always create new invoice
-      await apiRequest('/invoices', {
-        method: 'POST',
-        body: JSON.stringify(invoice),
-      })
     }
+    // No ID or not found — create
+    await apiRequest('/invoices', {
+      method: 'POST',
+      body: JSON.stringify(invoice),
+    })
   } catch (error) {
     console.error('Failed to save invoice:', error)
     throw error
@@ -766,7 +851,7 @@ export async function checkBrandingFiles(): Promise<{
   extensions: { logo: string | null; seal: string | null; signature: string | null };
 }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/uploads/branding/check`)
+    const response = await fetchWithTimeout(`${API_BASE_URL}/uploads/branding/check`)
     if (!response.ok) {
       console.error('Failed to check branding files:', response.statusText)
       return { logo: false, seal: false, signature: false, extensions: { logo: null, seal: null, signature: null } }
@@ -813,7 +898,7 @@ export async function uploadBrandingFile(file: File, brandingType: 'logo' | 'sea
   formData.append('type', 'branding')
   formData.append('brandingType', brandingType)
 
-  const response = await fetch(`${API_BASE_URL}/uploads`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/uploads`, {
     method: 'POST',
     body: formData,
   })
@@ -828,7 +913,7 @@ export async function uploadBrandingFile(file: File, brandingType: 'logo' | 'sea
     }
     throw new Error(errorMessage)
   }
-  
+
   // Success - no need to parse response, files are at fixed locations
 }
 
@@ -842,7 +927,7 @@ export async function uploadFile(
   formData.append('file', file)
   formData.append('type', type)
 
-  const response = await fetch(`${API_BASE_URL}/uploads`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/uploads`, {
     method: 'POST',
     body: formData,
   })
@@ -888,9 +973,9 @@ export function getFileUrl(relativePath: string | null): string | null {
 }
 
 // ==================== PAYSLIPS ====================
-export async function getAllPayslips(): Promise<any[]> {
+export async function getAllPayslips(): Promise<Payslip[]> {
   try {
-    return await apiRequest<any[]>('/payslips') || []
+    return await apiRequest<Payslip[]>('/payslips') || []
   } catch (error: any) {
     console.error('Failed to get payslips:', error)
     // Return empty array on error instead of throwing
@@ -898,13 +983,11 @@ export async function getAllPayslips(): Promise<any[]> {
   }
 }
 
-export async function getPayslipById(id: string): Promise<any | null> {
+export async function getPayslipById(id: string): Promise<Payslip | null> {
   try {
     const url = `${API_BASE_URL}/payslips/${id}`
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    const response = await fetchWithTimeout(url, {
+      headers: { 'Content-Type': 'application/json' },
     })
     
     // Handle 404 as expected - return null instead of throwing
@@ -934,16 +1017,16 @@ export async function getPayslipById(id: string): Promise<any | null> {
   }
 }
 
-export async function getPayslipsByMonth(month: string): Promise<any[]> {
+export async function getPayslipsByMonth(month: string): Promise<Payslip[]> {
   try {
-    return await apiRequest<any[]>(`/payslips/month/${month}`) || []
+    return await apiRequest<Payslip[]>(`/payslips/month/${month}`) || []
   } catch (error) {
     console.error('Failed to get payslips by month:', error)
     return []
   }
 }
 
-export async function savePayslip(payslip: any): Promise<void> {
+export async function savePayslip(payslip: Payslip): Promise<void> {
   try {
     // Validate required fields
     if (!payslip.employeeId || !payslip.month) {
@@ -1012,7 +1095,7 @@ export async function updatePayslipStatus(id: string, status: string): Promise<v
 }
 
 // ==================== VEHICLE TRANSACTIONS ====================
-export async function getAllVehicleTransactions(vehicleId?: string, month?: string): Promise<any[]> {
+export async function getAllVehicleTransactions(vehicleId?: string, month?: string): Promise<VehicleTransaction[]> {
   try {
     let url = '/vehicle-transactions'
     const params = new URLSearchParams()
@@ -1021,16 +1104,16 @@ export async function getAllVehicleTransactions(vehicleId?: string, month?: stri
     if (params.toString()) {
       url += `?${params.toString()}`
     }
-    return await apiRequest<any[]>(url) || []
+    return await apiRequest<VehicleTransaction[]>(url) || []
   } catch (error) {
     console.error('Failed to get vehicle transactions:', error)
     return []
   }
 }
 
-export async function getVehicleTransactionById(id: string): Promise<any | null> {
+export async function getVehicleTransactionById(id: string): Promise<VehicleTransaction | null> {
   try {
-    return await apiRequest<any>(`/vehicle-transactions/${id}`)
+    return await apiRequest<VehicleTransaction>(`/vehicle-transactions/${id}`)
   } catch (error: any) {
     // Handle 404 as expected - transaction doesn't exist
     if (error?.status === 404 || 
@@ -1043,7 +1126,7 @@ export async function getVehicleTransactionById(id: string): Promise<any | null>
   }
 }
 
-export async function saveVehicleTransaction(transaction: any): Promise<void> {
+export async function saveVehicleTransaction(transaction: VehicleTransaction): Promise<void> {
   try {
     // If transaction has an ID, check if it exists to decide between update and create
     if (transaction.id) {
@@ -1081,10 +1164,29 @@ export async function deleteVehicleTransaction(id: string): Promise<void> {
   }
 }
 
-export async function getVehicleProfitability(vehicleId: string): Promise<any> {
+export async function getVehicleProfitability(vehicleId: string): Promise<any | null> {
   try {
-    return await apiRequest<any>(`/vehicles/${vehicleId}/profitability`)
-  } catch (error) {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/vehicles/${vehicleId}/profitability`,
+      { headers: { 'Content-Type': 'application/json' } }
+    )
+    if (response.status === 404) return null
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`
+      try {
+        const err = await response.json()
+        errorMessage = err.error || err.message || errorMessage
+      } catch {
+        errorMessage = response.statusText || errorMessage
+      }
+      throw new Error(errorMessage)
+    }
+    return await response.json()
+  } catch (error: any) {
+    if (error?.message === 'Request timeout' || error?.name === 'AbortError') throw error
+    if (error?.status === 404 || error?.message?.includes('404') || error?.message?.toLowerCase().includes('not found')) {
+      return null
+    }
     console.error('Failed to get vehicle profitability:', error)
     throw error
   }
@@ -1105,18 +1207,18 @@ export async function getVehicleFinanceDashboard(): Promise<any> {
 }
 
 // ==================== EXPENSE CATEGORIES ====================
-export async function getAllExpenseCategories(): Promise<any[]> {
+export async function getAllExpenseCategories(): Promise<ExpenseCategory[]> {
   try {
-    return await apiRequest<any[]>('/expense-categories') || []
+    return await apiRequest<ExpenseCategory[]>('/expense-categories') || []
   } catch (error) {
     console.error('Failed to get expense categories:', error)
     return []
   }
 }
 
-export async function getExpenseCategoryById(id: string): Promise<any | null> {
+export async function getExpenseCategoryById(id: string): Promise<ExpenseCategory | null> {
   try {
-    return await apiRequest<any>(`/expense-categories/${id}`)
+    return await apiRequest<ExpenseCategory>(`/expense-categories/${id}`)
   } catch (error: any) {
     // Handle 404 as expected - category doesn't exist
     if (error?.status === 404 || 
@@ -1129,8 +1231,19 @@ export async function getExpenseCategoryById(id: string): Promise<any | null> {
   }
 }
 
-export async function saveExpenseCategory(category: any): Promise<void> {
+export async function saveExpenseCategory(category: ExpenseCategory): Promise<void> {
   try {
+    // If no createdAt, this is a new category - POST directly without checking if it exists
+    const isNew = !category.createdAt
+    if (isNew) {
+      await apiRequest('/expense-categories', {
+        method: 'POST',
+        body: JSON.stringify(category),
+      })
+      return
+    }
+
+    // Existing category - check if it exists and update, otherwise create
     if (category.id) {
       const existing = await getExpenseCategoryById(category.id)
       if (existing) {

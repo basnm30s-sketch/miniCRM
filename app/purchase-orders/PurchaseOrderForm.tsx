@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -23,7 +22,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { FileText, Plus, Trash2, Sheet, FileType, ArrowLeft } from 'lucide-react'
+import { FileText, Plus, Trash2, Sheet, FileType } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -34,6 +33,7 @@ import {
     getAdminSettings,
     initializeAdminSettings,
 } from '@/lib/storage'
+import { saveVehicle } from '@/lib/api-client'
 import { pdfRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
@@ -89,6 +89,14 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
     const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_PO_COLUMNS }))
+    const [showAddVehicle, setShowAddVehicle] = useState(false)
+    const [newVehicleLineItemId, setNewVehicleLineItemId] = useState<string | null>(null)
+    const [newVehicleNumber, setNewVehicleNumber] = useState('')
+    const [newVehicleType, setNewVehicleType] = useState('')
+    const [newVehicleMake, setNewVehicleMake] = useState('')
+    const [newVehicleModel, setNewVehicleModel] = useState('')
+    const [newVehicleYear, setNewVehicleYear] = useState('')
+    const [newVehicleBasePrice, setNewVehicleBasePrice] = useState('')
 
     useEffect(() => {
         const isHtmlEmpty = (html?: string) => {
@@ -357,7 +365,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
             const totals = calculateTotals(po.items)
             const poToSave: PurchaseOrder = {
                 ...po,
-                createdAt: po.createdAt || new Date().toISOString(),
+                createdAt: po.createdAt || undefined,
                 updatedAt: new Date().toISOString(),
                 subtotal: totals.subtotal,
                 tax: totals.tax,
@@ -373,6 +381,10 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                 title: 'Success',
                 description: isEditMode ? 'Purchase order updated successfully' : 'Purchase order created successfully',
             })
+
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'purchaseOrders' } }))
+            }
 
             if (onSave) {
                 onSave(poToSave)
@@ -449,7 +461,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
 
         setGenerating(true)
         try {
-            const excelBlob = await excelRenderer.renderPurchaseOrderToExcel(poForExport, adminSettings, vendorName)
+            const excelBlob = await excelRenderer.renderPurchaseOrderToExcel(poForExport, adminSettings, vendorName, { visibleColumns })
             const filename = `po-${po.number}.xlsx`
             excelRenderer.downloadExcel(excelBlob, filename)
             toast({ title: 'Success', description: 'Excel file downloaded successfully' })
@@ -501,13 +513,6 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
     return (
         <div className="p-8">
             <div className="mb-4">
-                <Link 
-                    href="/purchase-orders" 
-                    className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-2"
-                >
-                    <ArrowLeft className="w-4 h-4 mr-1" />
-                    Back to Purchase Orders
-                </Link>
                 <h1 className="text-2xl font-bold text-slate-900">
                     {isEditMode ? 'Edit Purchase Order' : 'Create New Purchase Order'}
                 </h1>
@@ -773,6 +778,14 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                                             </SelectItem>
                                                                         )
                                                                     })}
+                                                                    <div className="px-2 py-2 border-t">
+                                                                        <button type="button" className="text-blue-600 hover:underline text-xs" onClick={() => {
+                                                                            setNewVehicleLineItemId(item.id)
+                                                                            setShowAddVehicle(true)
+                                                                        }}>
+                                                                            + Add Vehicle
+                                                                        </button>
+                                                                    </div>
                                                                 </SelectContent>
                                                             </Select>
                                                         </td>
@@ -922,6 +935,131 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                             </Button>
                         </CardContent>
             </Card>
+
+            {/* Add Vehicle Modal */}
+            {showAddVehicle && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="fixed inset-0 bg-black/40" onClick={() => {
+                        setShowAddVehicle(false)
+                        setNewVehicleLineItemId(null)
+                    }} />
+                    <div className="bg-white rounded p-6 z-10 w-full max-w-md shadow-xl">
+                        <h3 className="text-lg font-semibold mb-4">Add Vehicle</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <Label htmlFor="po-vehicle-number" className="text-slate-700 text-sm mb-1 block">Vehicle Number <span className="text-red-500">*</span></Label>
+                                <Input 
+                                    id="po-vehicle-number"
+                                    placeholder="Vehicle Number" 
+                                    value={newVehicleNumber} 
+                                    onChange={(e) => setNewVehicleNumber(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="po-vehicle-type" className="text-slate-700 text-sm mb-1 block">Vehicle Type</Label>
+                                <Input 
+                                    id="po-vehicle-type"
+                                    placeholder="Vehicle Type" 
+                                    value={newVehicleType} 
+                                    onChange={(e) => setNewVehicleType(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="po-vehicle-make" className="text-slate-700 text-sm mb-1 block">Make</Label>
+                                <Input 
+                                    id="po-vehicle-make"
+                                    placeholder="Make" 
+                                    value={newVehicleMake} 
+                                    onChange={(e) => setNewVehicleMake(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="po-vehicle-model" className="text-slate-700 text-sm mb-1 block">Model</Label>
+                                <Input 
+                                    id="po-vehicle-model"
+                                    placeholder="Model" 
+                                    value={newVehicleModel} 
+                                    onChange={(e) => setNewVehicleModel(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="po-vehicle-year" className="text-slate-700 text-sm mb-1 block">Year</Label>
+                                <Input 
+                                    id="po-vehicle-year"
+                                    type="number"
+                                    placeholder="Year" 
+                                    value={newVehicleYear} 
+                                    onChange={(e) => setNewVehicleYear(e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="po-vehicle-base-price" className="text-slate-700 text-sm mb-1 block">Base Price</Label>
+                                <Input 
+                                    id="po-vehicle-base-price"
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Base Price" 
+                                    value={newVehicleBasePrice} 
+                                    onChange={(e) => setNewVehicleBasePrice(e.target.value)} 
+                                />
+                            </div>
+                        </div>
+                        <div className="mt-4 flex justify-end gap-2">
+                            <Button variant="outline" onClick={() => {
+                                setShowAddVehicle(false)
+                                setNewVehicleLineItemId(null)
+                            }}>Cancel</Button>
+                            <Button onClick={async () => {
+                                if (!newVehicleNumber.trim()) {
+                                    toast({ title: 'Validation', description: 'Vehicle Number is required', variant: 'destructive' })
+                                    return
+                                }
+                                const id = generateId()
+                                const vehicle = {
+                                    id,
+                                    vehicleNumber: newVehicleNumber.trim(),
+                                    vehicleType: newVehicleType.trim() || null,
+                                    make: newVehicleMake.trim() || null,
+                                    model: newVehicleModel.trim() || null,
+                                    year: newVehicleYear.trim() ? parseInt(newVehicleYear.trim(), 10) : null,
+                                    basePrice: newVehicleBasePrice.trim() ? parseFloat(newVehicleBasePrice.trim()) : null,
+                                    status: 'active' as const,
+                                    createdAt: new Date().toISOString(),
+                                }
+                                try {
+                                    await saveVehicle(vehicle)
+                                    const updated = await getAllVehicles()
+                                    setVehicles(updated)
+                                    
+                                    // Auto-select the new vehicle in the line item
+                                    // handleLineItemChange will automatically update related fields (vehicleType, make, model, year, basePrice, description)
+                                    if (newVehicleLineItemId) {
+                                        handleLineItemChange(newVehicleLineItemId, 'vehicleNumber', vehicle.vehicleNumber)
+                                    }
+                                    
+                                    setShowAddVehicle(false)
+                                    setNewVehicleLineItemId(null)
+                                    // Reset fields
+                                    setNewVehicleNumber('')
+                                    setNewVehicleType('')
+                                    setNewVehicleMake('')
+                                    setNewVehicleModel('')
+                                    setNewVehicleYear('')
+                                    setNewVehicleBasePrice('')
+                                    toast({ title: 'Created', description: 'Vehicle created and selected' })
+
+                                    if (typeof window !== 'undefined') {
+                                        window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'vehicles' } }))
+                                    }
+                                } catch (err) {
+                                    console.error('Failed to create vehicle', err)
+                                    toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to create vehicle', variant: 'destructive' })
+                                }
+                            }}>Create</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Column Customization Dialog */}
             <Dialog open={showColumnCustomizer} onOpenChange={setShowColumnCustomizer}>

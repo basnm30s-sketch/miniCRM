@@ -68,16 +68,16 @@ export default function EmployeesPage() {
     )
   }
 
-  const renderCell = (value: string | number | undefined) => (
+  const renderCell = (value: string | number | null | undefined) => (
     <TableCell className="text-slate-600 truncate max-w-[200px]">
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger>
-            <span className="block truncate" title={String(value) || 'N/A'}>
-              {value || 'N/A'}
+            <span className="block truncate" title={String(value ?? 'N/A')}>
+              {value ?? 'N/A'}
             </span>
           </TooltipTrigger>
-          <TooltipContent>{value || 'N/A'}</TooltipContent>
+          <TooltipContent>{value ?? 'N/A'}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </TableCell>
@@ -96,11 +96,11 @@ export default function EmployeesPage() {
     
     setEditingId(emp.id)
     setNewName(emp.name)
-    setNewEmployeeId(emp.employeeId)
+    setNewEmployeeId(emp.employeeId || '')
     setNewRole(emp.role || '')
 
     // Determine payment type from existing data
-    if (emp.paymentType) {
+    if (emp.paymentType === 'hourly' || emp.paymentType === 'monthly') {
       setPaymentType(emp.paymentType)
     } else if (emp.hourlyRate && emp.salary) {
       // Both exist - default to hourly but user can change
@@ -165,13 +165,13 @@ export default function EmployeesPage() {
       id: employeeId,
       name: newName.trim(),
       employeeId: newEmployeeId.trim(),
-      role: newRole.trim(),
-      paymentType: paymentType ? (paymentType as 'hourly' | 'monthly') : undefined,
-      hourlyRate: paymentType === 'hourly' ? (parseFloat(newHourlyRate) || undefined) : undefined,
-      salary: paymentType === 'monthly' ? (parseFloat(newSalary) || undefined) : undefined,
-      overtimeRate: newOvertimeRate ? (parseFloat(newOvertimeRate) || undefined) : undefined,
-      bankDetails: newBankDetails.trim(),
-      createdAt: new Date().toISOString(),
+      role: newRole.trim() || null,
+      paymentType: paymentType ? paymentType : null,
+      hourlyRate: paymentType === 'hourly' ? (parseFloat(newHourlyRate) || null) : null,
+      salary: paymentType === 'monthly' ? (parseFloat(newSalary) || null) : null,
+      overtimeRate: newOvertimeRate ? (parseFloat(newOvertimeRate) || null) : null,
+      bankDetails: newBankDetails.trim() || null,
+      createdAt: editingId ? employees.find(e => e.id === editingId)?.createdAt : undefined,
     }
     try {
       await saveEmployee(emp)
@@ -190,6 +190,10 @@ export default function EmployeesPage() {
       setEditingId(null)
       setShowAdd(false)
       toast({ title: 'Success', description: editingId ? 'Employee updated successfully' : 'Employee created successfully' })
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'employees' } }))
+      }
     } catch (err: any) {
       console.error('Failed to save employee', err)
       toast({ title: 'Error', description: err?.message || 'Failed to save employee', variant: 'destructive' })
@@ -215,6 +219,10 @@ export default function EmployeesPage() {
         const validUpdated = updated.filter(emp => emp.id && (typeof emp.id !== 'string' || emp.id.trim() !== ''))
         setEmployees(validUpdated)
         toast({ title: 'Success', description: 'Employee deleted successfully' })
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'employees' } }))
+        }
       } catch (err: any) {
         console.error('Failed to delete employee', err)
         const errorMessage = err?.message || 'Failed to delete employee'

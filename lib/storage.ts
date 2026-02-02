@@ -89,8 +89,8 @@ export async function getQuoteById(id: string): Promise<Quote | null> {
   return apiClient.getQuoteById(id)
 }
 
-export async function saveQuote(quote: Quote): Promise<void> {
-  await apiClient.saveQuote(quote)
+export async function saveQuote(quote: Quote): Promise<any> {
+  return apiClient.saveQuote(quote)
 }
 
 export async function deleteQuote(id: string): Promise<void> {

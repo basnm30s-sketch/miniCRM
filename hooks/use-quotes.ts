@@ -1,6 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAllQuotes, getQuoteById, createQuote, updateQuote, deleteQuote } from '@/actions/quotes'
+import { getAllQuotes, getQuoteById, saveQuote, deleteQuote } from '@/lib/api-client'
 import type { Quote } from '@/lib/types'
+
+const toErrorResult = (error: unknown) => ({
+  success: false as const,
+  error: error instanceof Error ? error.message : 'Request failed',
+})
 
 /**
  * Hook to fetch all quotes
@@ -29,7 +34,14 @@ export function useQuote(id: string | null) {
 export function useCreateQuote() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: createQuote,
+    mutationFn: async (data: Quote) => {
+      try {
+        await saveQuote(data)
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotes'] })
     },
@@ -42,8 +54,14 @@ export function useCreateQuote() {
 export function useUpdateQuote() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Quote> }) =>
-      updateQuote(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Quote> }) => {
+      try {
+        await saveQuote({ id, ...data })
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['quotes'] })
       queryClient.invalidateQueries({ queryKey: ['quotes', variables.id] })
@@ -57,7 +75,14 @@ export function useUpdateQuote() {
 export function useDeleteQuote() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: deleteQuote,
+    mutationFn: async (id: string) => {
+      try {
+        await deleteQuote(id)
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quotes'] })
     },

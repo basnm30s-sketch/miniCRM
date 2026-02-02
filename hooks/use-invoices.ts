@@ -1,6 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAllInvoices, getInvoiceById, createInvoice, updateInvoice, deleteInvoice } from '@/actions/invoices'
+import { getAllInvoices, getInvoiceById, saveInvoice, deleteInvoice } from '@/lib/api-client'
 import type { Invoice } from '@/lib/types'
+
+const toErrorResult = (error: unknown) => ({
+  success: false as const,
+  error: error instanceof Error ? error.message : 'Request failed',
+})
 
 /**
  * Hook to fetch all invoices
@@ -37,7 +42,14 @@ export function useInvoice(id: string | null) {
 export function useCreateInvoice() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: createInvoice,
+    mutationFn: async (data: Invoice) => {
+      try {
+        await saveInvoice(data)
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
     },
@@ -50,8 +62,14 @@ export function useCreateInvoice() {
 export function useUpdateInvoice() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Invoice> }) =>
-      updateInvoice(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Invoice> }) => {
+      try {
+        await saveInvoice({ id, ...data })
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
       queryClient.invalidateQueries({ queryKey: ['invoices', variables.id] })
@@ -65,7 +83,14 @@ export function useUpdateInvoice() {
 export function useDeleteInvoice() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: deleteInvoice,
+    mutationFn: async (id: string) => {
+      try {
+        await deleteInvoice(id)
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
     },

@@ -165,7 +165,29 @@ export default function QuotationsPage() {
         return
       }
 
-      const blob = await excelRenderer.renderQuoteToExcel(quote, adminSettings)
+      // Load persisted column preferences (per-quote, fallback to global)
+      let visibleColumns: Record<string, boolean> | undefined
+      if (typeof window !== 'undefined') {
+        const perQuoteKey = `quote-visible-columns-${quote.id}`
+        let stored = localStorage.getItem(perQuoteKey)
+
+        if (!stored) {
+          stored = localStorage.getItem('quote-visible-columns-global')
+        }
+
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+            if (parsed && typeof parsed === 'object') {
+              visibleColumns = parsed
+            }
+          } catch {
+            // ignore invalid stored data
+          }
+        }
+      }
+
+      const blob = await excelRenderer.renderQuoteToExcel(quote, adminSettings, { visibleColumns })
       excelRenderer.downloadExcel(blob, `quote-${quote.number}.xlsx`)
       toast({ title: 'Success', description: 'Excel file downloaded successfully' })
     } catch (error) {

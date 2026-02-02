@@ -70,9 +70,9 @@ describe('Employees API', () => {
     });
     // POST /api/employees
     describe('POST /', () => {
-        const newEmployee = { name: 'Bob', role: 'Driver' };
+        const newEmployee = { id: 'emp-2', name: 'Bob', role: 'Driver' };
         it('should create a new employee', async () => {
-            const createdEmployee = { ...newEmployee, id: '2' };
+            const createdEmployee = { ...newEmployee };
             sqlite_1.employeesAdapter.create.mockReturnValue(createdEmployee);
             const res = await (0, supertest_1.default)(app).post('/api/employees').send(newEmployee);
             expect(res.status).toBe(201);

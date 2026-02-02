@@ -23,6 +23,14 @@ import payslipsRouter from './routes/payslips'
 import vehicleTransactionsRouter from './routes/vehicle-transactions'
 import expenseCategoriesRouter from './routes/expense-categories'
 
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled promise rejection:', reason)
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught exception:', err)
+})
+
 const app = express()
 const PORT = process.env.PORT || 3001
 
@@ -30,6 +38,18 @@ const PORT = process.env.PORT || 3001
 app.use(cors())
 app.use(express.json({ limit: '50mb' })) // Increased limit for large requests
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+
+// Request timeout: close stuck handlers so clients get 503 instead of hanging (client has 8s abort)
+const REQUEST_TIMEOUT_MS = 18000
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(503).json({ error: 'Request timeout' })
+    }
+  }, REQUEST_TIMEOUT_MS)
+  res.on('finish', () => clearTimeout(timer))
+  next()
+})
 
 // Initialize database
 try {

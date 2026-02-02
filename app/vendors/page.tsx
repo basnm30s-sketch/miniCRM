@@ -94,7 +94,7 @@ export default function VendorsPage() {
       address: newAddress.trim(),
       bankDetails: newBankDetails.trim(),
       paymentTerms: newPaymentTerms.trim(),
-      createdAt: new Date().toISOString(),
+      createdAt: editingId ? vendors.find(v => v.id === editingId)?.createdAt : undefined,
     }
     try {
       await saveVendor(vendor)
@@ -109,6 +109,10 @@ export default function VendorsPage() {
       setNewPaymentTerms('')
       setEditingId(null)
       setShowAdd(false)
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'vendors' } }))
+      }
     } catch (err) {
       console.error('Failed to save vendor', err)
       toast({
@@ -125,6 +129,10 @@ export default function VendorsPage() {
         await deleteVendor(id)
         const updated = await getAllVendors()
         setVendors(updated)
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('dataUpdated', { detail: { entity: 'vendors' } }))
+        }
       } catch (err) {
         console.error('Failed to delete vendor', err)
       }

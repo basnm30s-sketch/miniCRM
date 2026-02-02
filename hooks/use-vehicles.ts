@@ -1,6 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAllVehicles, getVehicleById, createVehicle, updateVehicle, deleteVehicle, getVehicleProfitability, getAllVehicleTransactions, createVehicleTransaction } from '@/actions/vehicles'
+import { getAllVehicles, getVehicleById, saveVehicle, deleteVehicle, getVehicleProfitability, getAllVehicleTransactions, saveVehicleTransaction } from '@/lib/api-client'
 import type { Vehicle } from '@/lib/types'
+
+const toErrorResult = (error: unknown) => ({
+  success: false as const,
+  error: error instanceof Error ? error.message : 'Request failed',
+})
 
 /**
  * Hook to fetch all vehicles
@@ -50,7 +55,14 @@ export function useVehicleTransactions(vehicleId?: string, month?: string) {
 export function useCreateVehicle() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: createVehicle,
+    mutationFn: async (data: Vehicle) => {
+      try {
+        await saveVehicle(data)
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] })
     },
@@ -63,8 +75,14 @@ export function useCreateVehicle() {
 export function useUpdateVehicle() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Vehicle> }) =>
-      updateVehicle(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Vehicle> }) => {
+      try {
+        await saveVehicle({ id, ...data })
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] })
       queryClient.invalidateQueries({ queryKey: ['vehicles', variables.id] })
@@ -79,7 +97,14 @@ export function useUpdateVehicle() {
 export function useDeleteVehicle() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: deleteVehicle,
+    mutationFn: async (id: string) => {
+      try {
+        await deleteVehicle(id)
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] })
     },
@@ -92,7 +117,14 @@ export function useDeleteVehicle() {
 export function useCreateVehicleTransaction() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: createVehicleTransaction,
+    mutationFn: async (data: { vehicleId: string } & Record<string, any>) => {
+      try {
+        await saveVehicleTransaction(data)
+        return { success: true as const }
+      } catch (error) {
+        return toErrorResult(error)
+      }
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] })
       queryClient.invalidateQueries({ queryKey: ['vehicles', variables.vehicleId, 'transactions'] })

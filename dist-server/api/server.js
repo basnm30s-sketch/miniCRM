@@ -25,12 +25,29 @@ const uploads_1 = __importDefault(require("./routes/uploads"));
 const payslips_1 = __importDefault(require("./routes/payslips"));
 const vehicle_transactions_1 = __importDefault(require("./routes/vehicle-transactions"));
 const expense_categories_1 = __importDefault(require("./routes/expense-categories"));
+process.on('unhandledRejection', (reason) => {
+    console.error('[Server] Unhandled promise rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('[Server] Uncaught exception:', err);
+});
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
 // Middleware
 app.use((0, cors_1.default)());
 app.use(express_1.default.json({ limit: '50mb' })); // Increased limit for large requests
 app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));
+// Request timeout: close stuck handlers so clients get 503 instead of hanging (client has 8s abort)
+const REQUEST_TIMEOUT_MS = 18000;
+app.use((req, res, next) => {
+    const timer = setTimeout(() => {
+        if (!res.headersSent) {
+            res.status(503).json({ error: 'Request timeout' });
+        }
+    }, REQUEST_TIMEOUT_MS);
+    res.on('finish', () => clearTimeout(timer));
+    next();
+});
 // Initialize database
 try {
     (0, database_1.initDatabase)();

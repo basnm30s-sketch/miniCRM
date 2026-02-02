@@ -34,6 +34,7 @@ export default function AdminSettingsPage() {
     extensions: { logo: null, seal: null, signature: null }
   })
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState<'logo' | 'seal' | 'signature' | null>(null)
 
@@ -41,6 +42,7 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     async function loadData() {
       try {
+        setLoadError(null)
         // Load admin settings from database
         const stored = await getAdminSettings()
         if (stored) {
@@ -122,6 +124,7 @@ export default function AdminSettingsPage() {
       } catch (err) {
         console.error('Failed to load data:', err)
         toast({ title: 'Error', description: 'Failed to load settings', variant: 'destructive' })
+        setLoadError(err instanceof Error ? err.message : 'Failed to load settings')
       } finally {
         setLoading(false)
       }
@@ -234,7 +237,20 @@ export default function AdminSettingsPage() {
   if (!settings) {
     return (
       <div className="p-8">
-        <p>Failed to load settings</p>
+        <div className="space-y-3">
+          <p>Failed to load settings</p>
+          {loadError ? <p className="text-sm text-red-600">{loadError}</p> : null}
+          <Button
+            onClick={() => {
+              setLoading(true)
+              // Re-run the same load logic by reloading the page-level data
+              // (simple and reliable in packaged builds)
+              window.location.reload()
+            }}
+          >
+            Retry
+          </Button>
+        </div>
       </div>
     )
   }

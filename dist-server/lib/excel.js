@@ -8,6 +8,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.excelRenderer = exports.ClientSideExcelRenderer = void 0;
+const line_item_columns_1 = require("@/lib/doc-generator/line-item-columns");
 const exceljs_1 = __importDefault(require("exceljs"));
 const api_client_1 = require("./api-client");
 /**
@@ -91,7 +92,198 @@ class ClientSideExcelRenderer {
         if (style.numFmt)
             cell.numFmt = style.numFmt;
     }
-    async renderQuoteToExcel(quote, adminSettings) {
+    async getImageDimensions(image) {
+        try {
+            const mimeType = image.extension === 'jpeg' ? 'image/jpeg' : `image/${image.extension}`;
+            const blob = new Blob([image.buffer], { type: mimeType });
+            if (typeof createImageBitmap === 'function') {
+                const bitmap = await createImageBitmap(blob);
+                const size = { width: bitmap.width, height: bitmap.height };
+                if (typeof bitmap.close === 'function') {
+                    bitmap.close();
+                }
+                return size;
+            }
+            return await new Promise((resolve) => {
+                const img = new Image();
+                const url = URL.createObjectURL(blob);
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    resolve({ width: img.width, height: img.height });
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    resolve(null);
+                };
+                img.src = url;
+            });
+        }
+        catch (error) {
+            console.error('Failed to read image dimensions:', error);
+            return null;
+        }
+    }
+    async getScaledImageSize(image, maxWidth, maxHeight) {
+        const size = await this.getImageDimensions(image);
+        if (!size || !size.width || !size.height) {
+            return { width: maxWidth, height: maxHeight };
+        }
+        const scale = Math.min(maxWidth / size.width, maxHeight / size.height, 1);
+        return {
+            width: Math.round(size.width * scale),
+            height: Math.round(size.height * scale),
+        };
+    }
+    formatRentalBasis(basis) {
+        if (!basis)
+            return '-';
+        if (basis === 'hourly')
+            return 'Hourly';
+        if (basis === 'monthly')
+            return 'Monthly';
+        return String(basis);
+    }
+    getGross(item) {
+        if (typeof item.grossAmount === 'number')
+            return item.grossAmount;
+        return (item.quantity || 0) * (item.unitPrice || 0);
+    }
+    getTaxAmount(item, gross) {
+        if (typeof item.lineTaxAmount === 'number')
+            return item.lineTaxAmount;
+        if (typeof item.tax === 'number')
+            return item.tax;
+        const pct = typeof item.taxPercent === 'number' ? item.taxPercent : 0;
+        return gross * (pct / 100);
+    }
+    getTaxPercent(item, gross) {
+        if (typeof item.taxPercent === 'number')
+            return item.taxPercent;
+        const taxAmount = this.getTaxAmount(item, gross);
+        if (!gross || gross <= 0)
+            return 0;
+        return (taxAmount / gross) * 100;
+    }
+    getNet(item, gross) {
+        if (typeof item.lineTotal === 'number')
+            return item.lineTotal;
+        if (typeof item.total === 'number')
+            return item.total;
+        return gross + this.getTaxAmount(item, gross);
+    }
+    buildLineItemColumns(variant, visibleColumns) {
+        const columns = [
+            {
+                key: 'serialNumber',
+                label: '#',
+                width: 5,
+                align: 'center',
+                value: (_item, index) => index + 1,
+            },
+            {
+                key: 'vehicleNumber',
+                label: 'Vehicle',
+                width: 14,
+                align: 'left',
+                value: (item) => item.vehicleNumber || item.vehicleTypeLabel || '-',
+            },
+            {
+                key: 'vehicleType',
+                label: 'Type',
+                width: 12,
+                align: 'left',
+                value: (item) => item.vehicleType || '-',
+            },
+            {
+                key: 'makeModel',
+                label: 'Make/Model',
+                width: 16,
+                align: 'left',
+                value: (item) => item.make && item.model ? `${item.make} ${item.model}` : item.make || item.model || '-',
+            },
+            {
+                key: 'year',
+                label: 'Year',
+                width: 8,
+                align: 'center',
+                value: (item) => item.year ?? '-',
+            },
+            {
+                key: 'basePrice',
+                label: 'Base Price',
+                width: 12,
+                align: 'right',
+                numFmt: '#,##0.00',
+                value: (item) => (typeof item.basePrice === 'number' ? item.basePrice : null),
+            },
+            {
+                key: 'description',
+                label: 'Description',
+                width: 22,
+                align: 'left',
+                value: (item) => item.description || item.vehicleTypeLabel || '-',
+            },
+            {
+                key: 'rentalBasis',
+                label: 'Basis',
+                width: 12,
+                align: 'center',
+                value: (item) => this.formatRentalBasis(item.rentalBasis),
+            },
+            {
+                key: 'quantity',
+                label: 'Qty',
+                width: 8,
+                align: 'right',
+                numFmt: '#,##0',
+                value: (item) => item.quantity || 0,
+            },
+            {
+                key: 'rate',
+                label: 'Rate',
+                width: 12,
+                align: 'right',
+                numFmt: '#,##0.00',
+                value: (item) => item.unitPrice || 0,
+            },
+            {
+                key: 'grossAmount',
+                label: 'Gross',
+                width: 12,
+                align: 'right',
+                numFmt: '#,##0.00',
+                value: (_item, _index, ctx) => ctx.gross,
+            },
+            {
+                key: 'tax',
+                label: 'Tax',
+                width: 8,
+                align: 'right',
+                numFmt: '0.00',
+                value: (_item, _index, ctx) => ctx.taxPercent,
+            },
+            {
+                key: 'netAmount',
+                label: 'Net',
+                width: 12,
+                align: 'right',
+                numFmt: '#,##0.00',
+                value: (_item, _index, ctx) => ctx.net,
+            },
+        ];
+        if (variant === 'invoice') {
+            columns.push({
+                key: 'amountReceived',
+                label: 'Received',
+                width: 12,
+                align: 'right',
+                numFmt: '#,##0.00',
+                value: (item) => item.amountReceived || 0,
+            });
+        }
+        return columns.filter((col) => visibleColumns[col.key] !== false);
+    }
+    async renderQuoteToExcel(quote, adminSettings, options) {
         const workbook = new exceljs_1.default.Workbook();
         const worksheet = workbook.addWorksheet('Quote');
         let currentRow = 1;
@@ -101,16 +293,25 @@ class ClientSideExcelRenderer {
         const logoImage = await this.loadImageAsBuffer(brandingUrls.logoUrl);
         const sealImage = await this.loadImageAsBuffer(brandingUrls.sealUrl);
         const signatureImage = await this.loadImageAsBuffer(brandingUrls.signatureUrl);
+        const visibleColumns = {
+            ...line_item_columns_1.DEFAULT_QUOTE_COLUMNS,
+            ...(options?.visibleColumns || {}),
+        };
+        const columns = this.buildLineItemColumns('quote', visibleColumns);
+        const tableColumnCount = Math.max(columns.length, 1);
         // Header section with logo
         if (logoImage) {
             const logoId = workbook.addImage({
                 buffer: logoImage.buffer,
                 extension: logoImage.extension,
             });
+            const logoSize = await this.getScaledImageSize(logoImage, 250, 80);
             worksheet.addImage(logoId, {
                 tl: { col: 0, row: 0 },
-                ext: { width: 250, height: 80 },
+                ext: logoSize,
             });
+            const logoRowSpan = Math.max(1, Math.ceil(logoSize.height / 20));
+            currentRow = Math.max(currentRow, logoRowSpan + 1);
         }
         // Company name (row 1, column 2 if logo exists, else column 1)
         const companyNameCol = logoImage ? 2 : 1;
@@ -143,7 +344,7 @@ class ClientSideExcelRenderer {
             fontSize: 16,
             alignment: { horizontal: 'center' },
         });
-        worksheet.mergeCells(currentRow, 1, currentRow, 6);
+        worksheet.mergeCells(currentRow, 1, currentRow, tableColumnCount);
         currentRow++;
         // Document metadata
         currentRow++; // Empty row
@@ -260,19 +461,16 @@ class ClientSideExcelRenderer {
         // Line items table header
         currentRow++; // Empty row
         const headerRow = currentRow;
-        worksheet.getCell(currentRow, 1).value = 'Description';
-        worksheet.getCell(currentRow, 2).value = 'Quantity';
-        worksheet.getCell(currentRow, 3).value = 'Unit Price';
-        worksheet.getCell(currentRow, 4).value = 'Tax %';
-        worksheet.getCell(currentRow, 5).value = 'Tax Amount';
-        worksheet.getCell(currentRow, 6).value = 'Total';
-        // Format header row
-        for (let col = 1; col <= 6; col++) {
-            const cell = worksheet.getCell(currentRow, col);
+        columns.forEach((col, index) => {
+            const cell = worksheet.getCell(currentRow, index + 1);
+            cell.value = col.label;
             this.applyCellStyle(cell, {
                 bold: true,
                 fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } },
-                alignment: { horizontal: col === 1 ? 'left' : 'right', vertical: 'middle' },
+                alignment: {
+                    horizontal: col.align === 'center' ? 'center' : col.align === 'right' ? 'right' : 'left',
+                    vertical: 'middle',
+                },
                 border: {
                     top: { style: 'thin' },
                     bottom: { style: 'thin' },
@@ -280,44 +478,25 @@ class ClientSideExcelRenderer {
                     right: { style: 'thin' },
                 },
             });
-        }
+        });
         currentRow++;
-        // Line items with formulas
+        // Line items
         const firstItemRow = currentRow;
         quote.items.forEach((item, index) => {
             const row = currentRow + index;
-            const qtyCol = 2;
-            const unitPriceCol = 3;
-            const taxPercentCol = 4;
-            const taxAmountCol = 5;
-            const totalCol = 6;
-            worksheet.getCell(row, 1).value = item.vehicleTypeLabel || '';
-            worksheet.getCell(row, qtyCol).value = item.quantity || 0;
-            worksheet.getCell(row, unitPriceCol).value = item.unitPrice || 0;
-            worksheet.getCell(row, taxPercentCol).value = item.taxPercent || 0;
-            // Formula for tax amount: (Quantity * Unit Price * Tax %) / 100
-            worksheet.getCell(row, taxAmountCol).value = {
-                formula: `(${this.getCellRef(row, qtyCol)}*${this.getCellRef(row, unitPriceCol)}*${this.getCellRef(row, taxPercentCol)})/100`,
-            };
-            // Formula for total: (Quantity * Unit Price) + Tax Amount
-            worksheet.getCell(row, totalCol).value = {
-                formula: `${this.getCellRef(row, qtyCol)}*${this.getCellRef(row, unitPriceCol)}+${this.getCellRef(row, taxAmountCol)}`,
-            };
-            // Format number cells and set alignment
-            worksheet.getCell(row, 1).alignment = { horizontal: 'left', vertical: 'middle' }; // Description
-            worksheet.getCell(row, qtyCol).numFmt = '#,##0';
-            worksheet.getCell(row, qtyCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            worksheet.getCell(row, unitPriceCol).numFmt = '#,##0.00';
-            worksheet.getCell(row, unitPriceCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            worksheet.getCell(row, taxPercentCol).numFmt = '0.00';
-            worksheet.getCell(row, taxPercentCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            worksheet.getCell(row, taxAmountCol).numFmt = '#,##0.00';
-            worksheet.getCell(row, taxAmountCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            worksheet.getCell(row, totalCol).numFmt = '#,##0.00';
-            worksheet.getCell(row, totalCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            // Apply borders
-            for (let col = 1; col <= 6; col++) {
-                const cell = worksheet.getCell(row, col);
+            const gross = this.getGross(item);
+            const taxPercent = this.getTaxPercent(item, gross);
+            const net = this.getNet(item, gross);
+            const ctx = { gross, taxPercent, net };
+            columns.forEach((col, colIndex) => {
+                const cell = worksheet.getCell(row, colIndex + 1);
+                cell.value = col.value(item, index, ctx);
+                if (col.numFmt)
+                    cell.numFmt = col.numFmt;
+                cell.alignment = {
+                    horizontal: col.align === 'center' ? 'center' : col.align === 'right' ? 'right' : 'left',
+                    vertical: 'middle',
+                };
                 this.applyCellStyle(cell, {
                     border: {
                         bottom: { style: 'thin' },
@@ -325,22 +504,34 @@ class ClientSideExcelRenderer {
                         right: { style: 'thin' },
                     },
                 });
-            }
+            });
         });
         currentRow += quote.items.length;
         // Totals section
         currentRow++; // Empty row
         const lastItemRow = currentRow - 1;
+        const netColIndex = columns.findIndex((col) => col.key === 'netAmount') + 1;
+        const totalValueCol = netColIndex > 0 ? netColIndex : columns.length || 1;
+        const computedTotalTax = typeof quote.totalTax === 'number'
+            ? quote.totalTax
+            : quote.items.reduce((sum, item) => {
+                const gross = this.getGross(item);
+                return sum + this.getTaxAmount(item, gross);
+            }, 0);
+        const computedTotal = typeof quote.total === 'number'
+            ? quote.total
+            : quote.items.reduce((sum, item) => {
+                const gross = this.getGross(item);
+                return sum + this.getNet(item, gross);
+            }, 0);
         const taxRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'Total Tax:';
-        worksheet.getCell(currentRow, 6).value = {
-            formula: `SUM(${this.getCellRef(firstItemRow, 5)}:${this.getCellRef(lastItemRow, 5)})`,
-        };
+        worksheet.getCell(currentRow, totalValueCol).value = computedTotalTax;
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
             alignment: { horizontal: 'left', vertical: 'middle' },
         });
-        this.applyCellStyle(worksheet.getCell(currentRow, 6), {
+        this.applyCellStyle(worksheet.getCell(currentRow, totalValueCol), {
             numFmt: '#,##0.00',
             bold: true,
             alignment: { horizontal: 'right', vertical: 'middle' },
@@ -348,15 +539,13 @@ class ClientSideExcelRenderer {
         currentRow++;
         const totalRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'TOTAL:';
-        worksheet.getCell(currentRow, 6).value = {
-            formula: `SUM(${this.getCellRef(firstItemRow, 6)}:${this.getCellRef(lastItemRow, 6)})`,
-        };
+        worksheet.getCell(currentRow, totalValueCol).value = computedTotal;
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
             fontSize: 12,
             alignment: { horizontal: 'left', vertical: 'middle' },
         });
-        this.applyCellStyle(worksheet.getCell(currentRow, 6), {
+        this.applyCellStyle(worksheet.getCell(currentRow, totalValueCol), {
             numFmt: '#,##0.00',
             bold: true,
             fontSize: 12,
@@ -370,7 +559,7 @@ class ClientSideExcelRenderer {
             this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true });
             currentRow++;
             worksheet.getCell(currentRow, 1).value = quote.notes;
-            worksheet.mergeCells(currentRow, 1, currentRow, 6);
+            worksheet.mergeCells(currentRow, 1, currentRow, tableColumnCount);
             currentRow++;
         }
         // Terms section
@@ -382,13 +571,21 @@ class ClientSideExcelRenderer {
             const terms = quote.terms || adminSettings.defaultTerms || '';
             terms.split('\n').forEach((line) => {
                 worksheet.getCell(currentRow, 1).value = line;
-                worksheet.mergeCells(currentRow, 1, currentRow, 6);
+                worksheet.mergeCells(currentRow, 1, currentRow, tableColumnCount);
                 currentRow++;
             });
         }
         // Footer with signature and seal
         currentRow += 2; // Extra space
-        const footerRow = currentRow;
+        const footerTextRow = currentRow;
+        const footerImageRow = footerTextRow + 1;
+        worksheet.getCell(footerTextRow, 1).value = 'Authorized By:';
+        this.applyCellStyle(worksheet.getCell(footerTextRow, 1), { fontSize: 10 });
+        worksheet.getCell(footerTextRow, tableColumnCount).value = `Date: ${quote.date}`;
+        this.applyCellStyle(worksheet.getCell(footerTextRow, tableColumnCount), {
+            alignment: { horizontal: 'right' },
+            fontSize: 10,
+        });
         // Signature
         if (signatureImage) {
             const sigId = workbook.addImage({
@@ -396,14 +593,10 @@ class ClientSideExcelRenderer {
                 extension: signatureImage.extension,
             });
             worksheet.addImage(sigId, {
-                tl: { col: 0, row: footerRow - 1 },
+                tl: { col: 0, row: footerImageRow - 1 },
                 ext: { width: 180, height: 80 },
             });
-        }
-        worksheet.getCell(footerRow, 1).value = 'Authorized By:';
-        this.applyCellStyle(worksheet.getCell(footerRow, 1), { fontSize: 10 });
-        if (signatureImage) {
-            worksheet.getRow(footerRow).height = 60;
+            worksheet.getRow(footerImageRow).height = 60;
         }
         // Seal (right side)
         if (sealImage) {
@@ -411,30 +604,23 @@ class ClientSideExcelRenderer {
                 buffer: sealImage.buffer,
                 extension: sealImage.extension,
             });
+            const sealColIndex = tableColumnCount > 4 ? tableColumnCount - 1 : tableColumnCount;
             worksheet.addImage(sealId, {
-                tl: { col: 4, row: footerRow - 1 },
+                tl: { col: Math.max(sealColIndex - 1, 0), row: footerImageRow - 1 },
                 ext: { width: 150, height: 100 },
             });
         }
-        worksheet.getCell(footerRow + 2, 5).value = `Date: ${quote.date}`;
-        this.applyCellStyle(worksheet.getCell(footerRow + 2, 5), {
-            alignment: { horizontal: 'right' },
-            fontSize: 10,
-        });
         // Set column widths
-        worksheet.getColumn(1).width = 30; // Description
-        worksheet.getColumn(2).width = 10; // Quantity
-        worksheet.getColumn(3).width = 12; // Unit Price
-        worksheet.getColumn(4).width = 10; // Tax %
-        worksheet.getColumn(5).width = 12; // Tax Amount
-        worksheet.getColumn(6).width = 12; // Total
+        columns.forEach((col, index) => {
+            worksheet.getColumn(index + 1).width = col.width;
+        });
         // Generate Excel file as buffer
         const buffer = await workbook.xlsx.writeBuffer();
         return new Blob([buffer], {
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         });
     }
-    async renderInvoiceToExcel(invoice, adminSettings, customerName) {
+    async renderInvoiceToExcel(invoice, adminSettings, customerName, options) {
         const workbook = new exceljs_1.default.Workbook();
         const worksheet = workbook.addWorksheet('Invoice');
         let currentRow = 1;
@@ -444,16 +630,25 @@ class ClientSideExcelRenderer {
         const logoImage = await this.loadImageAsBuffer(brandingUrls.logoUrl);
         const sealImage = await this.loadImageAsBuffer(brandingUrls.sealUrl);
         const signatureImage = await this.loadImageAsBuffer(brandingUrls.signatureUrl);
+        const visibleColumns = {
+            ...line_item_columns_1.DEFAULT_INVOICE_COLUMNS,
+            ...(options?.visibleColumns || {}),
+        };
+        const columns = this.buildLineItemColumns('invoice', visibleColumns);
+        const tableColumnCount = Math.max(columns.length, 1);
         // Header section with logo
         if (logoImage) {
             const logoId = workbook.addImage({
                 buffer: logoImage.buffer,
                 extension: logoImage.extension,
             });
+            const logoSize = await this.getScaledImageSize(logoImage, 250, 80);
             worksheet.addImage(logoId, {
                 tl: { col: 0, row: 0 },
-                ext: { width: 250, height: 80 },
+                ext: logoSize,
             });
+            const logoRowSpan = Math.max(1, Math.ceil(logoSize.height / 20));
+            currentRow = Math.max(currentRow, logoRowSpan + 1);
         }
         // Company name (row 1, column 2 if logo exists, else column 1)
         const companyNameCol = logoImage ? 2 : 1;
@@ -486,7 +681,7 @@ class ClientSideExcelRenderer {
             fontSize: 16,
             alignment: { horizontal: 'center' },
         });
-        worksheet.mergeCells(currentRow, 1, currentRow, 4);
+        worksheet.mergeCells(currentRow, 1, currentRow, tableColumnCount);
         currentRow++;
         // Document metadata
         currentRow++; // Empty row
@@ -562,17 +757,16 @@ class ClientSideExcelRenderer {
         // Line items table header
         currentRow++; // Empty row
         const headerRow = currentRow;
-        worksheet.getCell(currentRow, 1).value = 'Description';
-        worksheet.getCell(currentRow, 2).value = 'Quantity';
-        worksheet.getCell(currentRow, 3).value = 'Unit Price';
-        worksheet.getCell(currentRow, 4).value = 'Total';
-        // Format header row
-        for (let col = 1; col <= 4; col++) {
-            const cell = worksheet.getCell(currentRow, col);
+        columns.forEach((col, index) => {
+            const cell = worksheet.getCell(currentRow, index + 1);
+            cell.value = col.label;
             this.applyCellStyle(cell, {
                 bold: true,
                 fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } },
-                alignment: { horizontal: col === 1 ? 'left' : 'right', vertical: 'middle' },
+                alignment: {
+                    horizontal: col.align === 'center' ? 'center' : col.align === 'right' ? 'right' : 'left',
+                    vertical: 'middle',
+                },
                 border: {
                     top: { style: 'thin' },
                     bottom: { style: 'thin' },
@@ -580,43 +774,25 @@ class ClientSideExcelRenderer {
                     right: { style: 'thin' },
                 },
             });
-        }
+        });
         currentRow++;
-        // Line items with formulas
+        // Line items
         const firstItemRow = currentRow;
-        const hasItemLevelTax = invoice.items.some((item) => item.tax && item.tax > 0);
         invoice.items.forEach((item, index) => {
             const row = currentRow + index;
-            const qtyCol = 2;
-            const unitPriceCol = 3;
-            const totalCol = 4;
-            worksheet.getCell(row, 1).value = item.description || '';
-            worksheet.getCell(row, qtyCol).value = item.quantity || 0;
-            worksheet.getCell(row, unitPriceCol).value = item.unitPrice || 0;
-            // Formula for total: (Quantity * Unit Price) + Tax (if tax is per item)
-            // If tax is per item, use: Quantity * Unit Price + Tax
-            // Otherwise, use: Quantity * Unit Price (tax is added at document level)
-            if (item.tax && item.tax > 0) {
-                worksheet.getCell(row, totalCol).value = {
-                    formula: `${this.getCellRef(row, qtyCol)}*${this.getCellRef(row, unitPriceCol)}+${item.tax}`,
+            const gross = this.getGross(item);
+            const taxPercent = this.getTaxPercent(item, gross);
+            const net = this.getNet(item, gross);
+            const ctx = { gross, taxPercent, net };
+            columns.forEach((col, colIndex) => {
+                const cell = worksheet.getCell(row, colIndex + 1);
+                cell.value = col.value(item, index, ctx);
+                if (col.numFmt)
+                    cell.numFmt = col.numFmt;
+                cell.alignment = {
+                    horizontal: col.align === 'center' ? 'center' : col.align === 'right' ? 'right' : 'left',
+                    vertical: 'middle',
                 };
-            }
-            else {
-                worksheet.getCell(row, totalCol).value = {
-                    formula: `${this.getCellRef(row, qtyCol)}*${this.getCellRef(row, unitPriceCol)}`,
-                };
-            }
-            // Format number cells and set alignment
-            worksheet.getCell(row, 1).alignment = { horizontal: 'left', vertical: 'middle' }; // Description
-            worksheet.getCell(row, qtyCol).numFmt = '#,##0';
-            worksheet.getCell(row, qtyCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            worksheet.getCell(row, unitPriceCol).numFmt = '#,##0.00';
-            worksheet.getCell(row, unitPriceCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            worksheet.getCell(row, totalCol).numFmt = '#,##0.00';
-            worksheet.getCell(row, totalCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            // Apply borders
-            for (let col = 1; col <= 4; col++) {
-                const cell = worksheet.getCell(row, col);
                 this.applyCellStyle(cell, {
                     border: {
                         bottom: { style: 'thin' },
@@ -624,34 +800,21 @@ class ClientSideExcelRenderer {
                         right: { style: 'thin' },
                     },
                 });
-            }
+            });
         });
         currentRow += invoice.items.length;
         // Totals section
         currentRow++; // Empty row
-        const lastItemRow = currentRow - 1;
-        // Calculate subtotal for internal use (for tax calculation)
-        const qtyRange = `${this.getCellRef(firstItemRow, 2)}:${this.getCellRef(lastItemRow, 2)}`;
-        const priceRange = `${this.getCellRef(firstItemRow, 3)}:${this.getCellRef(lastItemRow, 3)}`;
+        const netColIndex = columns.findIndex((col) => col.key === 'netAmount') + 1;
+        const totalValueCol = netColIndex > 0 ? netColIndex : columns.length || 1;
         const taxRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'Tax:';
-        // Tax can be document-level or sum of item-level taxes
-        if (hasItemLevelTax) {
-            // Sum item-level taxes (calculate from item totals - subtotals)
-            const totalRange = `${this.getCellRef(firstItemRow, 4)}:${this.getCellRef(lastItemRow, 4)}`;
-            worksheet.getCell(currentRow, 4).value = {
-                formula: `SUM(${totalRange})-SUMPRODUCT(${qtyRange},${priceRange})`,
-            };
-        }
-        else {
-            // Document-level tax
-            worksheet.getCell(currentRow, 4).value = invoice.tax || 0;
-        }
+        worksheet.getCell(currentRow, totalValueCol).value = invoice.tax || 0;
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
             alignment: { horizontal: 'left', vertical: 'middle' },
         });
-        this.applyCellStyle(worksheet.getCell(currentRow, 4), {
+        this.applyCellStyle(worksheet.getCell(currentRow, totalValueCol), {
             numFmt: '#,##0.00',
             bold: true,
             alignment: { horizontal: 'right', vertical: 'middle' },
@@ -659,15 +822,13 @@ class ClientSideExcelRenderer {
         currentRow++;
         const totalRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'TOTAL:';
-        worksheet.getCell(currentRow, 4).value = {
-            formula: `SUMPRODUCT(${qtyRange},${priceRange})+${this.getCellRef(taxRow, 4)}`,
-        };
+        worksheet.getCell(currentRow, totalValueCol).value = invoice.total || 0;
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
             fontSize: 12,
             alignment: { horizontal: 'left', vertical: 'middle' },
         });
-        this.applyCellStyle(worksheet.getCell(currentRow, 4), {
+        this.applyCellStyle(worksheet.getCell(currentRow, totalValueCol), {
             numFmt: '#,##0.00',
             bold: true,
             fontSize: 12,
@@ -676,26 +837,26 @@ class ClientSideExcelRenderer {
         currentRow++;
         if (invoice.amountReceived !== undefined && invoice.amountReceived > 0) {
             worksheet.getCell(currentRow, 1).value = 'Amount Received:';
-            worksheet.getCell(currentRow, 4).value = invoice.amountReceived;
+            worksheet.getCell(currentRow, totalValueCol).value = invoice.amountReceived;
             this.applyCellStyle(worksheet.getCell(currentRow, 1), {
                 bold: true,
                 alignment: { horizontal: 'left', vertical: 'middle' },
             });
-            this.applyCellStyle(worksheet.getCell(currentRow, 4), {
+            this.applyCellStyle(worksheet.getCell(currentRow, totalValueCol), {
                 numFmt: '#,##0.00',
                 bold: true,
                 alignment: { horizontal: 'right', vertical: 'middle' },
             });
             currentRow++;
             worksheet.getCell(currentRow, 1).value = 'Pending:';
-            worksheet.getCell(currentRow, 4).value = {
-                formula: `${this.getCellRef(totalRow, 4)}-${this.getCellRef(currentRow - 1, 4)}`,
+            worksheet.getCell(currentRow, totalValueCol).value = {
+                formula: `${this.getCellRef(totalRow, totalValueCol)}-${this.getCellRef(currentRow - 1, totalValueCol)}`,
             };
             this.applyCellStyle(worksheet.getCell(currentRow, 1), {
                 bold: true,
                 alignment: { horizontal: 'left', vertical: 'middle' },
             });
-            this.applyCellStyle(worksheet.getCell(currentRow, 4), {
+            this.applyCellStyle(worksheet.getCell(currentRow, totalValueCol), {
                 numFmt: '#,##0.00',
                 bold: true,
                 alignment: { horizontal: 'right', vertical: 'middle' },
@@ -722,7 +883,7 @@ class ClientSideExcelRenderer {
                 if (!line.trim())
                     return;
                 worksheet.getCell(currentRow, 1).value = line.trim();
-                worksheet.mergeCells(currentRow, 1, currentRow, 4);
+                worksheet.mergeCells(currentRow, 1, currentRow, tableColumnCount);
                 currentRow++;
             });
         }
@@ -733,12 +894,20 @@ class ClientSideExcelRenderer {
             this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true });
             currentRow++;
             worksheet.getCell(currentRow, 1).value = invoice.notes;
-            worksheet.mergeCells(currentRow, 1, currentRow, 4);
+            worksheet.mergeCells(currentRow, 1, currentRow, tableColumnCount);
             currentRow++;
         }
         // Footer with signature and seal
         currentRow += 2; // Extra space
-        const footerRow = currentRow;
+        const footerTextRow = currentRow;
+        const footerImageRow = footerTextRow + 1;
+        worksheet.getCell(footerTextRow, 1).value = 'Authorized By:';
+        this.applyCellStyle(worksheet.getCell(footerTextRow, 1), { fontSize: 10 });
+        worksheet.getCell(footerTextRow, tableColumnCount).value = `Date: ${invoice.date}`;
+        this.applyCellStyle(worksheet.getCell(footerTextRow, tableColumnCount), {
+            alignment: { horizontal: 'right' },
+            fontSize: 10,
+        });
         // Signature
         if (signatureImage) {
             const sigId = workbook.addImage({
@@ -746,14 +915,10 @@ class ClientSideExcelRenderer {
                 extension: signatureImage.extension,
             });
             worksheet.addImage(sigId, {
-                tl: { col: 0, row: footerRow - 1 },
+                tl: { col: 0, row: footerImageRow - 1 },
                 ext: { width: 180, height: 80 },
             });
-        }
-        worksheet.getCell(footerRow, 1).value = 'Authorized By:';
-        this.applyCellStyle(worksheet.getCell(footerRow, 1), { fontSize: 10 });
-        if (signatureImage) {
-            worksheet.getRow(footerRow).height = 60;
+            worksheet.getRow(footerImageRow).height = 60;
         }
         // Seal (right side)
         if (sealImage) {
@@ -761,28 +926,23 @@ class ClientSideExcelRenderer {
                 buffer: sealImage.buffer,
                 extension: sealImage.extension,
             });
+            const sealColIndex = tableColumnCount > 4 ? tableColumnCount - 1 : tableColumnCount;
             worksheet.addImage(sealId, {
-                tl: { col: 3, row: footerRow - 1 },
+                tl: { col: Math.max(sealColIndex - 1, 0), row: footerImageRow - 1 },
                 ext: { width: 150, height: 100 },
             });
         }
-        worksheet.getCell(footerRow + 2, 4).value = `Date: ${invoice.date}`;
-        this.applyCellStyle(worksheet.getCell(footerRow + 2, 4), {
-            alignment: { horizontal: 'right' },
-            fontSize: 10,
-        });
         // Set column widths
-        worksheet.getColumn(1).width = 30; // Description
-        worksheet.getColumn(2).width = 10; // Quantity
-        worksheet.getColumn(3).width = 12; // Unit Price
-        worksheet.getColumn(4).width = 12; // Total
+        columns.forEach((col, index) => {
+            worksheet.getColumn(index + 1).width = col.width;
+        });
         // Generate Excel file as buffer
         const buffer = await workbook.xlsx.writeBuffer();
         return new Blob([buffer], {
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         });
     }
-    async renderPurchaseOrderToExcel(po, adminSettings, vendorName) {
+    async renderPurchaseOrderToExcel(po, adminSettings, vendorName, options) {
         const workbook = new exceljs_1.default.Workbook();
         const worksheet = workbook.addWorksheet('Purchase Order');
         let currentRow = 1;
@@ -792,16 +952,25 @@ class ClientSideExcelRenderer {
         const logoImage = await this.loadImageAsBuffer(brandingUrls.logoUrl);
         const sealImage = await this.loadImageAsBuffer(brandingUrls.sealUrl);
         const signatureImage = await this.loadImageAsBuffer(brandingUrls.signatureUrl);
+        const visibleColumns = {
+            ...line_item_columns_1.DEFAULT_PO_COLUMNS,
+            ...(options?.visibleColumns || {}),
+        };
+        const columns = this.buildLineItemColumns('purchaseOrder', visibleColumns);
+        const tableColumnCount = Math.max(columns.length, 1);
         // Header section with logo
         if (logoImage) {
             const logoId = workbook.addImage({
                 buffer: logoImage.buffer,
                 extension: logoImage.extension,
             });
+            const logoSize = await this.getScaledImageSize(logoImage, 250, 80);
             worksheet.addImage(logoId, {
                 tl: { col: 0, row: 0 },
-                ext: { width: 250, height: 80 },
+                ext: logoSize,
             });
+            const logoRowSpan = Math.max(1, Math.ceil(logoSize.height / 20));
+            currentRow = Math.max(currentRow, logoRowSpan + 1);
         }
         // Company name (row 1, column 2 if logo exists, else column 1)
         const companyNameCol = logoImage ? 2 : 1;
@@ -834,7 +1003,7 @@ class ClientSideExcelRenderer {
             fontSize: 16,
             alignment: { horizontal: 'center' },
         });
-        worksheet.mergeCells(currentRow, 1, currentRow, 4);
+        worksheet.mergeCells(currentRow, 1, currentRow, tableColumnCount);
         currentRow++;
         // Document metadata
         currentRow++; // Empty row
@@ -898,17 +1067,16 @@ class ClientSideExcelRenderer {
         // Line items table header
         currentRow++; // Empty row
         const headerRow = currentRow;
-        worksheet.getCell(currentRow, 1).value = 'Description';
-        worksheet.getCell(currentRow, 2).value = 'Quantity';
-        worksheet.getCell(currentRow, 3).value = 'Unit Price';
-        worksheet.getCell(currentRow, 4).value = 'Total';
-        // Format header row
-        for (let col = 1; col <= 4; col++) {
-            const cell = worksheet.getCell(currentRow, col);
+        columns.forEach((col, index) => {
+            const cell = worksheet.getCell(currentRow, index + 1);
+            cell.value = col.label;
             this.applyCellStyle(cell, {
                 bold: true,
                 fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } },
-                alignment: { horizontal: col === 1 ? 'left' : 'right', vertical: 'middle' },
+                alignment: {
+                    horizontal: col.align === 'center' ? 'center' : col.align === 'right' ? 'right' : 'left',
+                    vertical: 'middle',
+                },
                 border: {
                     top: { style: 'thin' },
                     bottom: { style: 'thin' },
@@ -916,34 +1084,25 @@ class ClientSideExcelRenderer {
                     right: { style: 'thin' },
                 },
             });
-        }
+        });
         currentRow++;
-        // Line items with formulas
+        // Line items
         const firstItemRow = currentRow;
         po.items.forEach((item, index) => {
             const row = currentRow + index;
-            const qtyCol = 2;
-            const unitPriceCol = 3;
-            const totalCol = 4;
-            const description = item.description || item.vehicleNumber || '';
-            worksheet.getCell(row, 1).value = description;
-            worksheet.getCell(row, qtyCol).value = item.quantity || 0;
-            worksheet.getCell(row, unitPriceCol).value = item.unitPrice || 0;
-            // Formula for total: Quantity * Unit Price (tax is added at document level)
-            worksheet.getCell(row, totalCol).value = {
-                formula: `${this.getCellRef(row, qtyCol)}*${this.getCellRef(row, unitPriceCol)}`,
-            };
-            // Format number cells and set alignment
-            worksheet.getCell(row, 1).alignment = { horizontal: 'left', vertical: 'middle' }; // Description
-            worksheet.getCell(row, qtyCol).numFmt = '#,##0';
-            worksheet.getCell(row, qtyCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            worksheet.getCell(row, unitPriceCol).numFmt = '#,##0.00';
-            worksheet.getCell(row, unitPriceCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            worksheet.getCell(row, totalCol).numFmt = '#,##0.00';
-            worksheet.getCell(row, totalCol).alignment = { horizontal: 'right', vertical: 'middle' };
-            // Apply borders
-            for (let col = 1; col <= 4; col++) {
-                const cell = worksheet.getCell(row, col);
+            const gross = this.getGross(item);
+            const taxPercent = this.getTaxPercent(item, gross);
+            const net = this.getNet(item, gross);
+            const ctx = { gross, taxPercent, net };
+            columns.forEach((col, colIndex) => {
+                const cell = worksheet.getCell(row, colIndex + 1);
+                cell.value = col.value(item, index, ctx);
+                if (col.numFmt)
+                    cell.numFmt = col.numFmt;
+                cell.alignment = {
+                    horizontal: col.align === 'center' ? 'center' : col.align === 'right' ? 'right' : 'left',
+                    vertical: 'middle',
+                };
                 this.applyCellStyle(cell, {
                     border: {
                         bottom: { style: 'thin' },
@@ -951,22 +1110,21 @@ class ClientSideExcelRenderer {
                         right: { style: 'thin' },
                     },
                 });
-            }
+            });
         });
         currentRow += po.items.length;
         // Totals section
         currentRow++; // Empty row
-        const lastItemRow = currentRow - 1;
-        const qtyRange = `${this.getCellRef(firstItemRow, 2)}:${this.getCellRef(lastItemRow, 2)}`;
-        const priceRange = `${this.getCellRef(firstItemRow, 3)}:${this.getCellRef(lastItemRow, 3)}`;
+        const netColIndex = columns.findIndex((col) => col.key === 'netAmount') + 1;
+        const totalValueCol = netColIndex > 0 ? netColIndex : columns.length || 1;
         const taxRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'Tax:';
-        worksheet.getCell(currentRow, 4).value = po.tax || 0;
+        worksheet.getCell(currentRow, totalValueCol).value = po.tax || 0;
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
             alignment: { horizontal: 'left', vertical: 'middle' },
         });
-        this.applyCellStyle(worksheet.getCell(currentRow, 4), {
+        this.applyCellStyle(worksheet.getCell(currentRow, totalValueCol), {
             numFmt: '#,##0.00',
             bold: true,
             alignment: { horizontal: 'right', vertical: 'middle' },
@@ -974,15 +1132,13 @@ class ClientSideExcelRenderer {
         currentRow++;
         const totalRow = currentRow;
         worksheet.getCell(currentRow, 1).value = 'TOTAL:';
-        worksheet.getCell(currentRow, 4).value = {
-            formula: `SUMPRODUCT(${qtyRange},${priceRange})+${this.getCellRef(taxRow, 4)}`,
-        };
+        worksheet.getCell(currentRow, totalValueCol).value = po.amount || 0;
         this.applyCellStyle(worksheet.getCell(currentRow, 1), {
             bold: true,
             fontSize: 12,
             alignment: { horizontal: 'left', vertical: 'middle' },
         });
-        this.applyCellStyle(worksheet.getCell(currentRow, 4), {
+        this.applyCellStyle(worksheet.getCell(currentRow, totalValueCol), {
             numFmt: '#,##0.00',
             bold: true,
             fontSize: 12,
@@ -1009,7 +1165,7 @@ class ClientSideExcelRenderer {
                 if (!line.trim())
                     return;
                 worksheet.getCell(currentRow, 1).value = line.trim();
-                worksheet.mergeCells(currentRow, 1, currentRow, 4);
+                worksheet.mergeCells(currentRow, 1, currentRow, tableColumnCount);
                 currentRow++;
             });
         }
@@ -1020,12 +1176,20 @@ class ClientSideExcelRenderer {
             this.applyCellStyle(worksheet.getCell(currentRow, 1), { bold: true });
             currentRow++;
             worksheet.getCell(currentRow, 1).value = po.notes;
-            worksheet.mergeCells(currentRow, 1, currentRow, 4);
+            worksheet.mergeCells(currentRow, 1, currentRow, tableColumnCount);
             currentRow++;
         }
         // Footer with signature and seal
         currentRow += 2; // Extra space
-        const footerRow = currentRow;
+        const footerTextRow = currentRow;
+        const footerImageRow = footerTextRow + 1;
+        worksheet.getCell(footerTextRow, 1).value = 'Authorized By:';
+        this.applyCellStyle(worksheet.getCell(footerTextRow, 1), { fontSize: 10 });
+        worksheet.getCell(footerTextRow, tableColumnCount).value = `Date: ${po.date}`;
+        this.applyCellStyle(worksheet.getCell(footerTextRow, tableColumnCount), {
+            alignment: { horizontal: 'right' },
+            fontSize: 10,
+        });
         // Signature
         if (signatureImage) {
             const sigId = workbook.addImage({
@@ -1033,14 +1197,10 @@ class ClientSideExcelRenderer {
                 extension: signatureImage.extension,
             });
             worksheet.addImage(sigId, {
-                tl: { col: 0, row: footerRow - 1 },
+                tl: { col: 0, row: footerImageRow - 1 },
                 ext: { width: 180, height: 80 },
             });
-        }
-        worksheet.getCell(footerRow, 1).value = 'Authorized By:';
-        this.applyCellStyle(worksheet.getCell(footerRow, 1), { fontSize: 10 });
-        if (signatureImage) {
-            worksheet.getRow(footerRow).height = 60;
+            worksheet.getRow(footerImageRow).height = 60;
         }
         // Seal (right side)
         if (sealImage) {
@@ -1048,21 +1208,16 @@ class ClientSideExcelRenderer {
                 buffer: sealImage.buffer,
                 extension: sealImage.extension,
             });
+            const sealColIndex = tableColumnCount > 4 ? tableColumnCount - 1 : tableColumnCount;
             worksheet.addImage(sealId, {
-                tl: { col: 3, row: footerRow - 1 },
+                tl: { col: Math.max(sealColIndex - 1, 0), row: footerImageRow - 1 },
                 ext: { width: 150, height: 100 },
             });
         }
-        worksheet.getCell(footerRow + 2, 4).value = `Date: ${po.date}`;
-        this.applyCellStyle(worksheet.getCell(footerRow + 2, 4), {
-            alignment: { horizontal: 'right' },
-            fontSize: 10,
-        });
         // Set column widths
-        worksheet.getColumn(1).width = 30; // Description
-        worksheet.getColumn(2).width = 10; // Quantity
-        worksheet.getColumn(3).width = 12; // Unit Price
-        worksheet.getColumn(4).width = 12; // Total
+        columns.forEach((col, index) => {
+            worksheet.getColumn(index + 1).width = col.width;
+        });
         // Generate Excel file as buffer
         const buffer = await workbook.xlsx.writeBuffer();
         return new Blob([buffer], {

@@ -247,9 +247,7 @@ This document lists all the automation test cases implemented in the project.
 | | `handle errors` | Verifies 500 response on DB error. | **Vehicle Finances:** Graceful error handling for DB failures. |
 
 ## Module 15: Expense Categories API
-**File:** `api/__tests__/expense-categories.test.ts`
-
-| Test Group | Test Case | Description | Functional Explanation (Impact Area) |
+**File:** `api/__tests__/expense-categories.test.ts`| Test Group | Test Case | Description | Functional Explanation (Impact Area) |
 | :--- | :--- | :--- | :--- |
 | **GET /expense-categories** | `return all categories` | Verifies retrieval of all categories. | **Vehicle Finances:** Loading expense category list. |
 | | `handle errors` | Verifies 500 response on DB error. | **Vehicle Finances:** Graceful error handling for DB failures. |
@@ -266,9 +264,7 @@ This document lists all the automation test cases implemented in the project.
 | | `handle general errors` | Verifies 500 response for general errors. | **Vehicle Finances:** Graceful error handling for DB failures. |
 | **DELETE /expense-categories/:id** | `delete a category` | Verifies deletion logic. | **Vehicle Finances:** Removing a category. |
 | | `return 409 if category is referenced` | Fails if category is used in transactions. | **Data Integrity:** Prevents deleting categories with transaction history. |
-| | `handle general errors` | Verifies 500 response for general errors. | **Vehicle Finances:** Graceful error handling for DB failures. |
-
-## Module 16: Vehicle Finances Dashboard Metrics
+| | `handle general errors` | Verifies 500 response for general errors. | **Vehicle Finances:** Graceful error handling for DB failures. |## Module 16: Vehicle Finances Dashboard Metrics
 **File:** `api/__tests__/vehicle-finances.test.ts`| Test Group | Test Case | Description | Functional Explanation (Impact Area) |
 | :--- | :--- | :--- | :--- |
 | **getDashboardMetrics()** | `return dashboard metrics structure` | Verifies dashboard metrics structure (overall, timeBased, vehicleBased, customerBased, categoryBased, operational). | **Vehicle Finances Dashboard:** Ensuring correct data structure for frontend. |

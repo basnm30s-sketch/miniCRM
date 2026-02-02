@@ -1,8 +1,9 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const isDev = require('electron-is-dev');
+const os = require('os');
 
 // IPC handler for error logging from renderer
 ipcMain.handle('log-error', async (event, errorData) => {
@@ -41,6 +42,14 @@ ipcMain.handle('log-error', async (event, errorData) => {
 let db = null;
 let apiServer = null;
 let serverStartupPromise = null;
+let healthCheckInterval = null;
+let consecutiveHealthFailures = 0;
+let isQuitting = false;
+
+const HEALTH_CHECK_URL = 'http://localhost:3001/api/health';
+const HEALTH_CHECK_INTERVAL_MS = 5000;
+const HEALTH_FAILURE_THRESHOLD = 5;
+const HEALTH_REQUEST_TIMEOUT_MS = 4000;
 
 function resolveFirstExisting(...candidates) {
   for (const candidate of candidates) {
@@ -85,6 +94,177 @@ function getTsxExecutablePath() {
   );
 }
 
+function ensureDir(dirPath) {
+  if (!dirPath) return;
+  try {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+  } catch (err) {
+    console.error('Failed to ensure directory:', dirPath, err);
+  }
+}
+
+function copyDirRecursive(src, dest) {
+  if (!fs.existsSync(src)) return;
+  ensureDir(dest);
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath);
+    } else {
+      // Don't overwrite newer files in destination
+      if (!fs.existsSync(destPath)) {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    }
+  }
+}
+
+function seedDefaultBrandingIfMissing(userDataDir) {
+  try {
+    const persistentBrandingDir = path.join(userDataDir, 'data', 'branding');
+    ensureDir(persistentBrandingDir);
+
+    const possibleExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+    const types = ['logo', 'seal', 'signature'];
+
+    const assetsDir = path.join(__dirname, 'assets', 'default-branding');
+
+    for (const type of types) {
+      const alreadyExists = possibleExtensions.some((ext) =>
+        fs.existsSync(path.join(persistentBrandingDir, `${type}${ext}`))
+      );
+      if (alreadyExists) continue;
+
+      const src = resolveFirstExisting(
+        path.join(assetsDir, `${type}.png`),
+        path.join(app.getAppPath(), 'electron', 'assets', 'default-branding', `${type}.png`)
+      );
+      if (!src) {
+        logToFile('seed-missing', `Default branding asset not found for ${type}`);
+        continue;
+      }
+
+      const dest = path.join(persistentBrandingDir, `${type}.png`);
+      fs.copyFileSync(src, dest);
+      logToFile('seed', `Seeded default branding ${type} -> ${dest}`);
+    }
+  } catch (err) {
+    console.error('Seeding default branding failed:', err);
+    logToFile('seed-error', `Seeding default branding failed: ${err?.message || err}`);
+  }
+}
+
+function migrateLegacyDataIfNeeded(userDataDir) {
+  try {
+    const newDataDir = path.join(userDataDir, 'data');
+    ensureDir(newDataDir);
+
+    // Legacy location was based on process.cwd() which, in packaged builds, is often the install directory.
+    const installDir = path.dirname(process.execPath);
+    const oldDataDir = path.join(installDir, 'data');
+
+    const oldDb = path.join(oldDataDir, 'imanage.db');
+    const newDb = path.join(newDataDir, 'imanage.db');
+
+    if (!fs.existsSync(newDb) && fs.existsSync(oldDb)) {
+      console.log('Migrating legacy DB to userData...');
+      fs.copyFileSync(oldDb, newDb);
+      logToFile('migration', `Copied legacy DB from ${oldDb} to ${newDb}`);
+    }
+
+    // Migrate uploads/branding if missing in new location
+    const oldUploads = path.join(oldDataDir, 'uploads');
+    const newUploads = path.join(newDataDir, 'uploads');
+    if (fs.existsSync(oldUploads) && !fs.existsSync(newUploads)) {
+      console.log('Migrating legacy uploads to userData...');
+      copyDirRecursive(oldUploads, newUploads);
+      logToFile('migration', `Copied legacy uploads from ${oldUploads} to ${newUploads}`);
+    }
+
+    const oldBranding = path.join(oldDataDir, 'branding');
+    const newBranding = path.join(newDataDir, 'branding');
+    if (fs.existsSync(oldBranding) && !fs.existsSync(newBranding)) {
+      console.log('Migrating legacy branding to userData...');
+      copyDirRecursive(oldBranding, newBranding);
+      logToFile('migration', `Copied legacy branding from ${oldBranding} to ${newBranding}`);
+    }
+  } catch (err) {
+    console.error('Legacy data migration failed:', err);
+    logToFile('migration-error', `Legacy data migration failed: ${err?.message || err}`);
+  }
+}
+
+function logToFile(prefix, message) {
+  try {
+    const logDir = path.join(app.getPath('userData'), 'logs');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const logFile = path.join(logDir, `${prefix}-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${message}${os.EOL}`);
+  } catch (err) {
+    console.error('Failed to write log file:', err);
+  }
+}
+
+async function pingServerHealth() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), HEALTH_REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(HEALTH_CHECK_URL, { cache: 'no-store', signal: controller.signal });
+    clearTimeout(timeout);
+    if (res.ok) {
+      consecutiveHealthFailures = 0;
+      return true;
+    }
+  } catch (err) {
+    // swallow, we log below
+  } finally {
+    clearTimeout(timeout);
+  }
+  consecutiveHealthFailures += 1;
+  console.warn(`Health check failed (${consecutiveHealthFailures}/${HEALTH_FAILURE_THRESHOLD})`);
+  if (consecutiveHealthFailures >= HEALTH_FAILURE_THRESHOLD) {
+    logToFile('api-health', `Health check threshold hit; restarting API server`);
+    restartApiServer('health-check-failed');
+  }
+  return false;
+}
+
+function startHealthWatcher() {
+  if (healthCheckInterval) return;
+  healthCheckInterval = setInterval(pingServerHealth, HEALTH_CHECK_INTERVAL_MS);
+}
+
+function stopHealthWatcher() {
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+    healthCheckInterval = null;
+  }
+}
+
+function restartApiServer(reason) {
+  console.warn('Restarting API server. Reason:', reason);
+  if (apiServer) {
+    try {
+      apiServer.kill();
+    } catch (err) {
+      console.error('Error killing API server during restart:', err);
+    }
+  }
+  apiServer = null;
+  serverStartupPromise = null;
+  consecutiveHealthFailures = 0;
+  startApiServer().catch((err) => {
+    console.error('Failed to restart API server:', err);
+    logToFile('api-restart-failure', `Failed to restart API server: ${err?.message || err}`);
+  });
+}
+
 // Start API server in production or development builds
 function startApiServer() {
   if (serverStartupPromise) {
@@ -122,11 +302,23 @@ function startApiServer() {
     cwd = path.join(__dirname, '..');
     console.log('Using tsx to run TypeScript server');
   }
+
+  // Persist all app data (DB + uploads/branding) in userData, not install directory.
+  const userDataDir = app.getPath('userData');
+  const persistentDataDir = path.join(userDataDir, 'data');
+  ensureDir(persistentDataDir);
+  migrateLegacyDataIfNeeded(userDataDir);
+  // Seed defaults only if missing (won't overwrite user files)
+  seedDefaultBrandingIfMissing(userDataDir);
+
   const env = {
     ...process.env,
     PORT: '3001',
     NODE_ENV: isDev ? 'development' : 'production',
     ELECTRON_RUN_AS_NODE: '1',
+    IMANAGE_USER_DATA_DIR: userDataDir,
+    IMANAGE_DATA_DIR: persistentDataDir,
+    DB_PATH: path.join(persistentDataDir, 'imanage.db'),
   };
 
   console.log('========================================');
@@ -196,7 +388,12 @@ function startApiServer() {
       console.log('Last output:', serverOutput);
       apiServer = null;
       serverStartupPromise = null;
-      
+      logToFile('api-exit', `API server exited with code ${code}. Output: ${serverOutput}`);
+      // Do NOT restart when the app is quitting
+      if (!isQuitting) {
+        setTimeout(() => restartApiServer(`exit-code-${code}`), 1000);
+      }
+
       if (!resolved && code !== 0) {
         reject(new Error(`Server exited with code ${code}`));
       }
@@ -248,6 +445,7 @@ app.whenReady().then(async () => {
   try {
     await startApiServer();
     console.log('✓ API server startup completed');
+    startHealthWatcher();
     
     // Additional delay to ensure server is fully ready
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -262,6 +460,17 @@ app.whenReady().then(async () => {
 });
 
 async function createWindow() {
+  const firstRunFlagPath = path.join(app.getPath('userData'), 'first-run.json');
+  let isFirstPackagedRun = false;
+  if (app.isPackaged) {
+    try {
+      isFirstPackagedRun = !fs.existsSync(firstRunFlagPath);
+    } catch (err) {
+      // If we can't read the flag for any reason, don't block startup
+      isFirstPackagedRun = false;
+    }
+  }
+
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -276,7 +485,21 @@ async function createWindow() {
 
   // Show window when ready
   win.once('ready-to-show', () => {
+    if (isFirstPackagedRun) {
+      try {
+        win.maximize();
+      } catch (err) {
+        // ignore
+      }
+    }
     win.show();
+    if (isFirstPackagedRun) {
+      try {
+        fs.writeFileSync(firstRunFlagPath, JSON.stringify({ ran: true, at: new Date().toISOString() }, null, 2));
+      } catch (err) {
+        // ignore
+      }
+    }
   });
 
   // ============================================
@@ -506,14 +729,36 @@ app.on('activate', () => {
 });
 
 // Cleanup on app quit
-app.on('before-quit', () => {
-  // Stop API server
+app.on('before-quit', async () => {
+  isQuitting = true;
+
   if (apiServer) {
+    const child = apiServer;
+    const pid = child.pid;
     console.log('Stopping API server...');
-    apiServer.kill();
+    child.kill();
+
+    if (process.platform === 'win32' && pid) {
+      try {
+        execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+      } catch (e) {
+        // process may already be gone
+      }
+    }
+
+    await new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(t);
+        resolve();
+      };
+      const t = setTimeout(done, 2500);
+      child.once('close', done);
+    });
     apiServer = null;
   }
-  
+
+  stopHealthWatcher();
+
   if (db) {
     try {
       // Uncomment when SQLite is set up:

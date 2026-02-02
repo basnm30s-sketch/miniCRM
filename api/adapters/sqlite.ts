@@ -1981,7 +1981,7 @@ export const invoicesAdapter = {
     const invoiceStmt = db.prepare(`
       INSERT INTO invoices (id, number, date, dueDate, customerId, vendorId, purchaseOrderId, quoteId, 
                             subtotal, tax, total, amountReceived, status, notes, terms, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     try {
@@ -2001,8 +2001,8 @@ export const invoicesAdapter = {
         data.status || 'draft',
         data.notes || '',
         data.terms || '',
-        now
-        ,now
+        now,  // createdAt
+        now   // updatedAt
       )
     } catch (error: any) {
       // Log the actual error for debugging

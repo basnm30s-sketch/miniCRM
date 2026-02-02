@@ -40,12 +40,17 @@ function deleteDirSync(dir) {
   try {
     console.log('🔧 Preparing for Electron build...');
 
-    // Step 0: Clear Next.js cache to avoid stale API route detection
+    // Step 0: Clear Next.js cache and export output to avoid stale assets
     // Only clear cache when building for Electron (NEXT_EXPORT=true)
     const nextCacheDir = path.join(__dirname, '..', '.next');
     if (fs.existsSync(nextCacheDir)) {
       console.log('🧹 Clearing Next.js cache...');
       deleteDirSync(nextCacheDir);
+    }
+    const outDir = path.join(__dirname, '..', 'out');
+    if (fs.existsSync(outDir)) {
+      console.log('🧹 Clearing Next.js export output...');
+      deleteDirSync(outDir);
     }
 
     // Step 1: Backup and remove API folder
@@ -71,7 +76,11 @@ function deleteDirSync(dir) {
     const buildProcess = spawn(command, args, {
       stdio: 'inherit',
       cwd: path.join(__dirname, '..'),
-      env: { ...process.env, NEXT_EXPORT: 'true' },
+      env: {
+        ...process.env,
+        NEXT_EXPORT: 'true',
+        NEXT_PUBLIC_API_URL: 'http://localhost:3001/api',
+      },
       shell: true
     });
     

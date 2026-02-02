@@ -1618,11 +1618,13 @@ exports.invoicesAdapter = {
         const invoiceStmt = db.prepare(`
       INSERT INTO invoices (id, number, date, dueDate, customerId, vendorId, purchaseOrderId, quoteId, 
                             subtotal, tax, total, amountReceived, status, notes, terms, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
         try {
             invoiceStmt.run(data.id, data.number, data.date, data.dueDate || null, data.customerId, // Required, validated above
-            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', data.terms || '', now, now);
+            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', data.terms || '', now, // createdAt
+            now // updatedAt
+            );
         }
         catch (error) {
             // Log the actual error for debugging
