@@ -40,6 +40,7 @@ export async function createCustomer(data: {
   email?: string | null
   phone?: string | null
   address?: string | null
+  trn?: string | null
 }) {
   try {
     const now = new Date().toISOString()
@@ -50,6 +51,7 @@ export async function createCustomer(data: {
       email: data.email || null,
       phone: data.phone || null,
       address: data.address || null,
+      trn: data.trn ?? null,
       createdAt: now,
       updatedAt: now,
     })
@@ -76,6 +78,7 @@ export async function updateCustomer(
     email?: string | null
     phone?: string | null
     address?: string | null
+    trn?: string | null
   }
 ) {
   try {
@@ -87,6 +90,7 @@ export async function updateCustomer(
     if (data.email !== undefined) updateData.email = data.email || null
     if (data.phone !== undefined) updateData.phone = data.phone || null
     if (data.address !== undefined) updateData.address = data.address || null
+    if (data.trn !== undefined) updateData.trn = data.trn || null
 
     await db.update(customers).set(updateData).where(eq(customers.id, id))
 

@@ -544,6 +544,18 @@ export class ClientSideExcelRenderer implements ExcelRenderer {
       })
       currentRow++
     }
+    if (quote.customer.trn) {
+      worksheet.getCell(currentRow, 1).value = 'TRN:'
+      worksheet.getCell(currentRow, 2).value = quote.customer.trn
+      this.applyCellStyle(worksheet.getCell(currentRow, 1), { 
+        bold: true,
+        alignment: { horizontal: 'left', vertical: 'middle' },
+      })
+      this.applyCellStyle(worksheet.getCell(currentRow, 2), {
+        alignment: { horizontal: 'left', vertical: 'middle' },
+      })
+      currentRow++
+    }
 
     // Line items table header
     currentRow++ // Empty row

@@ -379,7 +379,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
             setValidationErrors([])
             toast({
                 title: 'Success',
-                description: isEditMode ? 'Purchase order updated successfully' : 'Purchase order created successfully',
+                description: isEditMode ? `${poToSave.number} was updated successfully` : `${poToSave.number} was created successfully`,
             })
 
             if (typeof window !== 'undefined') {
@@ -428,13 +428,21 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
         }
 
         const vendor = vendors.find((v) => v.id === po.vendorId)
-        const vendorName = vendor?.name || 'Unknown Vendor'
+        const pdfVendor = vendor
+            ? {
+                  name: vendor.name,
+                  contactPerson: vendor.contactPerson ?? null,
+                  address: vendor.address ?? null,
+                  email: vendor.email ?? null,
+                  phone: vendor.phone ?? null,
+              }
+            : null
         const totals = calculateTotals(po.items)
         const poForExport: PurchaseOrder = { ...po, subtotal: totals.subtotal, tax: totals.tax, amount: totals.total }
 
         setGenerating(true)
         try {
-            const pdfBlob = await pdfRenderer.renderPurchaseOrderToPdf(poForExport, adminSettings, vendorName)
+            const pdfBlob = await pdfRenderer.renderPurchaseOrderToPdf(poForExport, adminSettings, pdfVendor)
             const filename = `po-${po.number}.pdf`
             pdfRenderer.downloadPdf(pdfBlob, filename)
             toast({ title: 'Success', description: 'PDF downloaded successfully' })
@@ -615,12 +623,40 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                         </div>
 
                         {po.vendorId && selectedVendor && (
-                            <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
-                                <p className="font-semibold text-slate-900">{selectedVendor.name}</p>
-                                {selectedVendor.contactPerson && (
-                                    <p className="text-xs text-slate-600">{selectedVendor.contactPerson}</p>
-                                )}
-                            </div>
+                            (() => {
+                                const name = (selectedVendor.name || '').trim()
+                                const contactPerson = (selectedVendor.contactPerson || '').trim()
+                                const email = (selectedVendor.email || '').trim()
+                                const phone = (selectedVendor.phone || '').trim()
+                                const address = (selectedVendor.address || '').trim()
+                                const hasContact = [email, phone, address].some((s) => (s || '').trim() !== '')
+                                return (
+                                    <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
+                                        <p className="font-semibold text-slate-900">{name || 'N/A'}</p>
+                                        {contactPerson && (
+                                            <p className="text-xs text-slate-600">{contactPerson}</p>
+                                        )}
+                                        {hasContact && (
+                                            <div className="mt-2 space-y-1 text-xs">
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-slate-500">Email</span>
+                                                    <span className="text-slate-900 truncate">{email || '—'}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-slate-500">Phone</span>
+                                                    <span className="text-slate-900 truncate">{phone || '—'}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-slate-500">Address</span>
+                                                    <span className="text-slate-900 text-right line-clamp-2">
+                                                        {address || '—'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })()
                         )}
                     </CardContent>
                 </Card>

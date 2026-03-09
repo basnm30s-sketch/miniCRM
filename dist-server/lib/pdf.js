@@ -215,7 +215,7 @@ class ClientSidePDFRenderer {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
     }
-    async renderPurchaseOrderToPdf(po, adminSettings, vendorName) {
+    async renderPurchaseOrderToPdf(po, adminSettings, vendor) {
         const html2canvas = (await Promise.resolve().then(() => __importStar(require('html2canvas')))).default;
         const jsPDF = (await Promise.resolve().then(() => __importStar(require('jspdf')))).jsPDF;
         // Preload images
@@ -243,7 +243,7 @@ class ClientSidePDFRenderer {
         container.style.fontSize = '12px';
         container.style.color = '#333333';
         container.style.margin = '0';
-        const poHtml = this.buildPurchaseOrderHtml(po, adminSettings, vendorName, { logoUrl, sealUrl, signatureUrl });
+        const poHtml = this.buildPurchaseOrderHtml(po, adminSettings, vendor, { logoUrl, sealUrl, signatureUrl });
         container.innerHTML = poHtml;
         document.body.appendChild(container);
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -272,7 +272,7 @@ class ClientSidePDFRenderer {
             document.body.removeChild(container);
         }
     }
-    async renderInvoiceToPdf(invoice, adminSettings, customerName) {
+    async renderInvoiceToPdf(invoice, adminSettings, customer) {
         const html2canvas = (await Promise.resolve().then(() => __importStar(require('html2canvas')))).default;
         const jsPDF = (await Promise.resolve().then(() => __importStar(require('jspdf')))).jsPDF;
         // Preload images
@@ -300,7 +300,7 @@ class ClientSidePDFRenderer {
         container.style.fontSize = '12px';
         container.style.color = '#333333';
         container.style.margin = '0';
-        const invoiceHtml = this.buildInvoiceHtml(invoice, adminSettings, customerName, { logoUrl, sealUrl, signatureUrl });
+        const invoiceHtml = this.buildInvoiceHtml(invoice, adminSettings, customer, { logoUrl, sealUrl, signatureUrl });
         container.innerHTML = invoiceHtml;
         document.body.appendChild(container);
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -421,11 +421,12 @@ class ClientSidePDFRenderer {
         <!-- Customer Info -->
         <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px;">
           <h3 style="margin: 0 0 10px 0; font-size: 15px;">CUSTOMER</h3>
-          <p style="margin: 3px 0;"><strong>${quote.customer.name}</strong></p>
-          ${quote.customer.company ? `<p style="margin: 3px 0;">${quote.customer.company}</p>` : ''}
-          ${quote.customer.address ? `<p style="margin: 3px 0;">${quote.customer.address}</p>` : ''}
-          ${quote.customer.email ? `<p style="margin: 3px 0;">Email: ${quote.customer.email}</p>` : ''}
-          ${quote.customer.phone ? `<p style="margin: 3px 0;">Phone: ${quote.customer.phone}</p>` : ''}
+          <p style="margin: 3px 0; font-size: 18px; font-weight: bold;">${quote.customer.name}</p>
+          ${quote.customer.company ? `<p style="margin: 3px 0; font-size: 12px;">Contact: ${quote.customer.company}</p>` : ''}
+          ${quote.customer.address ? `<p style="margin: 3px 0; font-size: 12px;">${quote.customer.address}</p>` : ''}
+          ${quote.customer.email ? `<p style="margin: 3px 0; font-size: 12px;">Email: ${quote.customer.email}</p>` : ''}
+          ${quote.customer.phone ? `<p style="margin: 3px 0; font-size: 12px;">Phone: ${quote.customer.phone}</p>` : ''}
+          ${quote.customer.trn ? `<p style="margin: 3px 0; font-size: 12px;">TRN: ${quote.customer.trn}</p>` : ''}
         </div>
 
         <!-- Line Items Table -->
@@ -526,7 +527,7 @@ class ClientSidePDFRenderer {
       </div>
     `;
     }
-    buildPurchaseOrderHtml(po, adminSettings, vendorName, branding) {
+    buildPurchaseOrderHtml(po, adminSettings, vendor, branding) {
         // Use branding URLs passed from caller (already loaded from fixed file locations)
         const { logoUrl, sealUrl, signatureUrl } = branding;
         const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
@@ -577,7 +578,15 @@ class ClientSidePDFRenderer {
         <!-- Vendor Info -->
         <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px;">
           <h3 style="margin: 0 0 10px 0; font-size: 15px;">VENDOR</h3>
-          <p style="margin: 3px 0;"><strong>${vendorName}</strong></p>
+          ${vendor && vendor.name?.trim()
+            ? `
+          <p style="margin: 3px 0; font-size: 18px; font-weight: bold;">${vendor.name}</p>
+          ${vendor.contactPerson ? `<p style="margin: 3px 0; font-size: 12px;">Contact: ${vendor.contactPerson}</p>` : ''}
+          ${vendor.address ? `<p style="margin: 3px 0; font-size: 12px;">${vendor.address}</p>` : ''}
+          ${vendor.email ? `<p style="margin: 3px 0; font-size: 12px;">Email: ${vendor.email}</p>` : ''}
+          ${vendor.phone ? `<p style="margin: 3px 0; font-size: 12px;">Phone: ${vendor.phone}</p>` : ''}
+          `
+            : '<p style="margin: 3px 0; font-size: 12px;">Unknown Vendor</p>'}
         </div>
 
         <!-- Line Items Table -->
@@ -668,7 +677,7 @@ class ClientSidePDFRenderer {
       </div>
     `;
     }
-    buildInvoiceHtml(invoice, adminSettings, customerName, branding) {
+    buildInvoiceHtml(invoice, adminSettings, customer, branding) {
         // Use branding URLs passed from caller (already loaded from fixed file locations)
         const { logoUrl, sealUrl, signatureUrl } = branding;
         const logoImg = logoUrl ? `<img src="${logoUrl}" style="height: 80px; margin-right: 20px; object-fit: contain;" />` : '';
@@ -709,6 +718,7 @@ class ClientSidePDFRenderer {
             <p style="margin: 3px 0;"><strong>Invoice #:</strong> ${invoice.number}</p>
             <p style="margin: 3px 0;"><strong>Date:</strong> ${invoice.date}</p>
             ${invoice.dueDate ? `<p style="margin: 3px 0;"><strong>Due Date:</strong> ${invoice.dueDate}</p>` : ''}
+            ${invoice.poNumbers && String(invoice.poNumbers).trim() ? `<p style="margin: 3px 0;"><strong>PO #:</strong> ${String(invoice.poNumbers).trim()}</p>` : ''}
           </div>
           <div style="text-align: right;">
             <p style="margin: 3px 0;"><strong>Status:</strong> ${invoice.status === 'payment_received' ? 'Payment Received' : invoice.status === 'invoice_sent' ? 'Invoice Sent' : invoice.status === 'draft' ? 'Draft' : invoice.status || 'Draft'}</p>
@@ -718,7 +728,16 @@ class ClientSidePDFRenderer {
         <!-- Customer Info -->
         <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px;">
           <h3 style="margin: 0 0 10px 0; font-size: 15px;">CUSTOMER</h3>
-          <p style="margin: 3px 0;"><strong>${customerName}</strong></p>
+          ${customer && customer.name?.trim()
+            ? `
+          <p style="margin: 3px 0; font-size: 18px; font-weight: bold;">${customer.name}</p>
+          ${customer.company ? `<p style="margin: 3px 0; font-size: 12px;">Contact: ${customer.company}</p>` : ''}
+          ${customer.address ? `<p style="margin: 3px 0; font-size: 12px;">${customer.address}</p>` : ''}
+          ${customer.email ? `<p style="margin: 3px 0; font-size: 12px;">Email: ${customer.email}</p>` : ''}
+          ${customer.phone ? `<p style="margin: 3px 0; font-size: 12px;">Phone: ${customer.phone}</p>` : ''}
+          ${customer.trn ? `<p style="margin: 3px 0; font-size: 12px;">TRN: ${customer.trn}</p>` : ''}
+          `
+            : '<p style="margin: 3px 0; font-size: 12px;">Unknown Customer</p>'}
         </div>
 
         <!-- Line Items Table -->

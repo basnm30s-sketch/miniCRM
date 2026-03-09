@@ -18,8 +18,8 @@ test.describe('Customers Module', () => {
 
         await page.getByRole('button', { name: 'Add Customer' }).click();
 
-        await page.getByPlaceholder('Name').fill(customerName);
-        await page.getByPlaceholder('Company').fill(`Corp ${uniqueId}`);
+        await page.getByPlaceholder('Company Name').fill(customerName);
+        await page.getByPlaceholder('Contact Person').fill(`Corp ${uniqueId}`);
         await page.getByPlaceholder('Email').fill(`info${uniqueId}@test.com`);
 
         await page.getByRole('button', { name: 'Create' }).click();
@@ -31,7 +31,7 @@ test.describe('Customers Module', () => {
         // EDIT
         await page.getByRole('row', { name: new RegExp(customerName, 'i') }).getByRole('cell').last().getByRole('button').first().click();
 
-        await page.getByPlaceholder('Name').fill(updatedName);
+        await page.getByPlaceholder('Company Name').fill(updatedName);
         await page.getByRole('button', { name: 'Update' }).click();
         await page.waitForLoadState('networkidle');
 

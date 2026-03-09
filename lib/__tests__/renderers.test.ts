@@ -161,7 +161,7 @@ describe('Document Renderers', () => {
                 // terms omitted to force default selection
             }
 
-            const html = (renderer as any).buildInvoiceHtml(invoice, admin, 'Client A', {
+            const html = (renderer as any).buildInvoiceHtml(invoice, admin, { name: 'Client A' }, {
                 logoUrl: null,
                 sealUrl: null,
                 signatureUrl: null,

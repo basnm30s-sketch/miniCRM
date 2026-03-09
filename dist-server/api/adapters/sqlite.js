@@ -68,6 +68,7 @@ exports.customersAdapter = {
                 email: row.email || '',
                 phone: row.phone || '',
                 address: row.address || '',
+                trn: row.trn ?? '',
                 createdAt: row.createdAt,
                 updatedAt: row.updatedAt,
             }));
@@ -92,6 +93,7 @@ exports.customersAdapter = {
                 email: row.email || '',
                 phone: row.phone || '',
                 address: row.address || '',
+                trn: row.trn ?? '',
                 createdAt: row.createdAt,
                 updatedAt: row.updatedAt,
             };
@@ -113,10 +115,10 @@ exports.customersAdapter = {
         try {
             const now = new Date().toISOString();
             const stmt = db.prepare(`
-        INSERT INTO customers (id, name, company, email, phone, address, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO customers (id, name, company, email, phone, address, trn, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-            stmt.run(data.id, data.name, data.company || '', data.email || '', data.phone || '', data.address || '', now, now);
+            stmt.run(data.id, data.name, data.company || '', data.email || '', data.phone || '', data.address || '', data.trn ?? '', now, now);
             return exports.customersAdapter.getById(data.id);
         }
         catch (error) {
@@ -133,10 +135,10 @@ exports.customersAdapter = {
             const now = new Date().toISOString();
             const stmt = db.prepare(`
         UPDATE customers 
-        SET name = ?, company = ?, email = ?, phone = ?, address = ?, updatedAt = ?
+        SET name = ?, company = ?, email = ?, phone = ?, address = ?, trn = ?, updatedAt = ?
         WHERE id = ?
       `);
-            stmt.run(data.name, data.company || '', data.email || '', data.phone || '', data.address || '', now, id);
+            stmt.run(data.name, data.company || '', data.email || '', data.phone || '', data.address || '', data.trn ?? '', now, id);
             return exports.customersAdapter.getById(id);
         }
         catch (error) {
@@ -1094,7 +1096,7 @@ exports.quotesAdapter = {
                     date: quote.date,
                     validUntil: quote.validUntil || '',
                     currency: quote.currency || 'AED',
-                    customer: customer || { id: '', name: '', company: '', email: '', phone: '', address: '' },
+                    customer: customer || { id: '', name: '', company: '', email: '', phone: '', address: '', trn: '' },
                     items: items.map(item => ({
                         id: item.id,
                         serialNumber: item.serialNumber || undefined,
@@ -1496,8 +1498,8 @@ exports.invoicesAdapter = {
                     dueDate: invoice.dueDate || '',
                     customerId: invoice.customerId || '',
                     vendorId: invoice.vendorId || '',
-                    purchaseOrderId: invoice.purchaseOrderId || '',
                     quoteId: invoice.quoteId || '',
+                    poNumbers: invoice.poNumbers ?? '',
                     items: items.map(item => ({
                         id: item.id,
                         serialNumber: item.serialNumber || undefined,
@@ -1549,8 +1551,8 @@ exports.invoicesAdapter = {
             dueDate: invoice.dueDate || '',
             customerId: invoice.customerId || '',
             vendorId: invoice.vendorId || '',
-            purchaseOrderId: invoice.purchaseOrderId || '',
             quoteId: invoice.quoteId || '',
+            poNumbers: invoice.poNumbers ?? '',
             items: items.map(item => ({
                 id: item.id,
                 description: item.description || '',
@@ -1616,13 +1618,13 @@ exports.invoicesAdapter = {
         // Insert invoice
         // Use NULL instead of empty strings for optional foreign keys to satisfy FK constraints
         const invoiceStmt = db.prepare(`
-      INSERT INTO invoices (id, number, date, dueDate, customerId, vendorId, purchaseOrderId, quoteId, 
+      INSERT INTO invoices (id, number, date, dueDate, customerId, vendorId, quoteId, poNumbers,
                             subtotal, tax, total, amountReceived, status, notes, terms, createdAt, updatedAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
         try {
             invoiceStmt.run(data.id, data.number, data.date, data.dueDate || null, data.customerId, // Required, validated above
-            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', data.terms || '', now, // createdAt
+            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, (data.poNumbers != null && String(data.poNumbers).trim() !== '') ? String(data.poNumbers).trim() : null, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', data.terms || '', now, // createdAt
             now // updatedAt
             );
         }
@@ -1633,7 +1635,6 @@ exports.invoicesAdapter = {
                 id: data.id,
                 customerId: data.customerId,
                 vendorId: data.vendorId,
-                purchaseOrderId: data.purchaseOrderId,
                 quoteId: data.quoteId
             });
             // Provide more specific error message for foreign key constraint failures
@@ -1705,12 +1706,6 @@ exports.invoicesAdapter = {
                 throw new Error(`Vendor with ID "${data.vendorId}" does not exist`);
             }
         }
-        if (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') {
-            const po = db.prepare('SELECT id FROM purchase_orders WHERE id = ?').get(data.purchaseOrderId);
-            if (!po) {
-                throw new Error(`Purchase Order with ID "${data.purchaseOrderId}" does not exist`);
-            }
-        }
         if (data.quoteId && data.quoteId.trim() !== '') {
             const quote = db.prepare('SELECT id FROM quotes WHERE id = ?').get(data.quoteId);
             if (!quote) {
@@ -1721,13 +1716,16 @@ exports.invoicesAdapter = {
         // Use NULL instead of empty strings for optional foreign keys to satisfy FK constraints
         const invoiceStmt = db.prepare(`
       UPDATE invoices 
-      SET number = ?, date = ?, dueDate = ?, customerId = ?, vendorId = ?, purchaseOrderId = ?, quoteId = ?,
+      SET number = ?, date = ?, dueDate = ?, customerId = ?, vendorId = ?, quoteId = ?, poNumbers = ?,
           subtotal = ?, tax = ?, total = ?, amountReceived = ?, status = ?, notes = ?, terms = ?, updatedAt = ?
       WHERE id = ?
     `);
         try {
+            const poNumbersVal = data.poNumbers !== undefined
+                ? ((data.poNumbers != null && String(data.poNumbers).trim() !== '') ? String(data.poNumbers).trim() : null)
+                : (existing.poNumbers ?? null);
             invoiceStmt.run(data.number, data.date, data.dueDate || null, data.customerId, // Required, validated above
-            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', data.terms || '', now, id);
+            (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null, (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null, poNumbersVal, data.subtotal || 0, data.tax || 0, data.total || 0, data.amountReceived || 0, data.status || 'draft', data.notes || '', data.terms || '', now, id);
         }
         catch (error) {
             // Log the actual error for debugging
@@ -1736,7 +1734,6 @@ exports.invoicesAdapter = {
                 id: id,
                 customerId: data.customerId,
                 vendorId: data.vendorId,
-                purchaseOrderId: data.purchaseOrderId,
                 quoteId: data.quoteId
             });
             // Provide more specific error message for foreign key constraint failures

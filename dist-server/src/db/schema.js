@@ -53,6 +53,7 @@ exports.customers = (0, sqlite_core_1.sqliteTable)('customers', {
     email: (0, sqlite_core_1.text)('email'),
     phone: (0, sqlite_core_1.text)('phone'),
     address: (0, sqlite_core_1.text)('address'),
+    trn: (0, sqlite_core_1.text)('trn'),
     createdAt: (0, sqlite_core_1.text)('createdAt'),
     updatedAt: (0, sqlite_core_1.text)('updatedAt'),
 });
@@ -184,8 +185,8 @@ exports.invoices = (0, sqlite_core_1.sqliteTable)('invoices', {
     dueDate: (0, sqlite_core_1.text)('dueDate'),
     customerId: (0, sqlite_core_1.text)('customerId').references(() => exports.customers.id),
     vendorId: (0, sqlite_core_1.text)('vendorId').references(() => exports.vendors.id),
-    purchaseOrderId: (0, sqlite_core_1.text)('purchaseOrderId').references(() => exports.purchaseOrders.id),
     quoteId: (0, sqlite_core_1.text)('quoteId').references(() => exports.quotes.id),
+    poNumbers: (0, sqlite_core_1.text)('poNumbers'),
     subtotal: (0, sqlite_core_1.real)('subtotal'),
     tax: (0, sqlite_core_1.real)('tax'),
     total: (0, sqlite_core_1.real)('total'),

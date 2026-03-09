@@ -129,8 +129,16 @@ export default function PurchaseOrdersPage() {
         return
       }
       const vendor = vendors.find((v) => v.id === po.vendorId)
-      const vendorName = vendor?.name || 'Unknown Vendor'
-      const blob = await pdfRenderer.renderPurchaseOrderToPdf(po, settings, vendorName)
+      const pdfVendor = vendor
+        ? {
+              name: vendor.name,
+              contactPerson: vendor.contactPerson ?? null,
+              address: vendor.address ?? null,
+              email: vendor.email ?? null,
+              phone: vendor.phone ?? null,
+          }
+        : null
+      const blob = await pdfRenderer.renderPurchaseOrderToPdf(po, settings, pdfVendor)
       pdfRenderer.downloadPdf(blob, `po-${po.number}.pdf`)
       toast({ title: 'Success', description: 'PDF downloaded successfully' })
     } catch (error) {

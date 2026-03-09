@@ -5,7 +5,7 @@
 
 import { Quote, QuoteLineItem, Customer, Vehicle } from '@/lib/types'
 import { Invoice, InvoiceItem } from '@/lib/storage'
-import { getAllQuotes, getAllInvoices, getAllCustomers, getAllVehicles, getQuoteById, getPurchaseOrderById } from '@/lib/storage'
+import { getAllQuotes, getAllInvoices, getAllCustomers, getAllVehicles, getQuoteById } from '@/lib/storage'
 
 export interface ValidationError {
   field: string
@@ -286,18 +286,6 @@ export async function validateInvoice(
       }
     } catch (err) {
       console.error('Error checking quote existence:', err)
-    }
-  }
-
-  // Purchase Order link validation
-  if (invoice.purchaseOrderId && checkPOExists) {
-    try {
-      const po = await getPurchaseOrderById(invoice.purchaseOrderId)
-      if (!po) {
-        errors.push({ field: 'purchaseOrderId', message: 'Linked purchase order does not exist' })
-      }
-    } catch (err) {
-      console.error('Error checking purchase order existence:', err)
     }
   }
 

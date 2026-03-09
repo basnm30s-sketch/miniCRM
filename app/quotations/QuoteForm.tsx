@@ -64,11 +64,13 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     const [saving, setSaving] = useState(false)
     const [generating, setGenerating] = useState(false)
     const [showAddCustomer, setShowAddCustomer] = useState(false)
+    const [customerSelectOpen, setCustomerSelectOpen] = useState(false)
     const [newCustomerName, setNewCustomerName] = useState('')
     const [newCustomerCompany, setNewCustomerCompany] = useState('')
     const [newCustomerEmail, setNewCustomerEmail] = useState('')
     const [newCustomerPhone, setNewCustomerPhone] = useState('')
     const [newCustomerAddress, setNewCustomerAddress] = useState('')
+    const [newCustomerTrn, setNewCustomerTrn] = useState('')
     const [showAddVehicle, setShowAddVehicle] = useState(false)
     const [newVehicleLineItemId, setNewVehicleLineItemId] = useState<string | null>(null)
     const [newVehicleNumber, setNewVehicleNumber] = useState('')
@@ -575,7 +577,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                 localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
             }
             
-            toast({ title: 'Saved', description: `Quote ${quote.number} saved successfully` })
+            toast({ title: 'Saved', description: `${quote.number} was saved successfully` })
             setValidationErrors([])
 
             if (typeof window !== 'undefined') {
@@ -653,7 +655,8 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
             // #endregion agent log
 
             const pdfBlob = await pdfRenderer.renderQuoteToPdf(quote, adminSettings, { visibleColumns })
-            const filename = `quote-${quote.number}.pdf`
+            const numPart = (quote.number || '').replace(/^Quote-?/i, '') || quote.number || 'quote'
+            const filename = `quote-${numPart}.pdf`
             pdfRenderer.downloadPdf(pdfBlob, filename)
             toast({ title: 'Success', description: 'PDF downloaded successfully' })
         } catch (err) {
@@ -689,7 +692,8 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
         setGenerating(true)
         try {
             const excelBlob = await excelRenderer.renderQuoteToExcel(quote, adminSettings, { visibleColumns })
-            const filename = `quote-${quote.number}.xlsx`
+            const numPart = (quote.number || '').replace(/^Quote-?/i, '') || quote.number || 'quote'
+            const filename = `quote-${numPart}.xlsx`
             excelRenderer.downloadExcel(excelBlob, filename)
             toast({ title: 'Success', description: 'Excel file downloaded successfully' })
         } catch (err) {
@@ -725,7 +729,8 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
         setGenerating(true)
         try {
             const docxBlob = await docxRenderer.renderQuoteToDocx(quote, adminSettings)
-            const filename = `quote-${quote.number}.docx`
+            const numPart = (quote.number || '').replace(/^Quote-?/i, '') || quote.number || 'quote'
+            const filename = `quote-${numPart}.docx`
             docxRenderer.downloadDocx(docxBlob, filename)
             toast({ title: 'Success', description: 'Word document downloaded successfully' })
         } catch (err) {
@@ -849,6 +854,8 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                 onValueChange={(value) => {
                                     handleCustomerChange(value)
                                 }}
+                                open={customerSelectOpen}
+                                onOpenChange={setCustomerSelectOpen}
                             >
                                 <SelectTrigger
                                     className={`mt-1 h-8 ${validationErrors.some((e) => e.field === 'customer') && submitAttempted ? 'border-red-500' : ''}`}
@@ -864,7 +871,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                         </SelectItem>
                                     ))}
                                     <div className="px-2 py-2 border-t">
-                                        <button type="button" className="text-blue-600 hover:underline text-xs" onClick={() => setShowAddCustomer(true)}>
+                                        <button type="button" className="text-blue-600 hover:underline text-xs" onClick={() => { setCustomerSelectOpen(false); setShowAddCustomer(true) }}>
                                             + Add Customer
                                         </button>
                                     </div>
@@ -1269,19 +1276,19 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                         <h3 className="text-lg font-semibold mb-4">Add Customer</h3>
                         <div className="space-y-4">
                             <div>
-                                <Label htmlFor="quote-customer-name" className="text-slate-700 text-sm mb-1 block">Name</Label>
+                                <Label htmlFor="quote-customer-name" className="text-slate-700 text-sm mb-1 block">Company Name</Label>
                                 <Input 
                                     id="quote-customer-name"
-                                    placeholder="Name" 
+                                    placeholder="Company Name" 
                                     value={newCustomerName} 
                                     onChange={(e) => setNewCustomerName(e.target.value)} 
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="quote-customer-company" className="text-slate-700 text-sm mb-1 block">Company</Label>
+                                <Label htmlFor="quote-customer-company" className="text-slate-700 text-sm mb-1 block">Contact Person</Label>
                                 <Input 
                                     id="quote-customer-company"
-                                    placeholder="Company" 
+                                    placeholder="Contact Person" 
                                     value={newCustomerCompany} 
                                     onChange={(e) => setNewCustomerCompany(e.target.value)} 
                                 />
@@ -1313,9 +1320,18 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                     onChange={(e) => setNewCustomerAddress(e.target.value)} 
                                 />
                             </div>
+                            <div>
+                                <Label htmlFor="quote-customer-trn" className="text-slate-700 text-sm mb-1 block">TRN</Label>
+                                <Input 
+                                    id="quote-customer-trn"
+                                    placeholder="Tax Registration Number" 
+                                    value={newCustomerTrn} 
+                                    onChange={(e) => setNewCustomerTrn(e.target.value)} 
+                                />
+                            </div>
                         </div>
                         <div className="mt-4 flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowAddCustomer(false)}>Cancel</Button>
+                            <Button variant="outline" onClick={() => { setShowAddCustomer(false); setNewCustomerTrn('') }}>Cancel</Button>
                             <Button onClick={async () => {
                                 if (!newCustomerName.trim()) {
                                     toast({ title: 'Validation', description: 'Name is required', variant: 'destructive' })
@@ -1329,6 +1345,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                     email: newCustomerEmail.trim(),
                                     phone: newCustomerPhone.trim(),
                                     address: newCustomerAddress.trim(),
+                                    trn: newCustomerTrn.trim() || null,
                                     createdAt: new Date().toISOString(),
                                 }
                                 try {
@@ -1343,6 +1360,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                     setNewCustomerEmail('')
                                     setNewCustomerPhone('')
                                     setNewCustomerAddress('')
+                                    setNewCustomerTrn('')
                                     toast({ title: 'Created', description: 'Customer created and selected' })
 
                                     if (typeof window !== 'undefined') {

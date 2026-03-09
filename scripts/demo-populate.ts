@@ -365,7 +365,7 @@ async function populateDemoData(): Promise<void> {
     date: dateStr,
     dueDate: dateStr,
     customerId: customers[0].id,
-    purchaseOrderId: purchaseOrder.id,
+    poNumbers: purchaseOrder.number,
     quoteId: quote.id,
     items: invoiceItems,
     subtotal: quoteSubTotal,

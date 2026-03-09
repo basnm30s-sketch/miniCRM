@@ -53,6 +53,7 @@ export const customers = sqliteTable('customers', {
   email: text('email'),
   phone: text('phone'),
   address: text('address'),
+  trn: text('trn'),
   createdAt: text('createdAt'),
   updatedAt: text('updatedAt'),
 })
@@ -192,8 +193,8 @@ export const invoices = sqliteTable('invoices', {
   dueDate: text('dueDate'),
   customerId: text('customerId').references(() => customers.id),
   vendorId: text('vendorId').references(() => vendors.id),
-  purchaseOrderId: text('purchaseOrderId').references(() => purchaseOrders.id),
   quoteId: text('quoteId').references(() => quotes.id),
+  poNumbers: text('poNumbers'),
   subtotal: real('subtotal'),
   tax: real('tax'),
   total: real('total'),

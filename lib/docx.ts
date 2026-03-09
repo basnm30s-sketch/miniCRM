@@ -401,6 +401,15 @@ export class ClientSideDOCXRenderer implements DOCXRenderer {
       children.push(
         new Paragraph({
           children: [new TextRun({ text: `Phone: ${quote.customer.phone}` })],
+          spacing: { after: 100 },
+        })
+      )
+    }
+
+    if (quote.customer.trn) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `TRN: ${quote.customer.trn}` })],
           spacing: { after: 200 },
         })
       )

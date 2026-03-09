@@ -36,6 +36,8 @@ import {
     initializeAdminSettings,
     getAllCustomers,
     getAllVehicles,
+    getAllPurchaseOrders,
+    getAllVendors,
     generateInvoiceNumber,
     generateId,
     saveInvoice,
@@ -45,7 +47,7 @@ import { saveVehicle } from '@/lib/api-client'
 import { pdfRenderer } from '@/lib/pdf'
 import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
-import { Invoice, InvoiceItem, AdminSettings, Customer, Vehicle } from '@/lib/types'
+import { Invoice, InvoiceItem, AdminSettings, Customer, Vehicle, PurchaseOrder, Vendor } from '@/lib/types'
 import {
     normalizeInvoiceStatus,
     validateInvoice,
@@ -65,15 +67,19 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null)
     const [customers, setCustomers] = useState<Customer[]>([])
     const [vehicles, setVehicles] = useState<Vehicle[]>([])
+    const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+    const [vendors, setVendors] = useState<Vendor[]>([])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [generating, setGenerating] = useState(false)
     const [showAddCustomer, setShowAddCustomer] = useState(false)
+    const [customerSelectOpen, setCustomerSelectOpen] = useState(false)
     const [newCustomerName, setNewCustomerName] = useState('')
     const [newCustomerCompany, setNewCustomerCompany] = useState('')
     const [newCustomerEmail, setNewCustomerEmail] = useState('')
     const [newCustomerPhone, setNewCustomerPhone] = useState('')
     const [newCustomerAddress, setNewCustomerAddress] = useState('')
+    const [newCustomerTrn, setNewCustomerTrn] = useState('')
     const [showAddVehicle, setShowAddVehicle] = useState(false)
     const [newVehicleLineItemId, setNewVehicleLineItemId] = useState<string | null>(null)
     const [newVehicleNumber, setNewVehicleNumber] = useState('')
@@ -116,6 +122,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
             status: 'draft',
             terms: '',
             notes: '',
+            poNumbers: '',
         } as Invoice
 
         if (initialData) {
@@ -171,11 +178,17 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                     })
                 }
 
-                const customersData = await getAllCustomers()
-                const vehiclesData = await getAllVehicles()
+                const [customersData, vehiclesData, posData, vendorsData] = await Promise.all([
+                    getAllCustomers(),
+                    getAllVehicles(),
+                    getAllPurchaseOrders(),
+                    getAllVendors(),
+                ])
 
                 setCustomers(customersData)
                 setVehicles(vehiclesData)
+                setPurchaseOrders(posData)
+                setVendors(vendorsData)
 
                 if (!initialData && !invoice.number) {
                     const newNumber = await generateInvoiceNumber()
@@ -425,7 +438,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
             setInvoice(toState)
             setSavedSnapshot(snapshotInvoice(toState))
             setIsDirty(false)
-            toast({ title: 'Saved', description: `Invoice ${invoice.number} saved successfully` })
+            toast({ title: 'Saved', description: `${invoice.number} was saved successfully` })
             setValidationErrors([])
 
             if (typeof window !== 'undefined') {
@@ -471,10 +484,13 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
 
         setGenerating(true)
         try {
-            // Get customer name for PDF
-            const customerName = customers.find(c => c.id === invoice.customerId)?.name || 'Unknown'
+            // Get full customer for PDF
+            const customer = customers.find(c => c.id === invoice.customerId)
+            const pdfCustomer = customer
+              ? { name: customer.name, company: customer.company ?? null, address: customer.address ?? null, email: customer.email ?? null, phone: customer.phone ?? null, trn: customer.trn ?? null }
+              : null
 
-            const pdfBlob = await pdfRenderer.renderInvoiceToPdf(invoice, adminSettings, customerName)
+            const pdfBlob = await pdfRenderer.renderInvoiceToPdf(invoice, adminSettings, pdfCustomer)
             const numPart = (invoice.number || '').replace(/^Invoice-?/i, '') || invoice.number || 'invoice'
             const filename = `invoice-${numPart}.pdf`
             pdfRenderer.downloadPdf(pdfBlob, filename)
@@ -664,15 +680,43 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                         placeholder="Quote-001"
                                     />
                                 </div>
-                                <div>
-                                    <Label htmlFor="poRef" className="text-slate-700 text-xs">PO Reference (optional)</Label>
-                                    <Input
-                                        id="poRef"
-                                        value={invoice.purchaseOrderNumber || ''}
-                                        onChange={(e) => setInvoice({ ...invoice, purchaseOrderNumber: e.target.value })}
-                                        className="h-8 mt-1"
-                                        placeholder="PO-001"
-                                    />
+                                <div className="col-span-2">
+                                    <Label htmlFor="poNumbers" className="text-slate-700 text-xs">PO # (optional)</Label>
+                                    <div className="flex gap-2 mt-1">
+                                        <Input
+                                            id="poNumbers"
+                                            value={invoice.poNumbers ?? ''}
+                                            onChange={(e) => setInvoice({ ...invoice, poNumbers: e.target.value })}
+                                            className="h-8 flex-1"
+                                            placeholder="PO-001, PO-002 or type manually"
+                                        />
+                                        <Select
+                                            onValueChange={(value) => {
+                                                if (!value) return
+                                                const current = (invoice.poNumbers ?? '').trim()
+                                                const parts = current ? current.split(',').map((s) => s.trim()).filter(Boolean) : []
+                                                if (parts.includes(value)) return
+                                                setInvoice({ ...invoice, poNumbers: parts.length ? [...parts, value].join(', ') : value })
+                                            }}
+                                        >
+                                            <SelectTrigger className="h-8 w-[180px]">
+                                                <SelectValue placeholder="Add from existing" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {purchaseOrders.map((po) => {
+                                                    const vendorName = vendors.find((v) => v.id === po.vendorId)?.name ?? '—'
+                                                    return (
+                                                        <SelectItem key={po.id} value={po.number}>
+                                                            {po.number} – {vendorName}
+                                                        </SelectItem>
+                                                    )
+                                                })}
+                                                {purchaseOrders.length === 0 && (
+                                                    <div className="px-2 py-2 text-muted-foreground text-xs">No POs in system</div>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
@@ -691,6 +735,8 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                 onValueChange={(value) => {
                                     handleCustomerChange(value)
                                 }}
+                                open={customerSelectOpen}
+                                onOpenChange={setCustomerSelectOpen}
                             >
                                 <SelectTrigger
                                     className={`mt-1 h-8 ${validationErrors.some((e) => e.field === 'customer') ? 'border-red-500' : ''}`}
@@ -706,7 +752,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                         </SelectItem>
                                     ))}
                                     <div className="px-2 py-2 border-t">
-                                        <button type="button" className="text-blue-600 hover:underline text-xs" onClick={() => setShowAddCustomer(true)}>
+                                        <button type="button" className="text-blue-600 hover:underline text-xs" onClick={() => { setCustomerSelectOpen(false); setShowAddCustomer(true) }}>
                                             + Add Customer
                                         </button>
                                     </div>
@@ -715,16 +761,43 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                         </div>
 
                         {invoice.customerId && (
-                            <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
-                                <p className="font-semibold text-slate-900">
-                                    {customers.find(c => c.id === invoice.customerId)?.name}
-                                </p>
-                                {customers.find(c => c.id === invoice.customerId)?.company && (
-                                    <p className="text-xs text-slate-600">
-                                        {customers.find(c => c.id === invoice.customerId)?.company}
-                                    </p>
-                                )}
-                            </div>
+                            (() => {
+                                const displayCustomer = customers.find((c) => c.id === invoice.customerId)
+                                const name = (displayCustomer?.name || '').trim()
+                                const company = (displayCustomer?.company || '').trim()
+                                const email = (displayCustomer?.email || '').trim()
+                                const phone = (displayCustomer?.phone || '').trim()
+                                const address = (displayCustomer?.address || '').trim()
+                                const hasContact = [email, phone, address].some((s) => (s || '').trim() !== '')
+                                return (
+                                    <div className="p-3 bg-slate-50 rounded border border-slate-200 text-sm">
+                                        <p className="font-semibold text-slate-900">
+                                            {name || company || 'N/A'}
+                                        </p>
+                                        {name && company && (
+                                            <p className="text-xs text-slate-600">{company}</p>
+                                        )}
+                                        {hasContact && (
+                                            <div className="mt-2 space-y-1 text-xs">
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-slate-500">Email</span>
+                                                    <span className="text-slate-900 truncate">{email || '—'}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-slate-500">Phone</span>
+                                                    <span className="text-slate-900 truncate">{phone || '—'}</span>
+                                                </div>
+                                                <div className="flex justify-between gap-3">
+                                                    <span className="text-slate-500">Address</span>
+                                                    <span className="text-slate-900 text-right line-clamp-2">
+                                                        {address || '—'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })()
                         )}
                     </CardContent>
                 </Card>
@@ -849,19 +922,19 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                 <h3 className="text-lg font-semibold mb-4">Add Customer</h3>
                                 <div className="space-y-4">
                                     <div>
-                                        <Label htmlFor="invoice-customer-name" className="text-slate-700 text-sm mb-1 block">Name</Label>
+                                        <Label htmlFor="invoice-customer-name" className="text-slate-700 text-sm mb-1 block">Company Name</Label>
                                         <Input 
                                             id="invoice-customer-name"
-                                            placeholder="Name" 
+                                            placeholder="Company Name" 
                                             value={newCustomerName} 
                                             onChange={(e) => setNewCustomerName(e.target.value)} 
                                         />
                                     </div>
                                     <div>
-                                        <Label htmlFor="invoice-customer-company" className="text-slate-700 text-sm mb-1 block">Company</Label>
+                                        <Label htmlFor="invoice-customer-company" className="text-slate-700 text-sm mb-1 block">Contact Person</Label>
                                         <Input 
                                             id="invoice-customer-company"
-                                            placeholder="Company" 
+                                            placeholder="Contact Person" 
                                             value={newCustomerCompany} 
                                             onChange={(e) => setNewCustomerCompany(e.target.value)} 
                                         />
@@ -893,9 +966,18 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                             onChange={(e) => setNewCustomerAddress(e.target.value)} 
                                         />
                                     </div>
+                                    <div>
+                                        <Label htmlFor="invoice-customer-trn" className="text-slate-700 text-sm mb-1 block">TRN</Label>
+                                        <Input 
+                                            id="invoice-customer-trn"
+                                            placeholder="Tax Registration Number" 
+                                            value={newCustomerTrn} 
+                                            onChange={(e) => setNewCustomerTrn(e.target.value)} 
+                                        />
+                                    </div>
                                 </div>
                                 <div className="mt-4 flex justify-end gap-2">
-                                    <Button variant="outline" onClick={() => setShowAddCustomer(false)}>Cancel</Button>
+                                    <Button variant="outline" onClick={() => { setShowAddCustomer(false); setNewCustomerTrn('') }}>Cancel</Button>
                                     <Button onClick={async () => {
                                         if (!newCustomerName.trim()) {
                                             toast({ title: 'Validation', description: 'Name is required', variant: 'destructive' })
@@ -909,6 +991,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                             email: newCustomerEmail.trim(),
                                             phone: newCustomerPhone.trim(),
                                             address: newCustomerAddress.trim(),
+                                            trn: newCustomerTrn.trim() || null,
                                             createdAt: new Date().toISOString(),
                                         }
                                         try {
@@ -924,6 +1007,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                             setNewCustomerEmail('')
                                             setNewCustomerPhone('')
                                             setNewCustomerAddress('')
+                                            setNewCustomerTrn('')
                                             toast({ title: 'Created', description: 'Customer created and selected' })
 
                                             if (typeof window !== 'undefined') {

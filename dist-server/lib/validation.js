@@ -246,18 +246,6 @@ async function validateInvoice(invoice, options = {}) {
             console.error('Error checking quote existence:', err);
         }
     }
-    // Purchase Order link validation
-    if (invoice.purchaseOrderId && checkPOExists) {
-        try {
-            const po = await (0, storage_1.getPurchaseOrderById)(invoice.purchaseOrderId);
-            if (!po) {
-                errors.push({ field: 'purchaseOrderId', message: 'Linked purchase order does not exist' });
-            }
-        }
-        catch (err) {
-            console.error('Error checking purchase order existence:', err);
-        }
-    }
     // Line Items validation
     if (!invoice.items || invoice.items.length === 0) {
         errors.push({ field: 'items', message: 'At least one line item is required' });

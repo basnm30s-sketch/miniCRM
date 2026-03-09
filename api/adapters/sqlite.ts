@@ -70,6 +70,7 @@ export const customersAdapter = {
         email: row.email || '',
         phone: row.phone || '',
         address: row.address || '',
+        trn: row.trn ?? '',
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       }))
@@ -92,6 +93,7 @@ export const customersAdapter = {
         email: row.email || '',
         phone: row.phone || '',
         address: row.address || '',
+        trn: row.trn ?? '',
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       }
@@ -115,8 +117,8 @@ export const customersAdapter = {
     try {
       const now = new Date().toISOString()
       const stmt = db.prepare(`
-        INSERT INTO customers (id, name, company, email, phone, address, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO customers (id, name, company, email, phone, address, trn, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         data.id,
@@ -125,6 +127,7 @@ export const customersAdapter = {
         data.email || '',
         data.phone || '',
         data.address || '',
+        data.trn ?? '',
         now,
         now
       )
@@ -144,7 +147,7 @@ export const customersAdapter = {
       const now = new Date().toISOString()
       const stmt = db.prepare(`
         UPDATE customers 
-        SET name = ?, company = ?, email = ?, phone = ?, address = ?, updatedAt = ?
+        SET name = ?, company = ?, email = ?, phone = ?, address = ?, trn = ?, updatedAt = ?
         WHERE id = ?
       `)
       stmt.run(
@@ -153,6 +156,7 @@ export const customersAdapter = {
         data.email || '',
         data.phone || '',
         data.address || '',
+        data.trn ?? '',
         now,
         id
       )
@@ -1315,7 +1319,7 @@ export const quotesAdapter = {
         date: quote.date,
         validUntil: quote.validUntil || '',
         currency: quote.currency || 'AED',
-        customer: customer || { id: '', name: '', company: '', email: '', phone: '', address: '' },
+        customer: customer || { id: '', name: '', company: '', email: '', phone: '', address: '', trn: '' },
         items: items.map(item => ({
           id: item.id,
           serialNumber: item.serialNumber || undefined,
@@ -1851,8 +1855,8 @@ export const invoicesAdapter = {
         dueDate: invoice.dueDate || '',
         customerId: invoice.customerId || '',
         vendorId: invoice.vendorId || '',
-        purchaseOrderId: invoice.purchaseOrderId || '',
         quoteId: invoice.quoteId || '',
+        poNumbers: invoice.poNumbers ?? '',
         items: items.map(item => ({
           id: item.id,
           serialNumber: item.serialNumber || undefined,
@@ -1903,8 +1907,8 @@ export const invoicesAdapter = {
       dueDate: invoice.dueDate || '',
       customerId: invoice.customerId || '',
       vendorId: invoice.vendorId || '',
-      purchaseOrderId: invoice.purchaseOrderId || '',
       quoteId: invoice.quoteId || '',
+      poNumbers: invoice.poNumbers ?? '',
       items: items.map(item => ({
         id: item.id,
         description: item.description || '',
@@ -1979,7 +1983,7 @@ export const invoicesAdapter = {
     // Insert invoice
     // Use NULL instead of empty strings for optional foreign keys to satisfy FK constraints
     const invoiceStmt = db.prepare(`
-      INSERT INTO invoices (id, number, date, dueDate, customerId, vendorId, purchaseOrderId, quoteId, 
+      INSERT INTO invoices (id, number, date, dueDate, customerId, vendorId, quoteId, poNumbers,
                             subtotal, tax, total, amountReceived, status, notes, terms, createdAt, updatedAt)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
@@ -1992,8 +1996,8 @@ export const invoicesAdapter = {
         data.dueDate || null,
         data.customerId, // Required, validated above
         (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null,
-        (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null,
         (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null,
+        (data.poNumbers != null && String(data.poNumbers).trim() !== '') ? String(data.poNumbers).trim() : null,
         data.subtotal || 0,
         data.tax || 0,
         data.total || 0,
@@ -2011,7 +2015,6 @@ export const invoicesAdapter = {
         id: data.id,
         customerId: data.customerId,
         vendorId: data.vendorId,
-        purchaseOrderId: data.purchaseOrderId,
         quoteId: data.quoteId
       })
 
@@ -2111,13 +2114,6 @@ export const invoicesAdapter = {
       }
     }
 
-    if (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') {
-      const po = db.prepare('SELECT id FROM purchase_orders WHERE id = ?').get(data.purchaseOrderId) as any
-      if (!po) {
-        throw new Error(`Purchase Order with ID "${data.purchaseOrderId}" does not exist`)
-      }
-    }
-
     if (data.quoteId && data.quoteId.trim() !== '') {
       const quote = db.prepare('SELECT id FROM quotes WHERE id = ?').get(data.quoteId) as any
       if (!quote) {
@@ -2129,20 +2125,23 @@ export const invoicesAdapter = {
     // Use NULL instead of empty strings for optional foreign keys to satisfy FK constraints
     const invoiceStmt = db.prepare(`
       UPDATE invoices 
-      SET number = ?, date = ?, dueDate = ?, customerId = ?, vendorId = ?, purchaseOrderId = ?, quoteId = ?,
+      SET number = ?, date = ?, dueDate = ?, customerId = ?, vendorId = ?, quoteId = ?, poNumbers = ?,
           subtotal = ?, tax = ?, total = ?, amountReceived = ?, status = ?, notes = ?, terms = ?, updatedAt = ?
       WHERE id = ?
     `)
 
     try {
+      const poNumbersVal = data.poNumbers !== undefined
+        ? ((data.poNumbers != null && String(data.poNumbers).trim() !== '') ? String(data.poNumbers).trim() : null)
+        : (existing.poNumbers ?? null)
       invoiceStmt.run(
         data.number,
         data.date,
         data.dueDate || null,
         data.customerId, // Required, validated above
         (data.vendorId && data.vendorId.trim() !== '') ? data.vendorId : null,
-        (data.purchaseOrderId && data.purchaseOrderId.trim() !== '') ? data.purchaseOrderId : null,
         (data.quoteId && data.quoteId.trim() !== '') ? data.quoteId : null,
+        poNumbersVal,
         data.subtotal || 0,
         data.tax || 0,
         data.total || 0,
@@ -2160,7 +2159,6 @@ export const invoicesAdapter = {
         id: id,
         customerId: data.customerId,
         vendorId: data.vendorId,
-        purchaseOrderId: data.purchaseOrderId,
         quoteId: data.quoteId
       })
 

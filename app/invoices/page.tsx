@@ -184,7 +184,8 @@ export default function InvoicesPage() {
       company: customer.company,
       email: customer.email,
       phone: customer.phone,
-      address: customer.address
+      address: customer.address,
+      trn: customer.trn
     }
   }
 
@@ -197,8 +198,10 @@ export default function InvoicesPage() {
         return
       }
       const customer = customers.find((c) => c.id === invoice.customerId)
-      const customerName = customer?.name || 'Unknown Customer'
-      const blob = await pdfRenderer.renderInvoiceToPdf(invoice, settings, customerName)
+      const pdfCustomer = customer
+        ? { name: customer.name, company: customer.company ?? null, address: customer.address ?? null, email: customer.email ?? null, phone: customer.phone ?? null, trn: customer.trn ?? null }
+        : null
+      const blob = await pdfRenderer.renderInvoiceToPdf(invoice, settings, pdfCustomer)
       const numPart = (invoice.number || '').replace(/^Invoice-?/i, '') || invoice.number || 'invoice'
       pdfRenderer.downloadPdf(blob, `invoice-${numPart}.pdf`)
       toast({ title: 'Success', description: 'PDF downloaded successfully' })
@@ -554,6 +557,18 @@ export default function InvoicesPage() {
                                 <div className="col-span-2">
                                   <span className="block text-slate-500 text-xs mb-1">Details</span>
                                   <span className="text-slate-900">{customer.address}</span>
+                                </div>
+                              )}
+                              {customer?.trn && (
+                                <div>
+                                  <span className="block text-slate-500 text-xs mb-1">TRN</span>
+                                  <span className="font-medium text-slate-900">{customer.trn}</span>
+                                </div>
+                              )}
+                              {selectedInvoice.poNumbers && String(selectedInvoice.poNumbers).trim() && (
+                                <div className="col-span-2">
+                                  <span className="block text-slate-500 text-xs mb-1">PO #</span>
+                                  <span className="text-slate-900">{selectedInvoice.poNumbers}</span>
                                 </div>
                               )}
                             </>

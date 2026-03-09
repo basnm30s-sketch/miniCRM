@@ -150,7 +150,8 @@ export default function QuotationsPage() {
 
       const pdfRenderer = new ClientSidePDFRenderer()
       const blob = await pdfRenderer.renderQuoteToPdf(quote, adminSettings, { visibleColumns })
-      pdfRenderer.downloadPdf(blob, `quote-${quote.number}.pdf`)
+      const numPart = (quote.number || '').replace(/^Quote-?/i, '') || quote.number || 'quote'
+      pdfRenderer.downloadPdf(blob, `quote-${numPart}.pdf`)
     } catch (error) {
       console.error('Error generating PDF:', error)
       toast({ title: 'Error', description: 'Failed to generate PDF', variant: 'destructive' })
@@ -188,7 +189,8 @@ export default function QuotationsPage() {
       }
 
       const blob = await excelRenderer.renderQuoteToExcel(quote, adminSettings, { visibleColumns })
-      excelRenderer.downloadExcel(blob, `quote-${quote.number}.xlsx`)
+      const numPart = (quote.number || '').replace(/^Quote-?/i, '') || quote.number || 'quote'
+      excelRenderer.downloadExcel(blob, `quote-${numPart}.xlsx`)
       toast({ title: 'Success', description: 'Excel file downloaded successfully' })
     } catch (error) {
       console.error('Error generating Excel:', error)
@@ -205,7 +207,8 @@ export default function QuotationsPage() {
       }
 
       const blob = await docxRenderer.renderQuoteToDocx(quote, adminSettings)
-      docxRenderer.downloadDocx(blob, `quote-${quote.number}.docx`)
+      const numPart = (quote.number || '').replace(/^Quote-?/i, '') || quote.number || 'quote'
+      docxRenderer.downloadDocx(blob, `quote-${numPart}.docx`)
       toast({ title: 'Success', description: 'Word document downloaded successfully' })
     } catch (error) {
       console.error('Error generating DOCX:', error)
@@ -342,7 +345,8 @@ export default function QuotationsPage() {
                         quote.customer?.company && `Company: ${quote.customer.company}`,
                         quote.customer?.email && `Email: ${quote.customer.email}`,
                         quote.customer?.phone && `Phone: ${quote.customer.phone}`,
-                        quote.customer?.address && `Address: ${quote.customer.address}`
+                        quote.customer?.address && `Address: ${quote.customer.address}`,
+                        quote.customer?.trn && `TRN: ${quote.customer.trn}`
                       ].filter(Boolean).join('\n')
                       
                       return (
@@ -703,6 +707,12 @@ export default function QuotationsPage() {
                           <div className="col-span-2">
                             <span className="block text-slate-500 text-xs mb-1">Details</span>
                             <span className="text-slate-900">{selectedQuote.customer.address}</span>
+                          </div>
+                        )}
+                        {selectedQuote.customer?.trn && (
+                          <div>
+                            <span className="block text-slate-500 text-xs mb-1">TRN</span>
+                            <span className="font-medium text-slate-900">{selectedQuote.customer.trn}</span>
                           </div>
                         )}
                       </CardContent>

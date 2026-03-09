@@ -164,10 +164,25 @@ function createTables(database) {
       email TEXT,
       phone TEXT,
       address TEXT,
+      trn TEXT,
       createdAt TEXT,
       updatedAt TEXT
     )
   `);
+    // Migration: Add trn column to customers if it doesn't exist
+    try {
+        const customerTableInfo = database.prepare("PRAGMA table_info(customers)").all();
+        const customerColumnNames = customerTableInfo.map((col) => col.name);
+        if (!customerColumnNames.includes('trn')) {
+            database.exec('ALTER TABLE customers ADD COLUMN trn TEXT');
+            console.log('Added trn column to customers table');
+        }
+    }
+    catch (error) {
+        if (!error?.message?.includes('duplicate column') && !error?.message?.includes('no such table')) {
+            console.warn('Migration warning for customers.trn:', error?.message);
+        }
+    }
     // Vendors
     database.exec(`
     CREATE TABLE IF NOT EXISTS vendors (
@@ -428,7 +443,7 @@ function createTables(database) {
             }
         }
     });
-    // Invoices
+    // Invoices (no purchaseOrderId FK; poNumbers is the only PO reference)
     database.exec(`
     CREATE TABLE IF NOT EXISTS invoices (
       id TEXT PRIMARY KEY,
@@ -437,8 +452,8 @@ function createTables(database) {
       dueDate TEXT,
       customerId TEXT,
       vendorId TEXT,
-      purchaseOrderId TEXT,
       quoteId TEXT,
+      poNumbers TEXT,
       subtotal REAL,
       tax REAL,
       total REAL,
@@ -450,32 +465,54 @@ function createTables(database) {
       updatedAt TEXT,
       FOREIGN KEY (customerId) REFERENCES customers(id),
       FOREIGN KEY (vendorId) REFERENCES vendors(id),
-      FOREIGN KEY (purchaseOrderId) REFERENCES purchase_orders(id),
       FOREIGN KEY (quoteId) REFERENCES quotes(id)
     )
   `);
-    // Migrate existing invoices table to add new columns if they don't exist
-    const invoiceNewColumns = [
-        { name: 'terms', type: 'TEXT' },
-        { name: 'updatedAt', type: 'TEXT' },
-    ];
-    invoiceNewColumns.forEach(({ name, type }) => {
-        try {
-            database.prepare(`SELECT ${name} FROM invoices LIMIT 1`).get();
+    // Migrate existing invoices table: add poNumbers, add terms/updatedAt if missing; drop purchaseOrderId if supported
+    try {
+        const invoiceTableInfo = database.prepare('PRAGMA table_info(invoices)').all();
+        const invoiceColumnNames = invoiceTableInfo.map((col) => col.name);
+        if (!invoiceColumnNames.includes('poNumbers')) {
+            database.exec('ALTER TABLE invoices ADD COLUMN poNumbers TEXT');
+            console.log('Added poNumbers column to invoices table');
         }
-        catch (error) {
-            try {
-                database.exec(`ALTER TABLE invoices ADD COLUMN ${name} ${type}`);
-                console.log(`Added ${name} column to invoices table`);
+        const invoiceNewColumns = [
+            { name: 'terms', type: 'TEXT' },
+            { name: 'updatedAt', type: 'TEXT' },
+        ];
+        invoiceNewColumns.forEach(({ name, type }) => {
+            if (!invoiceColumnNames.includes(name)) {
+                try {
+                    database.exec(`ALTER TABLE invoices ADD COLUMN ${name} ${type}`);
+                    console.log(`Added ${name} column to invoices table`);
+                }
+                catch (alterError) {
+                    const errorMsg = alterError?.message || String(alterError);
+                    if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
+                        console.warn(`Migration warning for ${name}:`, errorMsg);
+                    }
+                }
             }
-            catch (alterError) {
-                const errorMsg = alterError?.message || String(alterError);
-                if (!errorMsg.includes('duplicate column') && !errorMsg.includes('no such table')) {
-                    console.warn(`Migration warning for ${name}:`, errorMsg);
+        });
+        // SQLite 3.35.0+ supports DROP COLUMN; if present, drop purchaseOrderId
+        if (invoiceColumnNames.includes('purchaseOrderId')) {
+            try {
+                database.exec('ALTER TABLE invoices DROP COLUMN purchaseOrderId');
+                console.log('Dropped purchaseOrderId column from invoices table');
+            }
+            catch (dropError) {
+                const msg = dropError?.message || String(dropError);
+                if (!msg.includes('syntax error') && !msg.includes('not supported')) {
+                    console.warn('Migration: could not drop purchaseOrderId:', msg);
                 }
             }
         }
-    });
+    }
+    catch (error) {
+        if (!error?.message?.includes('no such table')) {
+            console.warn('Invoice migration note:', error?.message);
+        }
+    }
     // Invoice Items
     database.exec(`
     CREATE TABLE IF NOT EXISTS invoice_items (

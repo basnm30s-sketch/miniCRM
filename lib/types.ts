@@ -112,6 +112,7 @@ export interface Customer {
   email?: string;
   phone?: string;
   address?: string;
+  trn?: string;
   createdAt?: string; // ISO8601
   updatedAt?: string; // ISO8601
 }
@@ -382,10 +383,8 @@ export interface Invoice {
   dueDate?: string
   customerId?: string
   vendorId?: string
-  purchaseOrderId?: string
-  quoteNumber?: string
-  purchaseOrderNumber?: string
   quoteId?: string
+  poNumbers?: string
   items: InvoiceItem[]
   subtotal: number
   tax: number

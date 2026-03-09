@@ -116,22 +116,15 @@ describe('Purchase Orders API', () => {
             expect(res.body).toEqual({});
         });
         it('should verify database references if FOREIGN KEY error occurs', async () => {
-            // Simulate FOREIGN KEY error
+            // Simulate FOREIGN KEY error (e.g. vehicle_transactions or other tables still reference this PO)
             ;
             sqlite_1.purchaseOrdersAdapter.delete.mockImplementation(() => {
                 throw new Error('FOREIGN KEY constraint failed');
             });
-            // Mock database Query to find references
-            const mockAll = jest.fn().mockReturnValue([{ number: 'INV-101' }]);
-            const mockPrepare = jest.fn().mockReturnValue({ all: mockAll });
-            mockDb.prepare = mockPrepare;
             const res = await (0, supertest_1.default)(app).delete('/api/purchase-orders/1');
             expect(res.status).toBe(409);
-            // The mocked formatReferenceError returns this string
-            expect(res.body).toEqual({ error: 'Cannot delete Purchase Order as it is referenced' });
-            // Verify DB was queried
-            expect(mockPrepare).toHaveBeenCalledWith(expect.stringContaining('SELECT number FROM invoices'));
-            expect(mockAll).toHaveBeenCalledWith('1');
+            // Invoices no longer reference POs by ID; generic message for any FK failure
+            expect(res.body).toEqual({ error: 'Cannot delete Purchase Order as it is referenced in other records' });
         });
         it('should handle general errors', async () => {
             ;

@@ -54,9 +54,8 @@ test.describe('Artifact Downloads', () => {
         // No, avoid double clicks. Just wait.
         const download = await downloadPromise;
 
-        // Verify Filename
-        expect(download.suggestedFilename()).toContain('Quote-');
-        expect(download.suggestedFilename()).toContain('.pdf');
+        // Verify Filename (e.g. quote-001.pdf or quote-Quote-001.pdf)
+        expect(download.suggestedFilename()).toMatch(/quote-.+\.pdf$/i);
 
         // Cleanup Customer
         await page.goto('/customers');

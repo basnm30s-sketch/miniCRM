@@ -150,8 +150,8 @@ export async function createInvoice(data: {
   dueDate?: string | null
   customerId?: string | null
   vendorId?: string | null
-  purchaseOrderId?: string | null
   quoteId?: string | null
+  poNumbers?: string | null
   items: Array<{
     id: string
     serialNumber?: number | null
@@ -218,19 +218,6 @@ export async function createInvoice(data: {
       }
     }
 
-    // Validate purchase order exists if provided
-    if (data.purchaseOrderId) {
-      const po = await db
-        .select({ id: purchaseOrders.id })
-        .from(purchaseOrders)
-        .where(eq(purchaseOrders.id, data.purchaseOrderId))
-        .limit(1)
-
-      if (po.length === 0) {
-        return { success: false, error: `Purchase Order with ID "${data.purchaseOrderId}" does not exist` }
-      }
-    }
-
     // Validate quote exists if provided
     if (data.quoteId) {
       const quote = await db
@@ -252,8 +239,8 @@ export async function createInvoice(data: {
       dueDate: data.dueDate || null,
       customerId: data.customerId || null,
       vendorId: data.vendorId || null,
-      purchaseOrderId: data.purchaseOrderId || null,
       quoteId: data.quoteId || null,
+      poNumbers: (data.poNumbers != null && String(data.poNumbers).trim() !== '') ? String(data.poNumbers).trim() : null,
       subtotal: data.subtotal || 0,
       tax: data.tax || 0,
       total: data.total || 0,
@@ -314,8 +301,8 @@ export async function updateInvoice(
     dueDate?: string | null
     customerId?: string | null
     vendorId?: string | null
-    purchaseOrderId?: string | null
     quoteId?: string | null
+    poNumbers?: string | null
     items?: Array<{
       id: string
       serialNumber?: number | null
@@ -391,8 +378,8 @@ export async function updateInvoice(
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate
     if (data.customerId !== undefined) updateData.customerId = data.customerId
     if (data.vendorId !== undefined) updateData.vendorId = data.vendorId
-    if (data.purchaseOrderId !== undefined) updateData.purchaseOrderId = data.purchaseOrderId
     if (data.quoteId !== undefined) updateData.quoteId = data.quoteId
+    if (data.poNumbers !== undefined) updateData.poNumbers = (data.poNumbers != null && String(data.poNumbers).trim() !== '') ? String(data.poNumbers).trim() : null
     if (data.subtotal !== undefined) updateData.subtotal = data.subtotal
     if (data.tax !== undefined) updateData.tax = data.tax
     if (data.total !== undefined) updateData.total = data.total

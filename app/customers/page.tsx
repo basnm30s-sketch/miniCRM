@@ -24,6 +24,7 @@ export default function CustomersPage() {
   const [newEmail, setNewEmail] = useState('')
   const [newPhone, setNewPhone] = useState('')
   const [newAddress, setNewAddress] = useState('')
+  const [newTrn, setNewTrn] = useState('')
 
   if (loading) {
     return (
@@ -41,7 +42,7 @@ export default function CustomersPage() {
     )
   }
 
-  const renderCell = (field: keyof Customer, value: string | undefined) => (
+  const renderCell = (field: keyof Customer, value: string | null | undefined) => (
     <TableCell className="text-slate-600 truncate max-w-[200px]">
       <TooltipProvider>
         <Tooltip>
@@ -63,6 +64,7 @@ export default function CustomersPage() {
     setNewEmail(customer.email || '')
     setNewPhone(customer.phone || '')
     setNewAddress(customer.address || '')
+    setNewTrn(customer.trn ?? '')
     setShowAdd(true)
   }
 
@@ -71,7 +73,7 @@ export default function CustomersPage() {
     if (!newName.trim()) {
       toast({
         title: 'Validation Error',
-        description: 'Customer name is required',
+        description: 'Company name is required',
         variant: 'destructive',
       })
       return
@@ -89,6 +91,7 @@ export default function CustomersPage() {
             email: newEmail.trim() || null,
             phone: newPhone.trim() || null,
             address: newAddress.trim() || null,
+            trn: newTrn.trim() || null,
           },
         })
       } else {
@@ -99,6 +102,7 @@ export default function CustomersPage() {
           email: newEmail.trim() || null,
           phone: newPhone.trim() || null,
           address: newAddress.trim() || null,
+          trn: newTrn.trim() || null,
         })
       }
 
@@ -121,6 +125,7 @@ export default function CustomersPage() {
       setNewEmail('')
       setNewPhone('')
       setNewAddress('')
+      setNewTrn('')
       setEditingId(null)
       setShowAdd(false)
     } catch (err) {
@@ -182,11 +187,12 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Company</TableHead>
+                  <TableHead>Company Name</TableHead>
+                  <TableHead>Contact Person</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Address</TableHead>
+                  <TableHead>TRN</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -199,6 +205,7 @@ export default function CustomersPage() {
                       {renderCell('email', customer.email)}
                       {renderCell('phone', customer.phone)}
                       {renderCell('address', customer.address)}
+                      {renderCell('trn', customer.trn)}
                       <TableCell className="text-center gap-2 flex justify-center">
                         <button onClick={() => handleEdit(customer)} className="text-primary hover:text-primary/90">
                           <Edit2 className="w-4 h-4" />
@@ -211,7 +218,7 @@ export default function CustomersPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-slate-500 py-8">
+                    <TableCell colSpan={7} className="text-center text-slate-500 py-8">
                       No customers yet
                     </TableCell>
                   </TableRow>
@@ -229,21 +236,21 @@ export default function CustomersPage() {
             <h3 className="text-lg font-semibold mb-4">{editingId ? 'Edit' : 'Add'} Customer</h3>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="customer-name" className="text-slate-700 text-sm mb-1 block">Name</Label>
+                <Label htmlFor="customer-name" className="text-slate-700 text-sm mb-1 block">Company Name</Label>
                 <input 
                   id="customer-name"
                   className="w-full border px-2 py-1" 
-                  placeholder="Name" 
+                  placeholder="Company Name" 
                   value={newName} 
                   onChange={(e) => setNewName(e.target.value)} 
                 />
               </div>
               <div>
-                <Label htmlFor="customer-company" className="text-slate-700 text-sm mb-1 block">Company</Label>
+                <Label htmlFor="customer-company" className="text-slate-700 text-sm mb-1 block">Contact Person</Label>
                 <input 
                   id="customer-company"
                   className="w-full border px-2 py-1" 
-                  placeholder="Company" 
+                  placeholder="Contact Person" 
                   value={newCompany} 
                   onChange={(e) => setNewCompany(e.target.value)} 
                 />
@@ -278,9 +285,19 @@ export default function CustomersPage() {
                   onChange={(e) => setNewAddress(e.target.value)} 
                 />
               </div>
+              <div>
+                <Label htmlFor="customer-trn" className="text-slate-700 text-sm mb-1 block">TRN</Label>
+                <input 
+                  id="customer-trn"
+                  className="w-full border px-2 py-1" 
+                  placeholder="Tax Registration Number" 
+                  value={newTrn} 
+                  onChange={(e) => setNewTrn(e.target.value)} 
+                />
+              </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <button className="px-3 py-1 border rounded" onClick={() => { setShowAdd(false); setEditingId(null); setNewName(''); setNewCompany(''); setNewEmail(''); setNewPhone(''); setNewAddress('') }}>Cancel</button>
+              <button className="px-3 py-1 border rounded" onClick={() => { setShowAdd(false); setEditingId(null); setNewName(''); setNewCompany(''); setNewEmail(''); setNewPhone(''); setNewAddress(''); setNewTrn('') }}>Cancel</button>
               <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={handleSave}>{editingId ? 'Update' : 'Create'}</button>
             </div>
           </div>

@@ -292,6 +292,12 @@ class ClientSideDOCXRenderer {
         if (quote.customer.phone) {
             children.push(new docx_1.Paragraph({
                 children: [new docx_1.TextRun({ text: `Phone: ${quote.customer.phone}` })],
+                spacing: { after: 100 },
+            }));
+        }
+        if (quote.customer.trn) {
+            children.push(new docx_1.Paragraph({
+                children: [new docx_1.TextRun({ text: `TRN: ${quote.customer.trn}` })],
                 spacing: { after: 200 },
             }));
         }

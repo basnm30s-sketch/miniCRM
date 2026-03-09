@@ -31,6 +31,15 @@ type PdfCustomer = {
   address?: string | null
   email?: string | null
   phone?: string | null
+  trn?: string | null
+}
+
+export type PdfVendor = {
+  name: string
+  contactPerson?: string | null
+  address?: string | null
+  email?: string | null
+  phone?: string | null
 }
 
 type PdfQuoteLineItem = {
@@ -91,6 +100,7 @@ type PdfInvoice = {
   date: string
   dueDate?: string | null
   status?: string | null
+  poNumbers?: string | null
   items: PdfInvoiceItem[]
   subtotal?: number | null
   tax?: number | null
@@ -112,19 +122,19 @@ export interface PDFRenderer {
    * Render a purchase order to PDF blob
    * @param po - Purchase Order object
    * @param adminSettings - Admin company settings
-   * @param vendorName - Vendor name for display
+   * @param vendor - Vendor details for display (or null for fallback)
    * @returns Promise<Blob> - PDF file as blob
    */
-  renderPurchaseOrderToPdf(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendorName: string): Promise<Blob>
+  renderPurchaseOrderToPdf(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendor: PdfVendor | null): Promise<Blob>
 
   /**
    * Render an invoice to PDF blob
    * @param invoice - Invoice object
    * @param adminSettings - Admin company settings
-   * @param customerName - Customer name for display
+   * @param customer - Customer details for display (or null for fallback)
    * @returns Promise<Blob> - PDF file as blob
    */
-  renderInvoiceToPdf(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customerName: string): Promise<Blob>
+  renderInvoiceToPdf(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customer: PdfCustomer | null): Promise<Blob>
 
   /**
    * Trigger download of a PDF blob in the browser
@@ -341,7 +351,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     URL.revokeObjectURL(url)
   }
 
-  async renderPurchaseOrderToPdf(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendorName: string): Promise<Blob> {
+  async renderPurchaseOrderToPdf(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendor: PdfVendor | null): Promise<Blob> {
     const html2canvas = (await import('html2canvas')).default
     const jsPDF = (await import('jspdf')).jsPDF
 
@@ -370,7 +380,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     container.style.color = '#333333'
     container.style.margin = '0'
 
-    const poHtml = this.buildPurchaseOrderHtml(po, adminSettings, vendorName, { logoUrl, sealUrl, signatureUrl })
+    const poHtml = this.buildPurchaseOrderHtml(po, adminSettings, vendor, { logoUrl, sealUrl, signatureUrl })
     container.innerHTML = poHtml
     document.body.appendChild(container)
 
@@ -403,7 +413,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     }
   }
 
-  async renderInvoiceToPdf(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customerName: string): Promise<Blob> {
+  async renderInvoiceToPdf(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customer: PdfCustomer | null): Promise<Blob> {
     const html2canvas = (await import('html2canvas')).default
     const jsPDF = (await import('jspdf')).jsPDF
 
@@ -432,7 +442,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     container.style.color = '#333333'
     container.style.margin = '0'
 
-    const invoiceHtml = this.buildInvoiceHtml(invoice, adminSettings, customerName, { logoUrl, sealUrl, signatureUrl })
+    const invoiceHtml = this.buildInvoiceHtml(invoice, adminSettings, customer, { logoUrl, sealUrl, signatureUrl })
     container.innerHTML = invoiceHtml
     document.body.appendChild(container)
 
@@ -569,11 +579,12 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         <!-- Customer Info -->
         <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px;">
           <h3 style="margin: 0 0 10px 0; font-size: 15px;">CUSTOMER</h3>
-          <p style="margin: 3px 0;"><strong>${quote.customer.name}</strong></p>
-          ${quote.customer.company ? `<p style="margin: 3px 0;">${quote.customer.company}</p>` : ''}
-          ${quote.customer.address ? `<p style="margin: 3px 0;">${quote.customer.address}</p>` : ''}
-          ${quote.customer.email ? `<p style="margin: 3px 0;">Email: ${quote.customer.email}</p>` : ''}
-          ${quote.customer.phone ? `<p style="margin: 3px 0;">Phone: ${quote.customer.phone}</p>` : ''}
+          <p style="margin: 3px 0; font-size: 18px; font-weight: bold;">${quote.customer.name}</p>
+          ${quote.customer.company ? `<p style="margin: 3px 0; font-size: 12px;">Contact: ${quote.customer.company}</p>` : ''}
+          ${quote.customer.address ? `<p style="margin: 3px 0; font-size: 12px;">${quote.customer.address}</p>` : ''}
+          ${quote.customer.email ? `<p style="margin: 3px 0; font-size: 12px;">Email: ${quote.customer.email}</p>` : ''}
+          ${quote.customer.phone ? `<p style="margin: 3px 0; font-size: 12px;">Phone: ${quote.customer.phone}</p>` : ''}
+          ${quote.customer.trn ? `<p style="margin: 3px 0; font-size: 12px;">TRN: ${quote.customer.trn}</p>` : ''}
         </div>
 
         <!-- Line Items Table -->
@@ -678,7 +689,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     `
   }
 
-  private buildPurchaseOrderHtml(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendorName: string, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }): string {
+  private buildPurchaseOrderHtml(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendor: PdfVendor | null, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }): string {
     // Use branding URLs passed from caller (already loaded from fixed file locations)
     const { logoUrl, sealUrl, signatureUrl } = branding
     
@@ -735,7 +746,15 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         <!-- Vendor Info -->
         <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px;">
           <h3 style="margin: 0 0 10px 0; font-size: 15px;">VENDOR</h3>
-          <p style="margin: 3px 0;"><strong>${vendorName}</strong></p>
+          ${vendor && vendor.name?.trim()
+            ? `
+          <p style="margin: 3px 0; font-size: 18px; font-weight: bold;">${vendor.name}</p>
+          ${vendor.contactPerson ? `<p style="margin: 3px 0; font-size: 12px;">Contact: ${vendor.contactPerson}</p>` : ''}
+          ${vendor.address ? `<p style="margin: 3px 0; font-size: 12px;">${vendor.address}</p>` : ''}
+          ${vendor.email ? `<p style="margin: 3px 0; font-size: 12px;">Email: ${vendor.email}</p>` : ''}
+          ${vendor.phone ? `<p style="margin: 3px 0; font-size: 12px;">Phone: ${vendor.phone}</p>` : ''}
+          `
+            : '<p style="margin: 3px 0; font-size: 12px;">Unknown Vendor</p>'}
         </div>
 
         <!-- Line Items Table -->
@@ -831,7 +850,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     `
   }
 
-  private buildInvoiceHtml(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customerName: string, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }): string {
+  private buildInvoiceHtml(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customer: PdfCustomer | null, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }): string {
     // Use branding URLs passed from caller (already loaded from fixed file locations)
     const { logoUrl, sealUrl, signatureUrl } = branding
     
@@ -878,6 +897,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
             <p style="margin: 3px 0;"><strong>Invoice #:</strong> ${invoice.number}</p>
             <p style="margin: 3px 0;"><strong>Date:</strong> ${invoice.date}</p>
             ${invoice.dueDate ? `<p style="margin: 3px 0;"><strong>Due Date:</strong> ${invoice.dueDate}</p>` : ''}
+            ${invoice.poNumbers && String(invoice.poNumbers).trim() ? `<p style="margin: 3px 0;"><strong>PO #:</strong> ${String(invoice.poNumbers).trim()}</p>` : ''}
           </div>
           <div style="text-align: right;">
             <p style="margin: 3px 0;"><strong>Status:</strong> ${invoice.status === 'payment_received' ? 'Payment Received' : invoice.status === 'invoice_sent' ? 'Invoice Sent' : invoice.status === 'draft' ? 'Draft' : invoice.status || 'Draft'}</p>
@@ -887,7 +907,16 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         <!-- Customer Info -->
         <div style="margin-bottom: 20px; padding: 10px; background-color: #f9f9f9; font-size: 14px;">
           <h3 style="margin: 0 0 10px 0; font-size: 15px;">CUSTOMER</h3>
-          <p style="margin: 3px 0;"><strong>${customerName}</strong></p>
+          ${customer && customer.name?.trim()
+            ? `
+          <p style="margin: 3px 0; font-size: 18px; font-weight: bold;">${customer.name}</p>
+          ${customer.company ? `<p style="margin: 3px 0; font-size: 12px;">Contact: ${customer.company}</p>` : ''}
+          ${customer.address ? `<p style="margin: 3px 0; font-size: 12px;">${customer.address}</p>` : ''}
+          ${customer.email ? `<p style="margin: 3px 0; font-size: 12px;">Email: ${customer.email}</p>` : ''}
+          ${customer.phone ? `<p style="margin: 3px 0; font-size: 12px;">Phone: ${customer.phone}</p>` : ''}
+          ${customer.trn ? `<p style="margin: 3px 0; font-size: 12px;">TRN: ${customer.trn}</p>` : ''}
+          `
+            : '<p style="margin: 3px 0; font-size: 12px;">Unknown Customer</p>'}
         </div>
 
         <!-- Line Items Table -->
