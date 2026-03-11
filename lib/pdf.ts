@@ -4,6 +4,11 @@
  */
 
 import { loadBrandingUrls } from '@/lib/api-client'
+import {
+  DEFAULT_QUOTE_COLUMNS,
+  DEFAULT_INVOICE_COLUMNS,
+  DEFAULT_PO_COLUMNS,
+} from '@/lib/doc-generator/line-item-columns'
 
 /**
  * NOTE: `lib/types.ts` currently exports both Drizzle-inferred model types and legacy interfaces
@@ -45,6 +50,12 @@ export type PdfVendor = {
 type PdfQuoteLineItem = {
   serialNumber?: number | null
   vehicleNumber?: string | null
+  vehicleType?: string | null
+  vehicleTypeLabel?: string | null
+  make?: string | null
+  model?: string | null
+  year?: number | null
+  basePrice?: number | null
   description?: string | null
   rentalBasis?: string | null
   quantity: number
@@ -68,11 +79,23 @@ type PdfQuote = {
 }
 
 type PdfPurchaseOrderItem = {
-  description: string
+  serialNumber?: number | null
+  vehicleNumber?: string | null
+  vehicleType?: string | null
+  vehicleTypeLabel?: string | null
+  make?: string | null
+  model?: string | null
+  year?: number | null
+  basePrice?: number | null
+  description?: string | null
+  rentalBasis?: string | null
   quantity: number
   unitPrice: number
+  grossAmount?: number | null
   tax?: number | null
+  lineTaxAmount?: number | null
   total?: number | null
+  lineTotal?: number | null
 }
 
 type PdfPurchaseOrder = {
@@ -88,11 +111,24 @@ type PdfPurchaseOrder = {
 }
 
 type PdfInvoiceItem = {
-  description: string
+  serialNumber?: number | null
+  vehicleNumber?: string | null
+  vehicleType?: string | null
+  vehicleTypeLabel?: string | null
+  make?: string | null
+  model?: string | null
+  year?: number | null
+  basePrice?: number | null
+  description?: string | null
+  rentalBasis?: string | null
   quantity: number
   unitPrice: number
+  grossAmount?: number | null
   tax?: number | null
+  lineTaxAmount?: number | null
   total?: number | null
+  lineTotal?: number | null
+  amountReceived?: number | null
 }
 
 type PdfInvoice = {
@@ -109,32 +145,37 @@ type PdfInvoice = {
   notes?: string | null
 }
 
+export type PdfVisibleColumnsOptions = { visibleColumns?: Record<string, boolean> }
+
 export interface PDFRenderer {
   /**
    * Render a quote to PDF blob
    * @param quote - Quote object
    * @param adminSettings - Admin company settings (logo, seal, signature, etc.)
+   * @param options - Optional visibleColumns to control which line-item columns appear in the PDF
    * @returns Promise<Blob> - PDF file as blob
    */
-  renderQuoteToPdf(quote: PdfQuote, adminSettings: PdfAdminSettings): Promise<Blob>
+  renderQuoteToPdf(quote: PdfQuote, adminSettings: PdfAdminSettings, options?: PdfVisibleColumnsOptions): Promise<Blob>
 
   /**
    * Render a purchase order to PDF blob
    * @param po - Purchase Order object
    * @param adminSettings - Admin company settings
    * @param vendor - Vendor details for display (or null for fallback)
+   * @param options - Optional visibleColumns to control which line-item columns appear in the PDF
    * @returns Promise<Blob> - PDF file as blob
    */
-  renderPurchaseOrderToPdf(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendor: PdfVendor | null): Promise<Blob>
+  renderPurchaseOrderToPdf(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendor: PdfVendor | null, options?: PdfVisibleColumnsOptions): Promise<Blob>
 
   /**
    * Render an invoice to PDF blob
    * @param invoice - Invoice object
    * @param adminSettings - Admin company settings
    * @param customer - Customer details for display (or null for fallback)
+   * @param options - Optional visibleColumns to control which line-item columns appear in the PDF
    * @returns Promise<Blob> - PDF file as blob
    */
-  renderInvoiceToPdf(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customer: PdfCustomer | null): Promise<Blob>
+  renderInvoiceToPdf(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customer: PdfCustomer | null, options?: PdfVisibleColumnsOptions): Promise<Blob>
 
   /**
    * Trigger download of a PDF blob in the browser
@@ -239,7 +280,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     }
   }
 
-  async renderQuoteToPdf(quote: PdfQuote, adminSettings: PdfAdminSettings): Promise<Blob> {
+  async renderQuoteToPdf(quote: PdfQuote, adminSettings: PdfAdminSettings, options?: PdfVisibleColumnsOptions): Promise<Blob> {
     // Dynamic imports to avoid bundling if not used
     const html2canvas = (await import('html2canvas')).default
     const jsPDF = (await import('jspdf')).jsPDF
@@ -279,8 +320,8 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     container.style.color = '#333333'
     container.style.margin = '0'
 
-    // Build the quote HTML with header (logo, company info) and footer
-    const quoteHtml = this.buildQuoteHtml(quote, adminSettings, { logoUrl, sealUrl, signatureUrl })
+    const visibleColumns = { ...DEFAULT_QUOTE_COLUMNS, ...(options?.visibleColumns || {}) }
+    const quoteHtml = this.buildQuoteHtml(quote, adminSettings, { logoUrl, sealUrl, signatureUrl }, visibleColumns)
     container.innerHTML = quoteHtml
 
     document.body.appendChild(container)
@@ -351,7 +392,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     URL.revokeObjectURL(url)
   }
 
-  async renderPurchaseOrderToPdf(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendor: PdfVendor | null): Promise<Blob> {
+  async renderPurchaseOrderToPdf(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendor: PdfVendor | null, options?: PdfVisibleColumnsOptions): Promise<Blob> {
     const html2canvas = (await import('html2canvas')).default
     const jsPDF = (await import('jspdf')).jsPDF
 
@@ -380,7 +421,8 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     container.style.color = '#333333'
     container.style.margin = '0'
 
-    const poHtml = this.buildPurchaseOrderHtml(po, adminSettings, vendor, { logoUrl, sealUrl, signatureUrl })
+    const visibleColumns = { ...DEFAULT_PO_COLUMNS, ...(options?.visibleColumns || {}) }
+    const poHtml = this.buildPurchaseOrderHtml(po, adminSettings, vendor, { logoUrl, sealUrl, signatureUrl }, visibleColumns)
     container.innerHTML = poHtml
     document.body.appendChild(container)
 
@@ -413,7 +455,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     }
   }
 
-  async renderInvoiceToPdf(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customer: PdfCustomer | null): Promise<Blob> {
+  async renderInvoiceToPdf(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customer: PdfCustomer | null, options?: PdfVisibleColumnsOptions): Promise<Blob> {
     const html2canvas = (await import('html2canvas')).default
     const jsPDF = (await import('jspdf')).jsPDF
 
@@ -442,7 +484,8 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     container.style.color = '#333333'
     container.style.margin = '0'
 
-    const invoiceHtml = this.buildInvoiceHtml(invoice, adminSettings, customer, { logoUrl, sealUrl, signatureUrl })
+    const visibleColumns = { ...DEFAULT_INVOICE_COLUMNS, ...(options?.visibleColumns || {}) }
+    const invoiceHtml = this.buildInvoiceHtml(invoice, adminSettings, customer, { logoUrl, sealUrl, signatureUrl }, visibleColumns)
     container.innerHTML = invoiceHtml
     document.body.appendChild(container)
 
@@ -503,7 +546,95 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     `
   }
 
-  private buildQuoteHtml(quote: PdfQuote, adminSettings: PdfAdminSettings, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }): string {
+  /** Column key order and labels for line-item tables; matches Excel/UI. */
+  private static LINE_ITEM_COLUMNS: { key: string; label: string; align: 'left' | 'right' | 'center' }[] = [
+    { key: 'serialNumber', label: 'Sl. no.', align: 'center' },
+    { key: 'vehicleNumber', label: 'Vehicle', align: 'left' },
+    { key: 'vehicleType', label: 'Type', align: 'left' },
+    { key: 'makeModel', label: 'Make/Model', align: 'left' },
+    { key: 'year', label: 'Year', align: 'center' },
+    { key: 'basePrice', label: 'Base Price', align: 'right' },
+    { key: 'description', label: 'Description', align: 'left' },
+    { key: 'rentalBasis', label: 'Basis', align: 'center' },
+    { key: 'quantity', label: 'Qty', align: 'right' },
+    { key: 'rate', label: 'Rate', align: 'right' },
+    { key: 'grossAmount', label: 'Gross', align: 'right' },
+    { key: 'tax', label: 'Tax', align: 'right' },
+    { key: 'netAmount', label: 'Net', align: 'right' },
+    { key: 'amountReceived', label: 'Received', align: 'right' },
+  ]
+
+  private buildLineItemsTableHtml(
+    variant: 'quote' | 'invoice' | 'purchaseOrder',
+    items: (PdfQuoteLineItem | PdfInvoiceItem | PdfPurchaseOrderItem)[],
+    visibleColumns: Record<string, boolean>,
+    currency?: string
+  ): string {
+    const columns = ClientSidePDFRenderer.LINE_ITEM_COLUMNS.filter(
+      (c) => c.key !== 'amountReceived' || variant === 'invoice'
+    ).filter((c) => visibleColumns[c.key] !== false)
+
+    const thStyle = 'padding: 6px 8px; vertical-align: top; white-space: normal; overflow-wrap: break-word; word-break: break-word;'
+    const tdBase = 'padding: 6px 8px; border-bottom: 1px solid #ccc; vertical-align: top;'
+    const tdWrap = `${tdBase} white-space: normal; overflow-wrap: break-word; word-break: break-word;`
+    const tdNowrap = `${tdBase} white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`
+
+    const theadCells = columns
+      .map(
+        (c) =>
+          `<th style="${thStyle} text-align: ${c.align};">${c.label}${currency && (c.key === 'rate' || c.key === 'grossAmount' || c.key === 'tax' || c.key === 'netAmount') ? ` (${currency})` : ''}</th>`
+      )
+      .join('')
+
+    const colgroup = columns.map(() => '<col style="width: auto;" />').join('')
+
+    const rows = items.map((item, index) => {
+      const gross = (item as any).grossAmount ?? (item.quantity * item.unitPrice)
+      const lineTax = (item as any).lineTaxAmount ?? (item as any).tax ?? 0
+      const net = (item as any).lineTotal ?? (item as any).total ?? gross + lineTax
+      const taxPct = gross ? (lineTax / gross) * 100 : 0
+      const makeModel = (item as any).make && (item as any).model
+        ? `${(item as any).make} ${(item as any).model}`
+        : (item as any).make || (item as any).model || '-'
+      const rentalBasis = (item as any).rentalBasis === 'hourly' ? 'Hourly' : (item as any).rentalBasis === 'monthly' ? 'Monthly' : (item as any).rentalBasis || '-'
+
+      const cellValues: Record<string, string> = {
+        serialNumber: String((item as any).serialNumber ?? index + 1),
+        vehicleNumber: String((item as any).vehicleNumber || (item as any).vehicleTypeLabel || '-'),
+        vehicleType: String((item as any).vehicleType || '-'),
+        makeModel,
+        year: String((item as any).year ?? '-'),
+        basePrice: typeof (item as any).basePrice === 'number' ? (item as any).basePrice.toFixed(2) : '-',
+        description: String((item as any).description || (item as any).vehicleTypeLabel || '-'),
+        rentalBasis,
+        quantity: String(item.quantity),
+        rate: item.unitPrice.toFixed(2),
+        grossAmount: gross.toFixed(2),
+        tax: variant === 'quote' ? taxPct.toFixed(2) : lineTax.toFixed(2),
+        netAmount: net.toFixed(2),
+        amountReceived: String((item as any).amountReceived ?? 0),
+      }
+
+      const cells = columns.map((c) => {
+        const val = cellValues[c.key] ?? '-'
+        const isNum = c.align === 'right' && val !== '-'
+        const style = c.align === 'left' && (c.key === 'vehicleNumber' || c.key === 'description') ? tdWrap : isNum ? tdNowrap : tdWrap
+        return `<td style="${style} text-align: ${c.align};">${val}</td>`
+      })
+      return `<tr>${cells.join('')}</tr>`
+    })
+
+    return `
+        <table style="width: 100%; margin-bottom: 20px; font-size: 12px; border-collapse: collapse; table-layout: fixed;">
+          <colgroup>${colgroup}</colgroup>
+          <thead>
+            <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">${theadCells}</tr>
+          </thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>`
+  }
+
+  private buildQuoteHtml(quote: PdfQuote, adminSettings: PdfAdminSettings, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }, visibleColumns: Record<string, boolean> = DEFAULT_QUOTE_COLUMNS): string {
   // Use branding URLs passed from caller (already loaded from fixed file locations)
   const { logoUrl, sealUrl, signatureUrl } = branding
   
@@ -512,37 +643,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
   const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : ''
   const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : ''
 
-    // Table styles: ensure long text wraps within cells, while numeric values don't split (e.g. "250.00")
-    const thStyle =
-      'padding: 6px; vertical-align: top; white-space: normal; overflow-wrap: break-word; word-break: break-word;'
-    const tdBaseStyle = 'padding: 6px; border-bottom: 1px solid #ccc; vertical-align: top;'
-    const tdTextWrapStyle =
-      `${tdBaseStyle} white-space: normal; overflow-wrap: break-word; word-break: break-word;`
-    const tdVehicleWrapStyle =
-      `${tdBaseStyle} white-space: normal; overflow-wrap: anywhere; word-break: break-all;`
-    const tdNumberStyle =
-      `${tdBaseStyle} white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`
-
-    const itemsHtml = quote.items
-      .map((item, index) => {
-        // Calculate grossAmount if not present
-        const grossAmount = item.grossAmount ?? (item.quantity * item.unitPrice)
-        
-        return `
-      <tr>
-        <td style="${tdNumberStyle} text-align: center;">${item.serialNumber ?? index + 1}</td>
-        <td style="${tdVehicleWrapStyle} text-align: left;">${item.vehicleNumber || ''}</td>
-        <td style="${tdTextWrapStyle} text-align: left;">${item.description || ''}</td>
-        <td style="${tdTextWrapStyle} text-align: center;">${item.rentalBasis || ''}</td>
-        <td style="${tdNumberStyle} text-align: right;">${item.quantity}</td>
-        <td style="${tdNumberStyle} text-align: right;">${item.unitPrice.toFixed(2)}</td>
-        <td style="${tdNumberStyle} text-align: right;">${grossAmount.toFixed(2)}</td>
-        <td style="${tdNumberStyle} text-align: right;">${(item.lineTaxAmount || 0).toFixed(2)}</td>
-        <td style="${tdNumberStyle} text-align: right;">${(item.lineTotal || 0).toFixed(2)}</td>
-      </tr>
-    `
-      })
-      .join('')
+    const itemsTableHtml = this.buildLineItemsTableHtml('quote', quote.items, visibleColumns, quote.currency)
 
     return `
       <div style="font-family: Arial, sans-serif; color: #333;">
@@ -588,35 +689,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 12px; border-collapse: collapse; table-layout: fixed;">
-          <colgroup>
-            <col style="width: 5%;" />
-            <col style="width: 15%;" />
-            <col style="width: 32%;" />
-            <col style="width: 10%;" />
-            <col style="width: 6%;" />
-            <col style="width: 8%;" />
-            <col style="width: 9%;" />
-            <col style="width: 7%;" />
-            <col style="width: 8%;" />
-          </colgroup>
-          <thead>
-            <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
-              <th style="${thStyle} text-align: center;">Sl. no.</th>
-              <th style="${thStyle} text-align: left;">Vehicle number</th>
-              <th style="${thStyle} text-align: left;">Description</th>
-              <th style="${thStyle} text-align: center;">Rental basis</th>
-              <th style="${thStyle} text-align: right;">Qty</th>
-              <th style="${thStyle} text-align: right;">Rate</th>
-              <th style="${thStyle} text-align: right;">Gross amount</th>
-              <th style="${thStyle} text-align: right;">Tax</th>
-              <th style="${thStyle} text-align: right;">Net amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
+        ${itemsTableHtml}
 
         <!-- Totals -->
         <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 14px;">
@@ -689,7 +762,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     `
   }
 
-  private buildPurchaseOrderHtml(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendor: PdfVendor | null, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }): string {
+  private buildPurchaseOrderHtml(po: PdfPurchaseOrder, adminSettings: PdfAdminSettings, vendor: PdfVendor | null, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }, visibleColumns: Record<string, boolean> = DEFAULT_PO_COLUMNS): string {
     // Use branding URLs passed from caller (already loaded from fixed file locations)
     const { logoUrl, sealUrl, signatureUrl } = branding
     
@@ -697,22 +770,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : ''
     const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : ''
 
-    const thStyle = 'padding: 8px; vertical-align: top;'
-    const tdWrapStyle = 'padding: 8px; border-bottom: 1px solid #ccc; white-space: normal; overflow-wrap: anywhere; word-break: break-word; vertical-align: top;'
-
-    const itemsHtml = po.items
-      .map(
-        (item) => `
-      <tr>
-        <td style="${tdWrapStyle} text-align: left;">${item.description}</td>
-        <td style="${tdWrapStyle} text-align: right;">${item.quantity}</td>
-        <td style="${tdWrapStyle} text-align: right;">${item.unitPrice.toFixed(2)}</td>
-        <td style="${tdWrapStyle} text-align: right;">${(item.tax || 0).toFixed(2)}</td>
-        <td style="${tdWrapStyle} text-align: right;">${(item.total || 0).toFixed(2)}</td>
-      </tr>
-    `
-      )
-      .join('')
+    const itemsTableHtml = this.buildLineItemsTableHtml('purchaseOrder', po.items, visibleColumns, po.currency)
 
     return `
       <div style="font-family: Arial, sans-serif; color: #333;">
@@ -758,27 +816,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse; table-layout: fixed;">
-          <colgroup>
-            <col style="width: 55%;" />
-            <col style="width: 10%;" />
-            <col style="width: 15%;" />
-            <col style="width: 10%;" />
-            <col style="width: 10%;" />
-          </colgroup>
-          <thead>
-            <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
-              <th style="${thStyle} text-align: left;">Description</th>
-              <th style="${thStyle} text-align: right;">Qty</th>
-              <th style="${thStyle} text-align: right;">Unit Price (${po.currency})</th>
-              <th style="${thStyle} text-align: right;">Tax (${po.currency})</th>
-              <th style="${thStyle} text-align: right;">Total (${po.currency})</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
+        ${itemsTableHtml}
 
         <!-- Totals -->
         <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 14px;">
@@ -850,7 +888,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     `
   }
 
-  private buildInvoiceHtml(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customer: PdfCustomer | null, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }): string {
+  private buildInvoiceHtml(invoice: PdfInvoice, adminSettings: PdfAdminSettings, customer: PdfCustomer | null, branding: { logoUrl: string | null; sealUrl: string | null; signatureUrl: string | null }, visibleColumns: Record<string, boolean> = DEFAULT_INVOICE_COLUMNS): string {
     // Use branding URLs passed from caller (already loaded from fixed file locations)
     const { logoUrl, sealUrl, signatureUrl } = branding
     
@@ -858,21 +896,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
     const sealImg = sealUrl ? `<img src="${sealUrl}" style="height: 150px; object-fit: contain;" />` : ''
     const signatureImg = signatureUrl ? `<img src="${signatureUrl}" style="height: 80px; object-fit: contain;" />` : ''
 
-    const thStyle = 'padding: 8px; vertical-align: top;'
-    const tdWrapStyle = 'padding: 8px; border-bottom: 1px solid #ccc; white-space: normal; overflow-wrap: anywhere; word-break: break-word; vertical-align: top;'
-
-    const itemsHtml = invoice.items
-      .map(
-        (item) => `
-      <tr>
-        <td style="${tdWrapStyle} text-align: left;">${item.description}</td>
-        <td style="${tdWrapStyle} text-align: right;">${item.quantity}</td>
-        <td style="${tdWrapStyle} text-align: right;">${item.unitPrice.toFixed(2)}</td>
-        <td style="${tdWrapStyle} text-align: right;">${(item.total || 0).toFixed(2)}</td>
-      </tr>
-    `
-      )
-      .join('')
+    const itemsTableHtml = this.buildLineItemsTableHtml('invoice', invoice.items, visibleColumns)
 
     return `
       <div style="font-family: Arial, sans-serif; color: #333;">
@@ -920,25 +944,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         </div>
 
         <!-- Line Items Table -->
-        <table style="width: 100%; margin-bottom: 20px; font-size: 14px; border-collapse: collapse; table-layout: fixed;">
-          <colgroup>
-            <col style="width: 60%;" />
-            <col style="width: 10%;" />
-            <col style="width: 15%;" />
-            <col style="width: 15%;" />
-          </colgroup>
-          <thead>
-            <tr style="background-color: #e0e0e0; border-bottom: 2px solid #333;">
-              <th style="${thStyle} text-align: left;">Description</th>
-              <th style="${thStyle} text-align: right;">Qty</th>
-              <th style="${thStyle} text-align: right;">Unit Price</th>
-              <th style="${thStyle} text-align: right;">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
+        ${itemsTableHtml}
 
         <!-- Totals -->
         <div style="display: flex; justify-content: flex-end; margin-bottom: 30px; font-size: 14px;">

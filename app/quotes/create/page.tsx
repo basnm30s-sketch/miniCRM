@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import QuoteForm from '@/app/quotations/QuoteForm'
@@ -12,6 +13,7 @@ import { toast } from '@/hooks/use-toast'
 
 export default function CreateQuotePage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [initialQuote, setInitialQuote] = useState<Quote | undefined>(undefined)
   const [loading, setLoading] = useState(true)
 
@@ -53,8 +55,8 @@ export default function CreateQuotePage() {
       <QuoteForm
         initialData={initialQuote}
         onSave={(savedQuote) => {
-          // Optional: redirect or show success message (handled by form)
           setInitialQuote(savedQuote)
+          queryClient.invalidateQueries({ queryKey: ['quotes'] })
           router.replace(`/quotes/create?id=${savedQuote.id}`)
         }}
         onCancel={() => router.push('/quotations')}

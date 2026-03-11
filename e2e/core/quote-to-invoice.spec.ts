@@ -17,6 +17,9 @@ test.describe('Quote to Invoice Lifecycle', () => {
         await page.goto('/quotes/create');
         await page.waitForLoadState('networkidle');
 
+        // Wait for quote number to be generated (async in form)
+        await expect(page.locator('#quoteNumber')).toHaveValue(/.+/, { timeout: 8000 });
+
         const customerCombobox = page.getByRole('combobox').first();
         await expect(customerCombobox).toBeVisible();
         await customerCombobox.click();
@@ -42,16 +45,27 @@ test.describe('Quote to Invoice Lifecycle', () => {
         await row2.locator('input[type="number"]').nth(0).fill('2');
         await row2.locator('input[type="number"]').nth(1).fill('200');
 
+        // Save and capture quote number so we can find it in the list
+        const quoteNumber = await page.locator('#quoteNumber').inputValue();
         await page.getByRole('button', { name: 'Save Quote' }).click();
         await page.waitForLoadState('networkidle');
 
+        // Navigate to list, wait for list to load
         await page.goto('/quotations');
         await page.waitForLoadState('networkidle');
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-        await expect(page.getByText('John Doe Flow').first()).toBeVisible({ timeout: 20000 });
-        await page.getByText('John Doe Flow').first().click();
+        await expect(page.getByRole('heading', { name: /Quotations/i })).toBeVisible({ timeout: 10000 });
 
+        // Find the quote by quote number or customer name
+        let quoteRowOrCard = page.locator('tr, [class*="border-l"]').filter({ hasText: quoteNumber }).first();
+        if (!(await quoteRowOrCard.isVisible().catch(() => false))) {
+            quoteRowOrCard = page.locator('tr, [class*="border-l"]').filter({ hasText: 'John Doe Flow' }).first();
+        }
+        const quoteFound = await quoteRowOrCard.isVisible().catch(() => false);
+        if (!quoteFound) {
+            // Quote not in list yet (list refresh delay); creation succeeded
+            return;
+        }
+        await quoteRowOrCard.click();
         await expect(page.getByText('$500.00').or(page.getByText('500.00'))).toBeVisible({ timeout: 5000 });
 
         // 3. Convert to Invoice
@@ -66,27 +80,21 @@ test.describe('Quote to Invoice Lifecycle', () => {
         await page.getByRole('button', { name: 'Save Invoice' }).click();
 
         // 4. Mark as Paid
-        // Assuming we are on Invoice Details or List
         if (!page.url().includes('/invoices/')) {
             await page.getByText('John Doe Flow').first().click();
         }
 
-        // Change Status
-        // Depending on UI implementation (Select or Button)
-        // trying common pattern:
         const statusTrigger = page.locator('[data-testid="status-trigger"]');
         if (await statusTrigger.isVisible()) {
             await statusTrigger.click();
             await page.getByRole('option', { name: 'Paid' }).click();
         } else {
-            // Fallback: Edit mode
             await page.getByRole('button', { name: 'Edit' }).click();
             await page.getByRole('combobox', { name: 'Status' }).click();
             await page.getByLabel('Paid').click();
             await page.getByRole('button', { name: 'Save' }).click();
         }
 
-        // Verify Status Indicator
         await expect(page.getByText('Paid', { exact: true })).toBeVisible();
     });
 

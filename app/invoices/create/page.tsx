@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -46,6 +47,7 @@ async function buildInvoiceCloneFrom(source: Invoice): Promise<Invoice> {
 
 function CreateInvoicePageContent() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const searchParams = useSearchParams()
   const [initialInvoice, setInitialInvoice] = useState<Invoice | undefined>(undefined)
   const [loading, setLoading] = useState(true)
@@ -308,6 +310,7 @@ function CreateInvoicePageContent() {
         initialData={initialInvoice}
         onSave={(savedInvoice) => {
           setInitialInvoice(savedInvoice)
+          queryClient.invalidateQueries({ queryKey: ['invoices'] })
           router.replace(`/invoices/create?id=${savedInvoice.id}`)
         }}
         onCancel={() => router.push('/invoices')}

@@ -32,6 +32,7 @@ import {
     generateId,
     getAdminSettings,
     initializeAdminSettings,
+    getNextPurchaseOrderNumber,
 } from '@/lib/storage'
 import { saveVehicle } from '@/lib/api-client'
 import { pdfRenderer } from '@/lib/pdf'
@@ -88,6 +89,8 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
     const [isValidForExport, setIsValidForExport] = useState(false)
     const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
+    const getVisibleColumnsStorageKey = (poId: string | undefined) =>
+        poId ? `po-visible-columns-${poId}` : 'po-visible-columns-global'
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_PO_COLUMNS }))
     const [showAddVehicle, setShowAddVehicle] = useState(false)
     const [newVehicleLineItemId, setNewVehicleLineItemId] = useState<string | null>(null)
@@ -135,13 +138,18 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                     })
                 }
 
-                // Generate PO number if new and not already set
+                // Generate PO number if new and not already set (running number PO-001, PO-002, ...)
                 if (!isEditMode && !po.number) {
-                    const poNumber = `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(5, '0')}`
-                    setPo((prev) => ({
-                        ...prev,
-                        number: poNumber,
-                    }))
+                    try {
+                        const poNumber = await getNextPurchaseOrderNumber()
+                        setPo((prev) => ({
+                            ...prev,
+                            number: poNumber,
+                        }))
+                    } catch (err) {
+                        console.warn('Failed to get next PO number:', err)
+                        toast({ title: 'Warning', description: 'Could not generate PO number. Enter manually.', variant: 'destructive' })
+                    }
                 }
             } catch (err) {
                 console.error('Error loading data:', err)
@@ -153,6 +161,39 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
 
         loadData()
     }, [])
+
+    // Restore column preferences from localStorage (per-PO if editing, global if creating)
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const poId = initialData?.id || po.id
+            const storageKey = getVisibleColumnsStorageKey(poId)
+            let stored = localStorage.getItem(storageKey)
+            if (!stored && initialData) {
+                stored = localStorage.getItem('po-visible-columns-global')
+            }
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored)
+                    if (parsed && typeof parsed === 'object') {
+                        setVisibleColumns((prev) => ({ ...prev, ...parsed }))
+                    }
+                } catch {
+                    // ignore invalid stored data
+                }
+            }
+        }
+    }, [initialData?.id, po.id])
+
+    // Persist column preferences (per-PO if editing, global if creating)
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const storageKey = getVisibleColumnsStorageKey(po.id)
+            localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
+            if (!initialData && !po.createdAt) {
+                localStorage.setItem('po-visible-columns-global', JSON.stringify(visibleColumns))
+            }
+        }
+    }, [visibleColumns, po.id, initialData, po.createdAt])
 
     const calculateTotals = (items: POItem[]) => {
         let subTotal = 0
@@ -442,9 +483,9 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
 
         setGenerating(true)
         try {
-            const pdfBlob = await pdfRenderer.renderPurchaseOrderToPdf(poForExport, adminSettings, pdfVendor)
-            const filename = `po-${po.number}.pdf`
-            pdfRenderer.downloadPdf(pdfBlob, filename)
+            const pdfBlob = await pdfRenderer.renderPurchaseOrderToPdf(poForExport, adminSettings, pdfVendor, { visibleColumns })
+            const numPart = (po.number || '').replace(/^PO-?/i, '') || po.number || 'po'
+            pdfRenderer.downloadPdf(pdfBlob, `po-${numPart}.pdf`)
             toast({ title: 'Success', description: 'PDF downloaded successfully' })
         } catch (err) {
             console.error('Failed to generate PDF:', err)
@@ -470,8 +511,8 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
         setGenerating(true)
         try {
             const excelBlob = await excelRenderer.renderPurchaseOrderToExcel(poForExport, adminSettings, vendorName, { visibleColumns })
-            const filename = `po-${po.number}.xlsx`
-            excelRenderer.downloadExcel(excelBlob, filename)
+            const numPart = (po.number || '').replace(/^PO-?/i, '') || po.number || 'po'
+            excelRenderer.downloadExcel(excelBlob, `po-${numPart}.xlsx`)
             toast({ title: 'Success', description: 'Excel file downloaded successfully' })
         } catch (err) {
             console.error('Failed to generate Excel:', err)
@@ -497,8 +538,8 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
         setGenerating(true)
         try {
             const docxBlob = await docxRenderer.renderPurchaseOrderToDocx(poForExport, adminSettings, vendorName)
-            const filename = `po-${po.number}.docx`
-            docxRenderer.downloadDocx(docxBlob, filename)
+            const numPart = (po.number || '').replace(/^PO-?/i, '') || po.number || 'po'
+            docxRenderer.downloadDocx(docxBlob, `po-${numPart}.docx`)
             toast({ title: 'Success', description: 'Word document downloaded successfully' })
         } catch (err) {
             console.error('Failed to generate DOCX:', err)

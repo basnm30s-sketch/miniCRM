@@ -121,6 +121,22 @@ export default function PurchaseOrdersPage() {
     }
   }
 
+  const resolvePoVisibleColumns = (poId: string): Record<string, boolean> => {
+    if (typeof window === 'undefined') return { ...DEFAULT_PO_COLUMNS }
+    let stored = localStorage.getItem(`po-visible-columns-${poId}`)
+    if (!stored) stored = localStorage.getItem('po-visible-columns-global')
+    if (!stored) return { ...DEFAULT_PO_COLUMNS }
+    try {
+      const parsed = JSON.parse(stored)
+      if (parsed && typeof parsed === 'object') {
+        return { ...DEFAULT_PO_COLUMNS, ...parsed }
+      }
+    } catch {
+      // ignore
+    }
+    return { ...DEFAULT_PO_COLUMNS }
+  }
+
   const handleDownloadPDF = async (po: PurchaseOrder) => {
     try {
       const settings = adminSettings || (await getAdminSettings())
@@ -138,8 +154,10 @@ export default function PurchaseOrdersPage() {
               phone: vendor.phone ?? null,
           }
         : null
-      const blob = await pdfRenderer.renderPurchaseOrderToPdf(po, settings, pdfVendor)
-      pdfRenderer.downloadPdf(blob, `po-${po.number}.pdf`)
+      const visibleColumns = resolvePoVisibleColumns(po.id)
+      const blob = await pdfRenderer.renderPurchaseOrderToPdf(po, settings, pdfVendor, { visibleColumns })
+      const numPart = (po.number || '').replace(/^PO-?/i, '') || po.number || 'po'
+      pdfRenderer.downloadPdf(blob, `po-${numPart}.pdf`)
       toast({ title: 'Success', description: 'PDF downloaded successfully' })
     } catch (error) {
       console.error('Error generating PDF:', error)
@@ -156,8 +174,10 @@ export default function PurchaseOrdersPage() {
       }
       const vendor = vendors.find((v) => v.id === po.vendorId)
       const vendorName = vendor?.name || 'Unknown Vendor'
-      const blob = await excelRenderer.renderPurchaseOrderToExcel(po, settings, vendorName, { visibleColumns: DEFAULT_PO_COLUMNS })
-      excelRenderer.downloadExcel(blob, `po-${po.number}.xlsx`)
+      const visibleColumns = resolvePoVisibleColumns(po.id)
+      const blob = await excelRenderer.renderPurchaseOrderToExcel(po, settings, vendorName, { visibleColumns })
+      const numPart = (po.number || '').replace(/^PO-?/i, '') || po.number || 'po'
+      excelRenderer.downloadExcel(blob, `po-${numPart}.xlsx`)
       toast({ title: 'Success', description: 'Excel file downloaded successfully' })
     } catch (error) {
       console.error('Error generating Excel:', error)
@@ -175,7 +195,8 @@ export default function PurchaseOrdersPage() {
       const vendor = vendors.find((v) => v.id === po.vendorId)
       const vendorName = vendor?.name || 'Unknown Vendor'
       const blob = await docxRenderer.renderPurchaseOrderToDocx(po, settings, vendorName)
-      docxRenderer.downloadDocx(blob, `po-${po.number}.docx`)
+      const numPart = (po.number || '').replace(/^PO-?/i, '') || po.number || 'po'
+      docxRenderer.downloadDocx(blob, `po-${numPart}.docx`)
       toast({ title: 'Success', description: 'Word document downloaded successfully' })
     } catch (error) {
       console.error('Error generating DOCX:', error)

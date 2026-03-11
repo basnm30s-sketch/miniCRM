@@ -257,6 +257,23 @@ export async function generateInvoiceNumber(pattern?: string): Promise<string> {
   return getNextInvoiceNumber()
 }
 
+// Helper to get and increment purchase order counter (format: PO-XXX)
+export async function getNextPurchaseOrderNumber(): Promise<string> {
+  const allPOs = await getAllPurchaseOrders()
+  let maxNumber = 0
+
+  allPOs.forEach((po: { number?: string }) => {
+    const match = (po.number || '').match(/^PO-(\d+)$/i)
+    if (match) {
+      const num = parseInt(match[1], 10)
+      if (num > maxNumber) maxNumber = num
+    }
+  })
+
+  const nextNumber = maxNumber + 1
+  return `PO-${String(nextNumber).padStart(3, '0')}`
+}
+
 // Convert Quote to Invoice format
 export async function convertQuoteToInvoice(quote: Quote): Promise<Invoice> {
   // Validate quote has required data

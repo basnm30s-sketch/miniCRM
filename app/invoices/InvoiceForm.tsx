@@ -94,6 +94,8 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     const [isDirty, setIsDirty] = useState(false)
     const [isInvoiceNumberEditable, setIsInvoiceNumberEditable] = useState(false)
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
+    const getVisibleColumnsStorageKey = (invoiceId: string | undefined) =>
+        invoiceId ? `invoice-visible-columns-${invoiceId}` : 'invoice-visible-columns-global'
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_INVOICE_COLUMNS }))
 
     // Determine if editing based on props or internal logic
@@ -138,6 +140,39 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     })
 
     const isEditMode = !!initialData || !!invoice.createdAt
+
+    // Restore column preferences from localStorage (per-invoice if editing, global if creating)
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const invoiceId = initialData?.id || invoice.id
+            const storageKey = getVisibleColumnsStorageKey(invoiceId)
+            let stored = localStorage.getItem(storageKey)
+            if (!stored && initialData) {
+                stored = localStorage.getItem('invoice-visible-columns-global')
+            }
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored)
+                    if (parsed && typeof parsed === 'object') {
+                        setVisibleColumns((prev) => ({ ...prev, ...parsed }))
+                    }
+                } catch {
+                    // ignore invalid stored data
+                }
+            }
+        }
+    }, [initialData?.id, invoice.id])
+
+    // Persist column preferences (per-invoice if editing, global if creating)
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const storageKey = getVisibleColumnsStorageKey(invoice.id)
+            localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
+            if (!initialData && !invoice.createdAt) {
+                localStorage.setItem('invoice-visible-columns-global', JSON.stringify(visibleColumns))
+            }
+        }
+    }, [visibleColumns, invoice.id, initialData, invoice.createdAt])
 
     const snapshotInvoice = (inv: Invoice) => {
         // Exclude timestamp fields
@@ -490,7 +525,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
               ? { name: customer.name, company: customer.company ?? null, address: customer.address ?? null, email: customer.email ?? null, phone: customer.phone ?? null, trn: customer.trn ?? null }
               : null
 
-            const pdfBlob = await pdfRenderer.renderInvoiceToPdf(invoice, adminSettings, pdfCustomer)
+            const pdfBlob = await pdfRenderer.renderInvoiceToPdf(invoice, adminSettings, pdfCustomer, { visibleColumns })
             const numPart = (invoice.number || '').replace(/^Invoice-?/i, '') || invoice.number || 'invoice'
             const filename = `invoice-${numPart}.pdf`
             pdfRenderer.downloadPdf(pdfBlob, filename)
