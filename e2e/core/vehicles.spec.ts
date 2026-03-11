@@ -16,12 +16,9 @@ test.describe('Vehicles Module', () => {
         // Page heading is "Fleet Management"
         await expect(page.getByRole('heading', { name: /Fleet Management/i })).toBeVisible({ timeout: 5000 });
 
-        // Click Add Vehicle button
+        // Click Add Vehicle button (form is a custom modal without role="dialog")
         await page.getByRole('button', { name: 'Add Vehicle' }).click();
-
-        // FIXED: Get modal reference to track its state
-        const modal = page.getByRole('dialog').or(page.locator('[role="dialog"]')).or(page.locator('.modal, [data-modal]')).first();
-        await expect(modal).toBeVisible({ timeout: 5000 });
+        await expect(page.getByPlaceholder('e.g., DXB A-12345')).toBeVisible({ timeout: 5000 });
 
         // Vehicle Identification
         await page.getByPlaceholder('e.g., DXB A-12345').fill(vehicleId);
@@ -30,21 +27,17 @@ test.describe('Vehicles Module', () => {
 
         await page.getByRole('button', { name: 'Create Vehicle' }).click();
 
-        // FIXED: Wait for modal to close before checking table
-        await expect(modal).not.toBeVisible({ timeout: 5000 });
-
-        // Wait for network to settle after creation
+        // Wait for add form to close (placeholder disappears)
+        await expect(page.getByPlaceholder('e.g., DXB A-12345')).not.toBeVisible({ timeout: 10000 });
         await page.waitForLoadState('networkidle');
 
-        // Verify row exists - FIXED: Wait for the element with proper timeout
+        // Verify row exists after reload
         await page.reload();
         await page.waitForLoadState('networkidle');
-        console.log('Table Text:', await page.locator('tbody').textContent());
-        await expect(page.getByText(vehicleId)).toBeVisible({ timeout: 10000 });
+        await expect(page.getByRole('row', { name: new RegExp(vehicleId, 'i') })).toBeVisible({ timeout: 10000 });
 
         // 2. DELETE
         const row = page.getByRole('row', { name: new RegExp(vehicleId, 'i') });
-        await expect(row).toBeVisible({ timeout: 5000 });
 
         // Click delete button
         await row.getByRole('cell').last().getByRole('button').last().click();

@@ -6,8 +6,9 @@ test.describe('Smoke Tests', () => {
         await page.goto('/');
         await page.waitForLoadState('networkidle');
 
-        // Verify Dashboard Heading
-        await expect(page.getByRole('heading', { name: /iManage/i })).toBeVisible({ timeout: 5000 });
+        // Verify Dashboard content (iManage heading is commented out in app; assert on visible content)
+        await expect(page.getByRole('link', { name: 'Home' })).toBeVisible({ timeout: 5000 });
+        await expect(page.getByRole('heading', { name: 'Quotations & Invoices' })).toBeVisible({ timeout: 5000 });
 
         // Page should have loaded with content
         await expect(page.locator('main')).toBeVisible();

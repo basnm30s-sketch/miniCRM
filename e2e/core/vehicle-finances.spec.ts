@@ -12,8 +12,8 @@ test.describe('Vehicle Finances Module', () => {
         // Check for page content stability
         await page.waitForLoadState('networkidle');
 
-        // The 'Vehicles' header is always present regardless of dashboard data state
-        await expect(page.getByRole('heading', { name: 'Vehicles' })).toBeVisible({ timeout: 10000 });
+        // Verify list area: subtext or vehicle count is present (page has no "Vehicles" heading)
+        await expect(page.getByText('Select a vehicle to view details')).toBeVisible({ timeout: 10000 });
 
         // Optional: Check specific dashboard state without failing
         if (await page.getByText(/Overall Financial Snapshot/i).isVisible()) {
@@ -21,9 +21,6 @@ test.describe('Vehicle Finances Module', () => {
         } else {
             console.log('Dashboard Data Unavailable');
         }
-
-        // Verify Vehicle List section exists
-        await expect(page.getByRole('heading', { name: 'Vehicles' })).toBeVisible();
 
         // Check empty state or vehicle cards
         const noVehicles = page.getByText('No vehicles found');

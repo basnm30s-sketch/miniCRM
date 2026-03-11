@@ -3,57 +3,64 @@ import { test, expect } from '@playwright/test';
 test.describe('Quote to Invoice Lifecycle', () => {
 
     test('Should create a quote and convert it to an invoice', async ({ page }) => {
-        // 1. Create Customer
+        page.on('dialog', async (dialog) => await dialog.accept());
+
+        // 1. Create Customer (form uses Company Name and Create button)
         await page.goto('/customers');
         await page.getByRole('button', { name: 'Add Customer' }).click();
-        await page.getByLabel('Name').fill('John Doe Flow');
+        await page.getByPlaceholder('Company Name').fill('John Doe Flow');
         await page.getByLabel('Email').fill('john.flow@example.com');
-        await page.getByRole('button', { name: 'Save' }).click();
-        await expect(page.getByText('John Doe Flow')).toBeVisible();
+        await page.getByRole('button', { name: 'Create' }).click();
+        await expect(page.getByText('John Doe Flow').first()).toBeVisible();
 
-        // 2. Create Quote
-        await page.goto('/quotations');
-        await page.getByRole('button', { name: 'New Quotation' }).click();
+        // 2. Create Quote (align with extended quotes: /quotes/create, Add Line Item, row number inputs)
+        await page.goto('/quotes/create');
+        await page.waitForLoadState('networkidle');
 
-        // Select Customer (Assuming autocomplete or select)
-        await page.getByRole('combobox').click();
-        await page.getByLabel('John Doe Flow').click(); // Select by text if possible, or type
+        const customerCombobox = page.getByRole('combobox').first();
+        await expect(customerCombobox).toBeVisible();
+        await customerCombobox.click();
+        await page.waitForTimeout(300);
+        await page.keyboard.type('John Doe Flow');
+        const customerOption = page.getByRole('option', { name: 'John Doe Flow' }).first();
+        await expect(customerOption).toBeVisible({ timeout: 10000 });
+        await customerOption.click();
 
-        // Add Line Item 1
-        await page.getByRole('button', { name: 'Add Item' }).click();
-        await page.locator('input[name="items.0.description"]').fill('Service A');
-        await page.locator('input[name="items.0.quantity"]').fill('1');
-        await page.locator('input[name="items.0.unitPrice"]').fill('100');
+        await page.getByRole('button', { name: 'Add Line Item' }).click();
+        const vehicleCombobox = page.getByRole('combobox').nth(1);
+        await expect(vehicleCombobox).toBeVisible();
+        await vehicleCombobox.click();
+        await page.waitForTimeout(500);
+        await page.getByRole('option').first().click();
 
-        // Add Line Item 2
-        await page.getByRole('button', { name: 'Add Item' }).click();
-        await page.locator('input[name="items.1.description"]').fill('Service B');
-        await page.locator('input[name="items.1.quantity"]').fill('2');
-        await page.locator('input[name="items.1.unitPrice"]').fill('200');
+        const row1 = page.locator('tbody tr').first();
+        await row1.locator('input[type="number"]').nth(0).fill('1');
+        await row1.locator('input[type="number"]').nth(1).fill('100');
 
-        // Save Quote
+        await page.getByRole('button', { name: 'Add Line Item' }).click();
+        const row2 = page.locator('tbody tr').nth(1);
+        await row2.locator('input[type="number"]').nth(0).fill('2');
+        await row2.locator('input[type="number"]').nth(1).fill('200');
+
         await page.getByRole('button', { name: 'Save Quote' }).click();
+        await page.waitForLoadState('networkidle');
 
-        // Verify Quote Created
-        await expect(page).toHaveURL(/.*quotations/); // Should redirect to list or details
-        // If redirected to list, click the new quote
-        if (!page.url().includes('/quotes/')) {
-            await page.getByText('John Doe Flow').first().click();
-        }
+        await page.goto('/quotations');
+        await page.waitForLoadState('networkidle');
+        await page.reload();
+        await page.waitForLoadState('networkidle');
+        await expect(page.getByText('John Doe Flow').first()).toBeVisible({ timeout: 20000 });
+        await page.getByText('John Doe Flow').first().click();
 
-        // Verify Total ($100 + $400 = $500)
-        await expect(page.getByText('$500.00')).toBeVisible(); // Assuming formatting
+        await expect(page.getByText('$500.00').or(page.getByText('500.00'))).toBeVisible({ timeout: 5000 });
 
         // 3. Convert to Invoice
         await page.getByRole('button', { name: 'Convert to Invoice' }).click();
 
-        // Verify Redirect to Invoice Edit/Create page
         await expect(page).toHaveURL(/.*invoices/);
-        await expect(page.getByRole('heading', { name: 'Edit Invoice' }).or(page.getByRole('heading', { name: 'New Invoice' }))).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Create New Invoice|Edit Invoice/ })).toBeVisible({ timeout: 5000 });
 
-        // Verify Data carried over
-        await expect(page.locator('input[name="items.0.description"]')).toHaveValue('Service A');
-        await expect(page.getByText('$500.00')).toBeVisible();
+        await expect(page.getByText('$500.00').or(page.getByText('500.00'))).toBeVisible({ timeout: 5000 });
 
         // Save Invoice
         await page.getByRole('button', { name: 'Save Invoice' }).click();

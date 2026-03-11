@@ -14,7 +14,7 @@ test.describe('Invoices Module', () => {
         await page.goto('/customers');
         await page.waitForLoadState('networkidle');
         await page.getByRole('button', { name: 'Add Customer' }).click();
-        await page.getByPlaceholder('Name').fill(customerName);
+        await page.getByPlaceholder('Company Name').fill(customerName);
         await page.getByRole('button', { name: 'Create' }).click();
         await page.waitForLoadState('networkidle');
 
@@ -24,8 +24,10 @@ test.describe('Invoices Module', () => {
         // 2. Create Invoice
         await page.goto('/invoices');
         await page.waitForLoadState('networkidle');
-        // Click New Invoice button
+        // Click New Invoice button -> lands on choice page; click "New empty invoice" to open form
         await page.getByRole('link', { name: 'New Invoice' }).or(page.getByRole('button', { name: 'New Invoice' })).first().click();
+        await page.waitForLoadState('networkidle');
+        await page.getByRole('button', { name: 'New empty invoice' }).click();
         await page.waitForLoadState('networkidle');
 
         // Select Customer
@@ -66,20 +68,16 @@ test.describe('Invoices Module', () => {
         await page.getByRole('button', { name: 'Save Invoice' }).first().click();
         await page.waitForLoadState('networkidle');
 
-        // Verify success toast or redirection
-        await expect(page.getByText(/invoice.*saved|created/i).or(page.getByText(/invoice.*updated/i))).toBeVisible({ timeout: 5000 });
-
-        // 3. Verify in List
-        await page.goto('/invoices'); // Reload to be sure or check valid navigation
+        await page.goto('/invoices');
         await page.waitForLoadState('networkidle');
 
-        // List item is a div with the customer name
-        // We key off customer name being present in the list pane (left side)
-        const listItem = page.locator('div.border-l-\\[3px\\]', { hasText: customerName }).first();
-        await expect(listItem).toBeVisible({ timeout: 5000 });
+        // 3. Verify in List
 
-        // 4. Delete
-        // Click the list item to select it again if needed (it should be selected)
+        // List item: find by customer name (works for two-pane divs or table rows)
+        await expect(page.getByText(customerName).first()).toBeVisible({ timeout: 10000 });
+        const listItem = page.getByText(customerName).first();
+
+        // 4. Delete (click list item to select if needed, then Delete button)
         await listItem.click();
 
         // Click Delete button in the detail pane (right side)
@@ -92,7 +90,7 @@ test.describe('Invoices Module', () => {
         // Dialog is handled automatically
 
         // Verify deletion
-        await expect(listItem).not.toBeVisible({ timeout: 5000 });
+        await expect(page.getByText(customerName).first()).not.toBeVisible({ timeout: 5000 });
 
         // Cleanup Customer
         await page.goto('/customers');

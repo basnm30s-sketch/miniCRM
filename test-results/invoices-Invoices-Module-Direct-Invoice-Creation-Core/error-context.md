@@ -1,0 +1,174 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - button "Collapse sidebar" [ref=e6]:
+          - img
+        - img "Almsar Alzaki logo" [ref=e8]
+        - generic [ref=e9]:
+          - generic [ref=e10]: Almsar Alzaki
+          - generic [ref=e11]: Transport and Maintenance
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - img [ref=e14]
+          - generic [ref=e17]: Home
+        - link "Vehicle Finances" [ref=e18] [cursor=pointer]:
+          - /url: /vehicle-finances/
+          - img [ref=e19]
+          - generic [ref=e23]: Vehicle Finances
+        - generic [ref=e24]:
+          - button "Doc Generator" [expanded] [ref=e25]:
+            - generic [ref=e26]:
+              - img [ref=e27]
+              - generic [ref=e31]: Doc Generator
+            - img [ref=e32]
+          - generic [ref=e34]:
+            - link "Quotations" [ref=e35] [cursor=pointer]:
+              - /url: /quotations/
+              - img [ref=e36]
+              - generic [ref=e39]: Quotations
+            - link "Invoices" [ref=e40] [cursor=pointer]:
+              - /url: /invoices/
+              - img [ref=e41]
+              - generic [ref=e43]: Invoices
+            - link "Purchase Orders" [ref=e44] [cursor=pointer]:
+              - /url: /purchase-orders/
+              - img [ref=e45]
+              - generic [ref=e49]: Purchase Orders
+        - button "Masters" [ref=e51]:
+          - generic [ref=e52]:
+            - img [ref=e53]
+            - generic [ref=e57]: Masters
+          - img [ref=e58]
+        - link "Payslips" [ref=e60] [cursor=pointer]:
+          - /url: /payslips/
+          - img [ref=e61]
+          - generic [ref=e64]: Payslips
+        - link "Settings" [ref=e65] [cursor=pointer]:
+          - /url: /admin/
+          - img [ref=e66]
+          - generic [ref=e69]: Settings
+      - generic [ref=e71]:
+        - img [ref=e73]
+        - generic [ref=e77]:
+          - generic [ref=e78]: Almsar Alzaki
+          - generic [ref=e79]: almsar.uae@gmail.com
+    - main [ref=e80]:
+      - generic [ref=e81]:
+        - generic [ref=e83]:
+          - heading "Invoices" [level=1] [ref=e84]
+          - paragraph [ref=e85]: Create, manage, and track your invoices
+        - generic [ref=e86]:
+          - generic [ref=e87]:
+            - generic [ref=e89]:
+              - generic [ref=e90]: All Invoices (1)
+              - link "New Invoice" [ref=e92] [cursor=pointer]:
+                - /url: /invoices/create/
+                - button "New Invoice" [ref=e93]:
+                  - img
+                  - text: New Invoice
+            - generic [ref=e95] [cursor=pointer]:
+              - generic [ref=e96]:
+                - generic [ref=e97]: Invoice-001
+                - generic [ref=e98]: AED 544.00
+              - generic [ref=e99]:
+                - generic [ref=e100]: mk
+                - generic [ref=e101]: 2026-03-08
+              - generic [ref=e102]:
+                - generic [ref=e103]: Draft
+                - generic [ref=e104]: AED 544.00 Due
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - generic [ref=e107]:
+                - generic [ref=e108]:
+                  - heading "Invoice-001" [level=2] [ref=e109]
+                  - generic [ref=e110]: Draft
+                - generic [ref=e112]: mk
+              - generic [ref=e113]:
+                - button "Download" [ref=e114]:
+                  - img
+                  - text: Download
+                  - img
+                - button "Record Payment" [ref=e115]:
+                  - img
+                  - text: Record Payment
+                  - img
+                - button "Edit" [ref=e116]:
+                  - img
+                  - text: Edit
+                - button "Delete" [ref=e117]:
+                  - img
+                  - text: Delete
+            - generic [ref=e118]:
+              - generic [ref=e119]:
+                - generic [ref=e120]:
+                  - generic [ref=e122]: Customer Details
+                  - generic [ref=e124]:
+                    - generic [ref=e125]: Customer Name
+                    - text: mk
+                - generic [ref=e126]:
+                  - generic [ref=e128]: Summary
+                  - generic [ref=e129]:
+                    - generic [ref=e130]:
+                      - generic [ref=e131]: Subtotal
+                      - generic [ref=e132]: AED 544.00
+                    - generic [ref=e133]:
+                      - generic [ref=e134]: Tax
+                      - generic [ref=e135]: AED 0.00
+                    - generic [ref=e136]:
+                      - generic [ref=e137]: Total
+                      - generic [ref=e138]: AED 544.00
+                    - generic [ref=e139]:
+                      - generic [ref=e140]:
+                        - generic [ref=e141]: Received
+                        - generic [ref=e142]:
+                          - generic [ref=e143]: AED 0.00
+                          - button [ref=e144]:
+                            - img
+                      - generic [ref=e145]:
+                        - generic [ref=e146]: Pending
+                        - generic [ref=e147]: AED 544.00
+              - generic [ref=e149]:
+                - generic [ref=e151]: Line Items
+                - table [ref=e154]:
+                  - rowgroup [ref=e155]:
+                    - row "# Vehicle Description Basis Qty Rate Gross Tax% Net Received" [ref=e156]:
+                      - columnheader "#" [ref=e157]
+                      - columnheader "Vehicle" [ref=e158]
+                      - columnheader "Description" [ref=e159]
+                      - columnheader "Basis" [ref=e160]
+                      - columnheader "Qty" [ref=e161]
+                      - columnheader "Rate" [ref=e162]
+                      - columnheader "Gross" [ref=e163]
+                      - columnheader "Tax%" [ref=e164]
+                      - columnheader "Net" [ref=e165]
+                      - columnheader "Received" [ref=e166]
+                  - rowgroup [ref=e167]:
+                    - row "1 dsfsdf dffsdg Hourly 1 544.00 544.00 0.00 544.00 0.00" [ref=e168]:
+                      - cell "1" [ref=e169]
+                      - cell "dsfsdf" [ref=e170]
+                      - cell "dffsdg" [ref=e171]
+                      - cell "Hourly" [ref=e172]
+                      - cell "1" [ref=e173]
+                      - cell "544.00" [ref=e174]
+                      - cell "544.00" [ref=e175]
+                      - cell "0.00" [ref=e176]
+                      - cell "544.00" [ref=e177]
+                      - cell "0.00" [ref=e178]
+              - generic [ref=e180]:
+                - generic [ref=e182]: Terms & Conditions
+                - generic [ref=e183]:
+                  - generic [ref=e184]: "1. This quotation is valid for 30 days from the date of issue. 2. Goods remain the property of the company until full payment is received. 3. Any additional costs such as tolls, fines or damages are not included unless stated. 4. Payment terms: as agreed in the contract."
+                  - button "Read More" [ref=e185]:
+                    - text: Read More
+                    - img [ref=e186]
+  - region "Notifications (F8)":
+    - list
+  - button "Open Next.js Dev Tools" [ref=e193] [cursor=pointer]:
+    - img [ref=e194]
+  - alert [ref=e197]
+```

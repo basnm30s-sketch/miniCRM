@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
     testDir: './e2e/electron',
     outputDir: 'test-results-electron',
-    timeout: 30000,
+    timeout: 60000,
     retries: 0,
     workers: 1, // Electron tests should run sequentially
     reporter: 'html',

@@ -109,7 +109,7 @@ test.describe('Quotations Module', () => {
         }
 
         // 7. Submit Quote
-        const createBtn = page.getByRole('button', { name: /Create Quote|Update Quote/ });
+        const createBtn = page.getByRole('button', { name: 'Save Quote' });
         await expect(createBtn).toBeVisible();
         await expect(createBtn).toBeEnabled();
 
@@ -118,27 +118,31 @@ test.describe('Quotations Module', () => {
         // 8. Verify Success (Toast might be flaky, relying on list verification)
         console.log('Quote Submitted, verifying in list...');
 
-        // Navigate back to list for verification
-        await page.getByRole('button', { name: 'Back to Quotations' }).click();
-        await page.waitForURL(/.*quotations/);
+        // Navigate to list (after save we stay on create?id=...; go to list for verification)
+        await page.goto('/quotations');
+        await page.waitForLoadState('networkidle');
         console.log('Navigated to Quotations List');
 
-        // 9. Verify quote appears in list
+        // 9. Verify quote appears in list (table or two-pane view)
         await page.reload();
         await page.waitForLoadState('networkidle');
-        const quoteRow = page.getByRole('row', { name: new RegExp(customerName, 'i') });
-        await expect(quoteRow).toBeVisible();
+        await expect(page.getByText(customerName).first()).toBeVisible({ timeout: 10000 });
         console.log('Quote Visible in List');
 
-        // 10. Delete Quote
-        const deleteButton = quoteRow.getByRole('cell').last().getByRole('button').last();
-        await deleteButton.click();
+        // 10. Delete Quote (table view: row with delete button; two-pane: click item then Delete in detail)
+        const tableRow = page.getByRole('row').filter({ hasText: customerName });
+        if (await tableRow.count() > 0) {
+            await tableRow.getByRole('cell').last().getByRole('button').last().click();
+        } else {
+            await page.getByText(customerName).first().click();
+            await page.getByRole('button', { name: 'Delete' }).click();
+        }
 
-        const confirmDeleteBtn = page.getByRole('button', { name: 'Delete' });
+        const confirmDeleteBtn = page.getByRole('button', { name: 'Delete Quote' });
         await expect(confirmDeleteBtn).toBeVisible();
         await confirmDeleteBtn.click();
 
-        await expect(quoteRow).not.toBeVisible();
+        await expect(page.getByText(customerName).first()).not.toBeVisible({ timeout: 5000 });
         console.log('Quote Deleted Successfully');
     });
 });
