@@ -5,6 +5,7 @@
 
 import { AdminSettings, Quote, Customer, Vehicle, Vendor, Employee, PurchaseOrder, Payslip, Invoice, InvoiceItem } from '@/lib/types'
 import * as apiClient from './api-client'
+import { computeNextDocNumber } from './doc-generator/numbering'
 
 // Helper to generate unique IDs
 export function generateId(): string {
@@ -13,30 +14,19 @@ export function generateId(): string {
 
 // Helper to get and increment quote counter
 export async function getNextQuoteNumber(): Promise<string> {
-  const settings = await getAdminSettings()
-  const startingNumber = settings?.quoteStartingNumber || 1
-
-  // Get all existing quotes to find the highest number
-  const allQuotes = await getAllQuotes()
-  let maxNumber = startingNumber - 1
-
-  // Extract numbers from existing quote numbers (format: Quote-XXX)
-  allQuotes.forEach(quote => {
-    const match = quote.number.match(/^Quote-(\d+)$/i)
-    if (match) {
-      const num = parseInt(match[1], 10)
-      if (num > maxNumber) {
-        maxNumber = num
-      }
-    }
-  })
-
-  const nextNumber = maxNumber + 1
-  return `Quote-${String(nextNumber).padStart(3, '0')}`
+  const [settings, allQuotes] = await Promise.all([
+    getAdminSettings(),
+    getAllQuotes(),
+  ])
+  return computeNextDocNumber(
+    'Quote',
+    allQuotes.map(q => q.number),
+    settings?.quoteStartingNumber || 1,
+  )
 }
 
 // Legacy function for backward compatibility - now uses sequential counter
-export async function generateQuoteNumber(pattern?: string): Promise<string> {
+export async function generateQuoteNumber(_pattern?: string): Promise<string> {
   return getNextQuoteNumber()
 }
 
@@ -230,48 +220,30 @@ export async function deleteInvoice(id: string): Promise<void> {
 
 // Helper to get and increment invoice counter
 export async function getNextInvoiceNumber(): Promise<string> {
-  const settings = await getAdminSettings()
-  const startingNumber = settings?.invoiceStartingNumber || 1
-
-  // Get all existing invoices to find the highest number
-  const allInvoices = await getAllInvoices()
-  let maxNumber = startingNumber - 1
-
-  // Extract numbers from existing invoice numbers (format: Invoice-XXX)
-  allInvoices.forEach(invoice => {
-    const match = invoice.number.match(/^Invoice-(\d+)$/i)
-    if (match) {
-      const num = parseInt(match[1], 10)
-      if (num > maxNumber) {
-        maxNumber = num
-      }
-    }
-  })
-
-  const nextNumber = maxNumber + 1
-  return `Invoice-${String(nextNumber).padStart(3, '0')}`
+  const [settings, allInvoices] = await Promise.all([
+    getAdminSettings(),
+    getAllInvoices(),
+  ])
+  return computeNextDocNumber(
+    'Invoice',
+    allInvoices.map(i => i.number),
+    settings?.invoiceStartingNumber || 1,
+  )
 }
 
 // Legacy function for backward compatibility - now uses sequential counter
-export async function generateInvoiceNumber(pattern?: string): Promise<string> {
+export async function generateInvoiceNumber(_pattern?: string): Promise<string> {
   return getNextInvoiceNumber()
 }
 
 // Helper to get and increment purchase order counter (format: PO-XXX)
 export async function getNextPurchaseOrderNumber(): Promise<string> {
   const allPOs = await getAllPurchaseOrders()
-  let maxNumber = 0
-
-  allPOs.forEach((po: { number?: string }) => {
-    const match = (po.number || '').match(/^PO-(\d+)$/i)
-    if (match) {
-      const num = parseInt(match[1], 10)
-      if (num > maxNumber) maxNumber = num
-    }
-  })
-
-  const nextNumber = maxNumber + 1
-  return `PO-${String(nextNumber).padStart(3, '0')}`
+  return computeNextDocNumber(
+    'PO',
+    allPOs.map((po: { number?: string | null }) => po.number),
+    1,
+  )
 }
 
 // Convert Quote to Invoice format

@@ -46,7 +46,26 @@ export function initDatabase(): any {
     // Enable foreign keys
     db.pragma('foreign_keys = ON')
 
-    // Create tables
+    // Concurrency hardening:
+    // - WAL keeps readers and a single writer non-blocking on local SQLite.
+    // - busy_timeout lets a contended write wait briefly instead of erroring out,
+    //   which prevents intermittent client "Request timeout" on repeated saves.
+    try {
+      db.pragma('journal_mode = WAL')
+    } catch (pragmaErr) {
+      console.warn('Failed to set journal_mode = WAL:', pragmaErr)
+    }
+    try {
+      db.pragma('synchronous = NORMAL')
+    } catch (pragmaErr) {
+      console.warn('Failed to set synchronous = NORMAL:', pragmaErr)
+    }
+    try {
+      db.pragma('busy_timeout = 5000')
+    } catch (pragmaErr) {
+      console.warn('Failed to set busy_timeout = 5000:', pragmaErr)
+    }
+
     createTables(db)
 
     console.log(`Database initialized at: ${dbPath}`)
@@ -137,6 +156,19 @@ function createTables(database: any): void {
       { name: 'defaultPurchaseOrderTerms', type: 'TEXT' },
       { name: 'showRevenueTrend', type: 'INTEGER DEFAULT 1' },
       { name: 'showQuickActions', type: 'INTEGER DEFAULT 1' },
+      { name: 'showReports', type: 'INTEGER DEFAULT 0' },
+      { name: 'showVehicleFinances', type: 'INTEGER DEFAULT 0' },
+      { name: 'showQuotationsInvoicesCard', type: 'INTEGER DEFAULT 1' },
+      { name: 'showEmployeeSalariesCard', type: 'INTEGER DEFAULT 0' },
+      { name: 'showVehicleRevenueExpensesCard', type: 'INTEGER DEFAULT 0' },
+      { name: 'showActivityThisMonth', type: 'INTEGER DEFAULT 0' },
+      { name: 'showFinancialHealth', type: 'INTEGER DEFAULT 1' },
+      { name: 'showBusinessOverview', type: 'INTEGER DEFAULT 1' },
+      { name: 'showTopCustomers', type: 'INTEGER DEFAULT 0' },
+      { name: 'showActivitySummary', type: 'INTEGER DEFAULT 0' },
+      { name: 'showQuotationsTwoPane', type: 'INTEGER DEFAULT 1' },
+      { name: 'showPurchaseOrdersTwoPane', type: 'INTEGER DEFAULT 1' },
+      { name: 'showInvoicesTwoPane', type: 'INTEGER DEFAULT 1' },
       { name: 'footerAddressEnglish', type: 'TEXT' },
       { name: 'footerAddressArabic', type: 'TEXT' },
       { name: 'footerContactEnglish', type: 'TEXT' },

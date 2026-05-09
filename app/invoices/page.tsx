@@ -52,6 +52,13 @@ import { normalizeInvoiceStatus } from '@/lib/validation'
 import { TwoPaneListHeader } from '@/components/TwoPaneListHeader'
 import { ReadOnlyLineItemsTable } from '@/components/doc-generator/ReadOnlyLineItemsTable'
 import { DEFAULT_INVOICE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
+import { DocGeneratorDetailHeader } from '@/components/doc-generator/two-pane/DocGeneratorDetailHeader'
+import { DocGeneratorEntityCard } from '@/components/doc-generator/two-pane/DocGeneratorEntityCard'
+import { DocGeneratorSummaryCard } from '@/components/doc-generator/two-pane/DocGeneratorSummaryCard'
+import { DocGeneratorNotesTermsSection } from '@/components/doc-generator/two-pane/DocGeneratorNotesTermsSection'
+import { DocGeneratorEmptyState } from '@/components/doc-generator/two-pane/DocGeneratorEmptyState'
+import { DocGeneratorTwoPaneLayout } from '@/components/doc-generator/two-pane/DocGeneratorTwoPaneLayout'
+import { DOC_GENERATOR_LABELS } from '@/lib/doc-generator/ui-consistency'
 
 export default function InvoicesPage() {
   const router = useRouter()
@@ -354,7 +361,7 @@ export default function InvoicesPage() {
           <Link href="/invoices/create">
             <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
               <Plus className="w-4 h-4 mr-2" />
-              New Invoice
+              {DOC_GENERATOR_LABELS.invoices.newCta}
             </Button>
           </Link>
         )}
@@ -365,13 +372,13 @@ export default function InvoicesPage() {
           {/* Left Pane - List View */}
           <div className="w-[380px] border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
           <TwoPaneListHeader
-            title="All Invoices"
+            title={DOC_GENERATOR_LABELS.invoices.listTitle}
             count={invoices.length}
             action={
               <Link href="/invoices/create">
                 <Button size="sm" className="h-7 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
                   <Plus className="w-4 h-4 mr-2" />
-                  New Invoice
+                  {DOC_GENERATOR_LABELS.invoices.newCta}
                 </Button>
               </Link>
             }
@@ -454,22 +461,21 @@ export default function InvoicesPage() {
               </div>
             ) : (
               <>
-                {/* Header Actions */}
-                <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-start shadow-sm z-10">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-2xl font-bold text-slate-900">{selectedInvoice.number}</h2>
-                      <Badge variant="outline" className={`${getStatusColor(selectedInvoice.status)}`}>
-                        {getStatusDisplay(selectedInvoice.status)}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
+                <DocGeneratorDetailHeader
+                  number={selectedInvoice.number}
+                  statusBadge={{
+                    label: getStatusDisplay(selectedInvoice.status),
+                    className: getStatusColor(selectedInvoice.status),
+                  }}
+                  secondaryMeta={
+                    <>
                       <span>{getCustomerName(selectedInvoice.customerId)}</span>
+                      <span>{selectedInvoice.date}</span>
                       {selectedInvoice.dueDate && <span>Due: {selectedInvoice.dueDate}</span>}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
+                    </>
+                  }
+                  actions={
+                    <>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="h-9">
@@ -494,6 +500,16 @@ export default function InvoicesPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
 
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => setIsEditing(true)}
+                    >
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="h-9">
@@ -509,17 +525,6 @@ export default function InvoicesPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9"
-                      onClick={() => setIsEditing(true)}
-                    >
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      Edit
-                    </Button>
-
                     <Button
                       variant="outline"
                       size="sm"
@@ -529,10 +534,9 @@ export default function InvoicesPage() {
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete
                     </Button>
-
-
-                  </div>
-                </div>
+                    </>
+                  }
+                />
 
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -540,11 +544,7 @@ export default function InvoicesPage() {
                   {/* Customer Details & Summary Group */}
                   <div className="grid grid-cols-3 gap-4">
                     {/* Customer Details */}
-                    <Card className="col-span-2 shadow-sm border-slate-200">
-                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Customer Details</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-3 grid grid-cols-2 gap-4 text-sm">
+                    <DocGeneratorEntityCard title="Customer Details">
                         {(() => {
                           const customer = getCustomerDetails(selectedInvoice.customerId)
                           return (
@@ -592,29 +592,14 @@ export default function InvoicesPage() {
                             </>
                           )
                         })()}
-                      </CardContent>
-                    </Card>
+                    </DocGeneratorEntityCard>
 
                     {/* Financial Summary */}
-                    <Card className="shadow-sm border-slate-200 h-fit">
-                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Summary</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-3 space-y-3">
-                        <div className="flex justify-between text-sm text-slate-600">
-                          <span>Subtotal</span>
-                          <span>AED {(selectedInvoice.subtotal || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-slate-600">
-                          <span>Tax</span>
-                          <span>AED {(selectedInvoice.tax || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="pt-3 mt-3 border-t border-slate-100 flex justify-between items-baseline">
-                          <span className="font-semibold text-slate-900">Total</span>
-                          <span className="text-xl font-bold text-slate-900">AED {(selectedInvoice.total || 0).toFixed(2)}</span>
-                        </div>
-
-                        {/* Payment (merged into Summary for consistency) */}
+                    <DocGeneratorSummaryCard
+                      subtotal={selectedInvoice.subtotal || 0}
+                      tax={selectedInvoice.tax || 0}
+                      total={selectedInvoice.total || 0}
+                      extraContent={
                         <div className="pt-3 mt-3 border-t border-slate-100 space-y-2">
                           <div className="flex justify-between items-center text-sm">
                             <span className="text-slate-600">Received</span>
@@ -674,8 +659,8 @@ export default function InvoicesPage() {
                             />
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                      }
+                    />
                   </div>
 
                   {/* Line Items - Full Width */}
@@ -693,59 +678,23 @@ export default function InvoicesPage() {
                   </Card>
 
                   {/* Additional Info (Terms/Notes) */}
-                  {(selectedInvoice.terms || selectedInvoice.notes) && (
-                    <div className="grid grid-cols-1 gap-4">
-                      {selectedInvoice.notes && (
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-3">
-                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedInvoice.notes}</p>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {selectedInvoice.terms && (
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Terms & Conditions</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-3">
-                            <div className={`prose prose-sm max-w-none text-slate-600 ${!showTerms ? 'line-clamp-4' : ''}`}
-                              dangerouslySetInnerHTML={{ __html: selectedInvoice.terms }}
-                            />
-                            {selectedInvoice.terms.length > 200 && (
-                              <button
-                                className="text-blue-600 hover:text-blue-700 text-xs font-medium mt-2 flex items-center"
-                                onClick={() => setShowTerms(!showTerms)}
-                              >
-                                {showTerms ? 'Show Less' : 'Read More'}
-                                <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showTerms ? 'rotate-180' : ''}`} />
-                              </button>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  )}
+                  <DocGeneratorNotesTermsSection
+                    notes={selectedInvoice.notes}
+                    terms={selectedInvoice.terms}
+                    termsExpanded={showTerms}
+                    onToggleTerms={() => setShowTerms(!showTerms)}
+                  />
 
                 </div>
               </>
             )
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-50/50">
-              <div className="w-16 h-16 mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-                <FileText className="w-8 h-8 text-slate-300" />
-              </div>
-              <p className="text-lg font-medium text-slate-600">No invoice selected</p>
-              <p className="text-sm max-w-xs text-center mt-2">
-                Select an invoice from the list to view details or create a new one.
-              </p>
-              <Link href="/invoices/create" className="mt-6">
-                <Button variant="outline">Create New Invoice</Button>
-              </Link>
-            </div>
+            <DocGeneratorEmptyState
+              title={DOC_GENERATOR_LABELS.invoices.emptyTitle}
+              description={DOC_GENERATOR_LABELS.invoices.emptyDescription}
+              ctaHref="/invoices/create"
+              ctaLabel={DOC_GENERATOR_LABELS.invoices.emptyCta}
+            />
           )}
         </div>
         </div>

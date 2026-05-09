@@ -17,6 +17,7 @@ import RichTextEditor from '@/components/ui/rich-text-editor'
 import { toast } from '@/hooks/use-toast'
 import { getAdminSettings, saveAdminSettings, initializeAdminSettings } from '@/lib/storage'
 import { checkBrandingFiles, uploadBrandingFile, getBrandingUrl } from '@/lib/api-client'
+import { normalizeRichTextHtml } from '@/lib/html-normalizer'
 import { AdminSettings } from '@/lib/types'
 
 // Branding files state (separate from admin settings - stored as files, not in database)
@@ -186,13 +187,17 @@ export default function AdminSettingsPage() {
   }
 
   const handleSave = async () => {
-    if (!settings) return
+    if (!settings || saving) return
 
     setSaving(true)
+    const startedAt = Date.now()
     try {
       // Save settings (without branding paths - those are file-based now)
       const settingsToSave: AdminSettings = {
         ...settings,
+        defaultTerms: normalizeRichTextHtml(settings.defaultTerms ?? ''),
+        defaultInvoiceTerms: normalizeRichTextHtml(settings.defaultInvoiceTerms ?? settings.defaultTerms ?? ''),
+        defaultPurchaseOrderTerms: normalizeRichTextHtml(settings.defaultPurchaseOrderTerms ?? settings.defaultTerms ?? ''),
         showRevenueTrend: settings.showRevenueTrend === true ? true : false,
         showQuickActions: settings.showQuickActions === true ? true : false,
         showReports: settings.showReports === true ? true : false,
@@ -212,6 +217,9 @@ export default function AdminSettingsPage() {
       }
 
       await saveAdminSettings(settingsToSave)
+      console.log('[AdminSettings] Save completed', {
+        durationMs: Date.now() - startedAt,
+      })
       toast({ title: 'Saved', description: 'Settings saved successfully' })
       
       // Dispatch event to notify sidebar and other components to reload settings
@@ -220,7 +228,14 @@ export default function AdminSettingsPage() {
       }
     } catch (err) {
       console.error('Failed to save settings:', err)
-      toast({ title: 'Error', description: 'Failed to save settings', variant: 'destructive' })
+      const isTimeout = err instanceof Error && err.message === 'Request timeout'
+      toast({
+        title: 'Error',
+        description: isTimeout
+          ? 'Saving settings timed out. Please retry in a few seconds.'
+          : 'Failed to save settings',
+        variant: 'destructive',
+      })
     } finally {
       setSaving(false)
     }

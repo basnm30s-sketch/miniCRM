@@ -79,6 +79,7 @@ exports.saveInvoice = saveInvoice;
 exports.deleteInvoice = deleteInvoice;
 exports.getNextInvoiceNumber = getNextInvoiceNumber;
 exports.generateInvoiceNumber = generateInvoiceNumber;
+exports.getNextPurchaseOrderNumber = getNextPurchaseOrderNumber;
 exports.convertQuoteToInvoice = convertQuoteToInvoice;
 exports.initializeSampleData = initializeSampleData;
 exports.getAllVehicleTransactions = getAllVehicleTransactions;
@@ -92,32 +93,21 @@ exports.getExpenseCategoryById = getExpenseCategoryById;
 exports.saveExpenseCategory = saveExpenseCategory;
 exports.deleteExpenseCategory = deleteExpenseCategory;
 const apiClient = __importStar(require("./api-client"));
+const numbering_1 = require("./doc-generator/numbering");
 // Helper to generate unique IDs
 function generateId() {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 // Helper to get and increment quote counter
 async function getNextQuoteNumber() {
-    const settings = await getAdminSettings();
-    const startingNumber = settings?.quoteStartingNumber || 1;
-    // Get all existing quotes to find the highest number
-    const allQuotes = await getAllQuotes();
-    let maxNumber = startingNumber - 1;
-    // Extract numbers from existing quote numbers (format: Quote-XXX)
-    allQuotes.forEach(quote => {
-        const match = quote.number.match(/^Quote-(\d+)$/i);
-        if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxNumber) {
-                maxNumber = num;
-            }
-        }
-    });
-    const nextNumber = maxNumber + 1;
-    return `Quote-${String(nextNumber).padStart(3, '0')}`;
+    const [settings, allQuotes] = await Promise.all([
+        getAdminSettings(),
+        getAllQuotes(),
+    ]);
+    return (0, numbering_1.computeNextDocNumber)('Quote', allQuotes.map(q => q.number), settings?.quoteStartingNumber || 1);
 }
 // Legacy function for backward compatibility - now uses sequential counter
-async function generateQuoteNumber(pattern) {
+async function generateQuoteNumber(_pattern) {
     return getNextQuoteNumber();
 }
 // --- AdminSettings ---
@@ -270,27 +260,20 @@ async function deleteInvoice(id) {
 }
 // Helper to get and increment invoice counter
 async function getNextInvoiceNumber() {
-    const settings = await getAdminSettings();
-    const startingNumber = settings?.invoiceStartingNumber || 1;
-    // Get all existing invoices to find the highest number
-    const allInvoices = await getAllInvoices();
-    let maxNumber = startingNumber - 1;
-    // Extract numbers from existing invoice numbers (format: Invoice-XXX)
-    allInvoices.forEach(invoice => {
-        const match = invoice.number.match(/^Invoice-(\d+)$/i);
-        if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxNumber) {
-                maxNumber = num;
-            }
-        }
-    });
-    const nextNumber = maxNumber + 1;
-    return `Invoice-${String(nextNumber).padStart(3, '0')}`;
+    const [settings, allInvoices] = await Promise.all([
+        getAdminSettings(),
+        getAllInvoices(),
+    ]);
+    return (0, numbering_1.computeNextDocNumber)('Invoice', allInvoices.map(i => i.number), settings?.invoiceStartingNumber || 1);
 }
 // Legacy function for backward compatibility - now uses sequential counter
-async function generateInvoiceNumber(pattern) {
+async function generateInvoiceNumber(_pattern) {
     return getNextInvoiceNumber();
+}
+// Helper to get and increment purchase order counter (format: PO-XXX)
+async function getNextPurchaseOrderNumber() {
+    const allPOs = await getAllPurchaseOrders();
+    return (0, numbering_1.computeNextDocNumber)('PO', allPOs.map((po) => po.number), 1);
 }
 // Convert Quote to Invoice format
 async function convertQuoteToInvoice(quote) {

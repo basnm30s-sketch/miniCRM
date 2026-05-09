@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Trash2, FileText, Sheet, FileType, Pencil } from 'lucide-react'
+import { Plus, Trash2, FileText, Sheet, FileType } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     getAdminSettings,
@@ -48,7 +48,13 @@ import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
 import { Quote, QuoteLineItem, AdminSettings, Customer, Vehicle } from '@/lib/types'
 import { validateQuote, validateQuoteForExport, ValidationError } from '@/lib/validation'
-import { DEFAULT_QUOTE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
+import {
+    DEFAULT_QUOTE_COLUMNS,
+    LINE_ITEM_COLUMN_WIDTHS,
+    LINE_ITEM_ACTION_WIDTH,
+} from '@/lib/doc-generator/line-item-columns'
+import { computeVehicleAutofillPatch, recomputeLineTotals } from '@/lib/line-items/vehicle-autofill'
+import { DocNumberField } from '@/components/doc-generator/DocNumberField'
 
 interface QuoteFormProps {
     initialData?: Quote
@@ -84,7 +90,6 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     const [isValidForExport, setIsValidForExport] = useState(false)
     const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
     const [isDirty, setIsDirty] = useState(false)
-    const [isQuoteNumberEditable, setIsQuoteNumberEditable] = useState(false)
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
     const getVisibleColumnsStorageKey = (quoteId: string | undefined) => 
         quoteId ? `quote-visible-columns-${quoteId}` : 'quote-visible-columns-global'
@@ -390,59 +395,24 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                   })
                 }
 
-                // If changing vehicle number, find vehicle and update related fields
-                if (field === 'vehicleNumber' && value) {
-                    const vehicle = vehicles.find((v) => v.vehicleNumber === value)
-                    if (vehicle) {
-                        updated.vehicleTypeId = vehicle.id
-                        updated.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
-                        updated.vehicleType = vehicle.vehicleType
-                        updated.make = vehicle.make
-                        updated.model = vehicle.model
-                        updated.year = vehicle.year
-                        updated.basePrice = vehicle.basePrice
-                        // Auto-fill description from vehicle if not already set
-                        if (!updated.description) {
-                            updated.description = vehicle.description || ''
-                        }
-                        // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
-                        if (updated.unitPrice === 0 && vehicle.basePrice) {
-                            updated.unitPrice = vehicle.basePrice
-                        }
-                    }
+                if (field === 'vehicleNumber' || field === 'vehicleTypeId') {
+                    Object.assign(
+                        updated,
+                        computeVehicleAutofillPatch({ vehicles, field, value })
+                    )
                 }
 
-                // If changing vehicle type (for backward compatibility), update the label, vehicle number, and description
-                if (field === 'vehicleTypeId' && value) {
-                    const vehicle = vehicles.find((v) => v.id === value)
-                    if (vehicle) {
-                        updated.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
-                        updated.vehicleNumber = vehicle.vehicleNumber || ''
-                        updated.vehicleType = vehicle.vehicleType
-                        updated.make = vehicle.make
-                        updated.model = vehicle.model
-                        updated.year = vehicle.year
-                        updated.basePrice = vehicle.basePrice
-                        // Auto-fill description from vehicle if not already set
-                        if (!updated.description) {
-                            updated.description = vehicle.description || ''
-                        }
-                        // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
-                        if (updated.unitPrice === 0 && vehicle.basePrice) {
-                            updated.unitPrice = vehicle.basePrice
-                        }
-                    }
-                }
-
-                // Recalculate item totals when relevant fields change
-                if (field === 'quantity' || field === 'unitPrice' || field === 'taxPercent') {
-                    const grossAmount = (updated.quantity || 0) * (updated.unitPrice || 0)
-                    const itemTax = grossAmount * ((updated.taxPercent || 0) / 100)
-                    const lineTotal = grossAmount + itemTax
-
-                    updated.grossAmount = grossAmount
-                    updated.lineTaxAmount = itemTax
-                    updated.lineTotal = lineTotal
+                if (
+                    field === 'quantity' ||
+                    field === 'unitPrice' ||
+                    field === 'taxPercent' ||
+                    field === 'vehicleNumber' ||
+                    field === 'vehicleTypeId'
+                ) {
+                    const totals = recomputeLineTotals(updated)
+                    updated.grossAmount = totals.grossAmount
+                    updated.lineTaxAmount = totals.lineTaxAmount
+                    updated.lineTotal = totals.lineTotal
                 }
 
                 return updated
@@ -769,34 +739,13 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 gap-4">
-                            <div>
-                                <Label htmlFor="quoteNumber" className="text-slate-700 flex items-center gap-2 text-xs">
-                                    Quote Number
-                                    {!isQuoteNumberEditable && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsQuoteNumberEditable(true)}
-                                            className="text-blue-600 hover:text-blue-800"
-                                            title="Edit quote number"
-                                        >
-                                            <Pencil className="w-3 h-3" />
-                                        </button>
-                                    )}
-                                </Label>
-                                <Input
-                                    id="quoteNumber"
-                                    value={quote.number}
-                                    disabled={!isQuoteNumberEditable}
-                                    onChange={(e) => {
-                                        const value = e.target.value
-                                        if (value === '' || /^Quote-\d+$/.test(value)) {
-                                            setQuote((prev) => ({ ...prev, number: value }))
-                                        }
-                                    }}
-                                    className={`mt-1 h-8 ${isQuoteNumberEditable ? 'bg-white' : 'bg-slate-50'}`}
-                                    placeholder="Quote-001"
-                                />
-                            </div>
+                            <DocNumberField
+                                id="quoteNumber"
+                                label="Quote Number"
+                                value={quote.number}
+                                onChange={(value) => setQuote((prev) => ({ ...prev, number: value }))}
+                                placeholder="Quote-001"
+                            />
                             <div>
                                 <Label htmlFor="quoteDate" className="text-slate-700 text-xs">Date</Label>
                                 <Input
@@ -1025,7 +974,23 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
+                        <table className="w-full table-fixed text-xs">
+                            <colgroup>
+                                {visibleColumns.serialNumber !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.serialNumber} />}
+                                {visibleColumns.vehicleNumber !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.vehicleNumber} />}
+                                {visibleColumns.vehicleType !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.vehicleType} />}
+                                {visibleColumns.makeModel !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.makeModel} />}
+                                {visibleColumns.year !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.year} />}
+                                {visibleColumns.basePrice !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.basePrice} />}
+                                {visibleColumns.description !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.description} />}
+                                {visibleColumns.rentalBasis !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.rentalBasis} />}
+                                {visibleColumns.quantity !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.quantity} />}
+                                {visibleColumns.rate !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.rate} />}
+                                {visibleColumns.grossAmount !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.grossAmount} />}
+                                {visibleColumns.tax !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.tax} />}
+                                {visibleColumns.netAmount !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.netAmount} />}
+                                <col className={LINE_ITEM_ACTION_WIDTH} />
+                            </colgroup>
                             <thead className="bg-slate-100 border-b">
                                 <tr>
                                     {visibleColumns.serialNumber !== false && <th className="text-center p-2">#</th>}
@@ -1054,7 +1019,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                 </td>
                                             )}
                                             {visibleColumns.vehicleNumber !== false && (
-                                                <td className="p-2 min-w-[100px]">
+                                                <td className="p-2">
                                                     <Select
                                                         value={item.vehicleNumber || ''}
                                                         onValueChange={(value) => handleLineItemChange(item.id, 'vehicleNumber', value)}
@@ -1088,27 +1053,27 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                 </td>
                                             )}
                                             {visibleColumns.vehicleType !== false && (
-                                                <td className="p-2 text-left text-slate-700 min-w-[80px]">
+                                                <td className="p-2 text-left text-slate-700">
                                                     {item.vehicleType || '-'}
                                                 </td>
                                             )}
                                             {visibleColumns.makeModel !== false && (
-                                                <td className="p-2 text-left text-slate-700 min-w-[120px]">
+                                                <td className="p-2 text-left text-slate-700">
                                                     {item.make && item.model ? `${item.make} ${item.model}` : '-'}
                                                 </td>
                                             )}
                                             {visibleColumns.year !== false && (
-                                                <td className="p-2 text-center text-slate-700 min-w-[60px]">
+                                                <td className="p-2 text-center text-slate-700">
                                                     {item.year || '-'}
                                                 </td>
                                             )}
                                             {visibleColumns.basePrice !== false && (
-                                                <td className="p-2 text-right text-slate-700 min-w-[80px]">
+                                                <td className="p-2 text-right text-slate-700">
                                                     {item.basePrice ? item.basePrice.toFixed(2) : '-'}
                                                 </td>
                                             )}
                                             {visibleColumns.description !== false && (
-                                                <td className="p-2 min-w-[120px]">
+                                                <td className="p-2">
                                                     <Input
                                                         value={item.description || ''}
                                                         onChange={(e) => handleLineItemChange(item.id, 'description', e.target.value)}
@@ -1117,7 +1082,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                 </td>
                                             )}
                                             {visibleColumns.rentalBasis !== false && (
-                                                <td className="p-2 min-w-[90px]">
+                                                <td className="p-2">
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <div>
@@ -1142,7 +1107,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                 </td>
                                             )}
                                             {visibleColumns.quantity !== false && (
-                                                <td className="p-2 text-right w-[60px]">
+                                                <td className="p-2 text-right">
                                                     <Input
                                                         type="number"
                                                         min="0"
@@ -1153,7 +1118,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                 </td>
                                             )}
                                             {visibleColumns.rate !== false && (
-                                                <td className="p-2 text-right w-[80px]">
+                                                <td className="p-2 text-right">
                                                     <Input
                                                         type="number"
                                                         min="0"
@@ -1164,7 +1129,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                 </td>
                                             )}
                                             {visibleColumns.grossAmount !== false && (
-                                                <td className="p-2 text-right text-slate-700 w-[80px]">
+                                                <td className="p-2 text-right text-slate-700">
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <span className="cursor-help">{(item.grossAmount || 0).toFixed(2)}</span>
@@ -1176,7 +1141,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                 </td>
                                             )}
                                             {visibleColumns.tax !== false && (
-                                                <td className="p-2 text-right w-[60px]">
+                                                <td className="p-2 text-right">
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <div>
@@ -1200,7 +1165,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                 </td>
                                             )}
                                             {visibleColumns.netAmount !== false && (
-                                                <td className="p-2 text-right text-slate-700 font-semibold w-[80px]">
+                                                <td className="p-2 text-right text-slate-700 font-semibold">
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <span className="cursor-help">{(item.lineTotal || 0).toFixed(2)}</span>
@@ -1211,7 +1176,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                                                     </Tooltip>
                                                 </td>
                                             )}
-                                            <td className="p-2 text-center w-[40px]">
+                                            <td className="p-2 text-center">
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"

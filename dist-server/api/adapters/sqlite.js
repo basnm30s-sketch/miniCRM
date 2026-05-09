@@ -7,6 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.vehicleTransactionsAdapter = exports.expenseCategoriesAdapter = exports.invoicesAdapter = exports.purchaseOrdersAdapter = exports.quotesAdapter = exports.adminAdapter = exports.vehiclesAdapter = exports.payslipsAdapter = exports.employeesAdapter = exports.vendorsAdapter = exports.customersAdapter = void 0;
 exports.formatReferenceError = formatReferenceError;
 const database_1 = require("../../lib/database");
+const html_normalizer_1 = require("../../lib/html-normalizer");
 // Helper to get database instance
 // Returns null if database is unavailable, allowing graceful fallback
 function getDb() {
@@ -745,74 +746,6 @@ exports.adminAdapter = {
         const db = getDb();
         if (!db)
             return null;
-        // Ensure migration runs - check and add columns if needed
-        try {
-            const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all();
-            const columnNames = tableInfo.map((col) => col.name);
-            if (!columnNames.includes('defaultInvoiceTerms')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN defaultInvoiceTerms TEXT');
-            }
-            if (!columnNames.includes('defaultPurchaseOrderTerms')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN defaultPurchaseOrderTerms TEXT');
-            }
-            if (!columnNames.includes('showRevenueTrend')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showQuickActions')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showVehicleFinances')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleFinances INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showQuotationsInvoicesCard')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsInvoicesCard INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showEmployeeSalariesCard')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showEmployeeSalariesCard INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showVehicleRevenueExpensesCard')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleRevenueExpensesCard INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showActivityThisMonth')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showActivityThisMonth INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showFinancialHealth')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showFinancialHealth INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showBusinessOverview')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showBusinessOverview INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showTopCustomers')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showTopCustomers INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showActivitySummary')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showQuotationsTwoPane')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsTwoPane INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showPurchaseOrdersTwoPane')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showPurchaseOrdersTwoPane INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showInvoicesTwoPane')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('footerAddressEnglish')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressEnglish TEXT');
-            }
-            if (!columnNames.includes('footerAddressArabic')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressArabic TEXT');
-            }
-            if (!columnNames.includes('footerContactEnglish')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactEnglish TEXT');
-            }
-            if (!columnNames.includes('footerContactArabic')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactArabic TEXT');
-            }
-        }
-        catch (error) {
-            console.log('Migration check:', error.message);
-        }
         const row = db.prepare('SELECT * FROM admin_settings LIMIT 1').get();
         if (!row)
             return null;
@@ -935,88 +868,18 @@ exports.adminAdapter = {
         if (!db) {
             throw new Error('Database is not available. App is using client-side storage.');
         }
-        // Ensure migration runs before save
-        try {
-            const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all();
-            const columnNames = tableInfo.map((col) => col.name);
-            if (!columnNames.includes('defaultInvoiceTerms')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN defaultInvoiceTerms TEXT');
-            }
-            if (!columnNames.includes('defaultPurchaseOrderTerms')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN defaultPurchaseOrderTerms TEXT');
-            }
-            if (!columnNames.includes('showRevenueTrend')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showQuickActions')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showReports')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showReports INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showVehicleFinances')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleFinances INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showQuotationsInvoicesCard')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsInvoicesCard INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showEmployeeSalariesCard')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showEmployeeSalariesCard INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showVehicleRevenueExpensesCard')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleRevenueExpensesCard INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showActivityThisMonth')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showActivityThisMonth INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showFinancialHealth')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showFinancialHealth INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showBusinessOverview')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showBusinessOverview INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showTopCustomers')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showTopCustomers INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showActivitySummary')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0');
-            }
-            if (!columnNames.includes('showQuotationsTwoPane')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsTwoPane INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showPurchaseOrdersTwoPane')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showPurchaseOrdersTwoPane INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('showInvoicesTwoPane')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1');
-            }
-            if (!columnNames.includes('footerAddressEnglish')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressEnglish TEXT');
-            }
-            if (!columnNames.includes('footerAddressArabic')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressArabic TEXT');
-            }
-            if (!columnNames.includes('footerContactEnglish')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactEnglish TEXT');
-            }
-            if (!columnNames.includes('footerContactArabic')) {
-                db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactArabic TEXT');
-            }
-        }
-        catch (error) {
-            console.log('Migration check in save:', error.message);
-        }
         const now = new Date().toISOString();
         const existing = db.prepare('SELECT * FROM admin_settings LIMIT 1').get();
         const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
         // For new optional columns: if the client omits the field entirely, keep existing value.
         // This avoids older clients clobbering new settings with empty strings.
         const resolvedDefaultInvoiceTerms = hasOwn(data, 'defaultInvoiceTerms')
-            ? (data.defaultInvoiceTerms ?? null)
+            ? ((0, html_normalizer_1.normalizeOptionalRichTextHtml)(data.defaultInvoiceTerms) ?? null)
             : (existing?.defaultInvoiceTerms ?? null);
         const resolvedDefaultPurchaseOrderTerms = hasOwn(data, 'defaultPurchaseOrderTerms')
-            ? (data.defaultPurchaseOrderTerms ?? null)
+            ? ((0, html_normalizer_1.normalizeOptionalRichTextHtml)(data.defaultPurchaseOrderTerms) ?? null)
             : (existing?.defaultPurchaseOrderTerms ?? null);
+        const resolvedDefaultTerms = (0, html_normalizer_1.normalizeOptionalRichTextHtml)(data.defaultTerms) ?? '';
         // Convert boolean to integer (SQLite doesn't have native boolean)
         // Explicitly handle: false -> 0, true -> 1, undefined/null -> 0 (default)
         const showRevenueTrend = (data.showRevenueTrend === true) ? 1 : 0;
@@ -1060,7 +923,7 @@ exports.adminAdapter = {
             showTopCustomers = ?, showActivitySummary = ?, updatedAt = ?
         WHERE id = ?
       `);
-            const result = stmt.run(data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', resolvedDefaultInvoiceTerms, resolvedDefaultPurchaseOrderTerms, data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, existing.id);
+            const result = stmt.run(data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', resolvedDefaultTerms, resolvedDefaultInvoiceTerms, resolvedDefaultPurchaseOrderTerms, data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, existing.id);
         }
         else {
             const stmt = db.prepare(`
@@ -1073,7 +936,7 @@ exports.adminAdapter = {
                                     showTopCustomers, showActivitySummary, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-            stmt.run(data.id || 'settings_1', data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', data.defaultTerms || '', resolvedDefaultInvoiceTerms, resolvedDefaultPurchaseOrderTerms, data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, now);
+            stmt.run(data.id || 'settings_1', data.companyName || '', data.address || '', data.vatNumber || '', data.logoUrl || null, data.sealUrl || null, data.signatureUrl || null, data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN', data.currency || 'AED', resolvedDefaultTerms, resolvedDefaultInvoiceTerms, resolvedDefaultPurchaseOrderTerms, data.footerAddressEnglish || '', data.footerAddressArabic || '', data.footerContactEnglish || '', data.footerContactArabic || '', showRevenueTrend, showQuickActions, showReports, showVehicleFinances, showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, showActivityThisMonth, showFinancialHealth, showBusinessOverview, showTopCustomers, showActivitySummary, now, now);
         }
         return exports.adminAdapter.get();
     },

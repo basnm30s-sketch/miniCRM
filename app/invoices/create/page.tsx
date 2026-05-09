@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState, useMemo } from 'react'
+import { Suspense, useEffect, useRef, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
@@ -62,8 +62,19 @@ function CreateInvoicePageContent() {
   const quoteId = searchParams.get('quoteId')
   const copyFrom = searchParams.get('copyFrom')
 
+  const loadedParamsKeyRef = useRef<string | null>(null)
+
   useEffect(() => {
+    const paramsKey = `${id ?? ''}|${quoteId ?? ''}|${copyFrom ?? ''}`
+
     async function loadData() {
+      // Same URL identity already loaded — avoids refetch loops (e.g. unstable router) without
+      // depending on initialInvoice.id (copy-from generates a new id every run).
+      if ((id || quoteId || copyFrom) && loadedParamsKeyRef.current === paramsKey) {
+        setLoading(false)
+        return
+      }
+
       if (id || quoteId || copyFrom) setLoading(true)
       try {
         if (id) {
@@ -71,6 +82,7 @@ function CreateInvoicePageContent() {
           if (existing) {
             setInitialInvoice(existing)
             setStep('form')
+            loadedParamsKeyRef.current = paramsKey
           }
         } else if (quoteId) {
           const quote = await getQuoteById(quoteId)
@@ -89,6 +101,7 @@ function CreateInvoicePageContent() {
             }
             setInitialInvoice(newInvoice as Invoice)
             setStep('form')
+            loadedParamsKeyRef.current = paramsKey
           }
         } else if (copyFrom) {
           const source = await getInvoiceById(copyFrom)
@@ -100,8 +113,10 @@ function CreateInvoicePageContent() {
           const clone = await buildInvoiceCloneFrom(source)
           setInitialInvoice(clone)
           setStep('form')
+          loadedParamsKeyRef.current = paramsKey
         } else {
           setStep('choice')
+          loadedParamsKeyRef.current = paramsKey
         }
       } catch (err) {
         console.error('Failed to load invoice:', err)
@@ -308,10 +323,9 @@ function CreateInvoicePageContent() {
       </div>
       <InvoiceForm
         initialData={initialInvoice}
-        onSave={(savedInvoice) => {
-          setInitialInvoice(savedInvoice)
+        onSave={() => {
           queryClient.invalidateQueries({ queryKey: ['invoices'] })
-          router.replace(`/invoices/create?id=${savedInvoice.id}`)
+          router.push('/invoices')
         }}
         onCancel={() => router.push('/invoices')}
       />

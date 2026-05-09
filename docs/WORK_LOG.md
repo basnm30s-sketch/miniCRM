@@ -6,6 +6,18 @@ This file records work performed in the repo (by plan or task). After implementi
 
 ---
 
+## 2025-03-11
+
+### Invoice create: PDF/Excel/Word buttons disabled after first save
+
+**Plan:** Fix: Invoice PDF/Excel/Word buttons disabled after first save
+
+**What was done:**
+- **Root cause:** On the invoice create page, saving triggered a URL change (`?id=`), which ran the effect that sets `loading=true` and refetched the invoice. That showed the loading div and unmounted the form. When the form remounted with API data, `savedSnapshot` was set from `initialData` while `invoice` state was `{ ...defaults, ...initialData }`; the snapshot comparison differed (key order / merged shape), so `isDirty` became true and the export buttons stayed disabled until the user saved again.
+- **app/invoices/create/page.tsx** — In the effect that runs when `id`/`quoteId`/`copyFrom` change, added a guard at the start of `loadData`: if `id && initialInvoice?.id === id`, call `setLoading(false)` and return without fetching. That keeps the form mounted after save so export buttons stay enabled. Effect deps updated to include `initialInvoice?.id`.
+- **app/invoices/InvoiceForm.tsx** — Made `snapshotInvoice` canonical: sort object keys recursively before `JSON.stringify` so the dirty check is stable across remounts and different object shapes.
+- **docs/WORK_LOG.md** — This entry.
+
 ## 2025-03-10
 
 ### Electron test cases documentation

@@ -4,6 +4,7 @@
  */
 
 import { getDatabase, isDatabaseAvailable } from '../../lib/database'
+import { normalizeOptionalRichTextHtml } from '../../lib/html-normalizer'
 import Database from 'better-sqlite3'
 
 type Db = Database.Database
@@ -892,75 +893,6 @@ export const adminAdapter = {
     const db = getDb()
     if (!db) return null
 
-    // Ensure migration runs - check and add columns if needed
-    try {
-      const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all() as any[]
-      const columnNames = tableInfo.map((col: any) => col.name)
-
-      if (!columnNames.includes('defaultInvoiceTerms')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN defaultInvoiceTerms TEXT')
-      }
-      if (!columnNames.includes('defaultPurchaseOrderTerms')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN defaultPurchaseOrderTerms TEXT')
-      }
-      if (!columnNames.includes('showRevenueTrend')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showQuickActions')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showVehicleFinances')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleFinances INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showQuotationsInvoicesCard')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsInvoicesCard INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showEmployeeSalariesCard')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showEmployeeSalariesCard INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showVehicleRevenueExpensesCard')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleRevenueExpensesCard INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showActivityThisMonth')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showActivityThisMonth INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showFinancialHealth')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showFinancialHealth INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showBusinessOverview')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showBusinessOverview INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showTopCustomers')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showTopCustomers INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showActivitySummary')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showQuotationsTwoPane')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsTwoPane INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showPurchaseOrdersTwoPane')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showPurchaseOrdersTwoPane INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showInvoicesTwoPane')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('footerAddressEnglish')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressEnglish TEXT')
-      }
-      if (!columnNames.includes('footerAddressArabic')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressArabic TEXT')
-      }
-      if (!columnNames.includes('footerContactEnglish')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactEnglish TEXT')
-      }
-      if (!columnNames.includes('footerContactArabic')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactArabic TEXT')
-      }
-    } catch (error: any) {
-      console.log('Migration check:', error.message)
-    }
-
     const row = db.prepare('SELECT * FROM admin_settings LIMIT 1').get() as any
     if (!row) return null
 
@@ -1086,78 +1018,6 @@ export const adminAdapter = {
       throw new Error('Database is not available. App is using client-side storage.')
     }
 
-    // Ensure migration runs before save
-    try {
-      const tableInfo = db.prepare("PRAGMA table_info(admin_settings)").all() as any[]
-      const columnNames = tableInfo.map((col: any) => col.name)
-
-      if (!columnNames.includes('defaultInvoiceTerms')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN defaultInvoiceTerms TEXT')
-      }
-      if (!columnNames.includes('defaultPurchaseOrderTerms')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN defaultPurchaseOrderTerms TEXT')
-      }
-      if (!columnNames.includes('showRevenueTrend')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showRevenueTrend INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showQuickActions')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuickActions INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showReports')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showReports INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showVehicleFinances')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleFinances INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showQuotationsInvoicesCard')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsInvoicesCard INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showEmployeeSalariesCard')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showEmployeeSalariesCard INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showVehicleRevenueExpensesCard')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showVehicleRevenueExpensesCard INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showActivityThisMonth')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showActivityThisMonth INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showFinancialHealth')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showFinancialHealth INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showBusinessOverview')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showBusinessOverview INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showTopCustomers')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showTopCustomers INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showActivitySummary')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showActivitySummary INTEGER DEFAULT 0')
-      }
-      if (!columnNames.includes('showQuotationsTwoPane')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showQuotationsTwoPane INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showPurchaseOrdersTwoPane')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showPurchaseOrdersTwoPane INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('showInvoicesTwoPane')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN showInvoicesTwoPane INTEGER DEFAULT 1')
-      }
-      if (!columnNames.includes('footerAddressEnglish')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressEnglish TEXT')
-      }
-      if (!columnNames.includes('footerAddressArabic')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN footerAddressArabic TEXT')
-      }
-      if (!columnNames.includes('footerContactEnglish')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactEnglish TEXT')
-      }
-      if (!columnNames.includes('footerContactArabic')) {
-        db.exec('ALTER TABLE admin_settings ADD COLUMN footerContactArabic TEXT')
-      }
-    } catch (error: any) {
-      console.log('Migration check in save:', error.message)
-    }
-
     const now = new Date().toISOString()
 
     const existing = db.prepare('SELECT * FROM admin_settings LIMIT 1').get() as any
@@ -1166,11 +1026,12 @@ export const adminAdapter = {
     // For new optional columns: if the client omits the field entirely, keep existing value.
     // This avoids older clients clobbering new settings with empty strings.
     const resolvedDefaultInvoiceTerms = hasOwn(data, 'defaultInvoiceTerms')
-      ? (data.defaultInvoiceTerms ?? null)
+      ? (normalizeOptionalRichTextHtml(data.defaultInvoiceTerms) ?? null)
       : (existing?.defaultInvoiceTerms ?? null)
     const resolvedDefaultPurchaseOrderTerms = hasOwn(data, 'defaultPurchaseOrderTerms')
-      ? (data.defaultPurchaseOrderTerms ?? null)
+      ? (normalizeOptionalRichTextHtml(data.defaultPurchaseOrderTerms) ?? null)
       : (existing?.defaultPurchaseOrderTerms ?? null)
+    const resolvedDefaultTerms = normalizeOptionalRichTextHtml(data.defaultTerms) ?? ''
 
     // Convert boolean to integer (SQLite doesn't have native boolean)
     // Explicitly handle: false -> 0, true -> 1, undefined/null -> 0 (default)
@@ -1226,7 +1087,7 @@ export const adminAdapter = {
         data.signatureUrl || null,
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
-        data.defaultTerms || '',
+        resolvedDefaultTerms,
         resolvedDefaultInvoiceTerms,
         resolvedDefaultPurchaseOrderTerms,
         data.footerAddressEnglish || '',
@@ -1272,7 +1133,7 @@ export const adminAdapter = {
         data.signatureUrl || null,
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
-        data.defaultTerms || '',
+        resolvedDefaultTerms,
         resolvedDefaultInvoiceTerms,
         resolvedDefaultPurchaseOrderTerms,
         data.footerAddressEnglish || '',

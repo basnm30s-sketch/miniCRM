@@ -3,6 +3,30 @@ import { adminAdapter } from '../adapters/sqlite'
 
 const router = Router()
 
+// Single-flight guard: serialize concurrent admin settings saves to avoid
+// pile-ups that can saturate the (synchronous) better-sqlite3 main loop and
+// surface as client-side timeouts on the second consecutive save.
+let saveInFlight: Promise<unknown> | null = null
+async function runSerializedSave<T>(work: () => T): Promise<T> {
+  if (saveInFlight) {
+    try {
+      await saveInFlight
+    } catch {
+      // ignore prior failure; we still want to attempt this save
+    }
+  }
+  let resolveDone!: () => void
+  saveInFlight = new Promise<void>((resolve) => {
+    resolveDone = resolve
+  })
+  try {
+    return work()
+  } finally {
+    resolveDone()
+    saveInFlight = null
+  }
+}
+
 // GET /api/admin/settings
 router.get('/settings', (req: Request, res: Response) => {
   try {
@@ -61,21 +85,39 @@ router.get('/settings', (req: Request, res: Response) => {
 })
 
 // POST /api/admin/settings
-router.post('/settings', (req: Request, res: Response) => {
+router.post('/settings', async (req: Request, res: Response) => {
+  const start = Date.now()
   try {
-    const settings = adminAdapter.save(req.body)
+    const settings = await runSerializedSave(() => adminAdapter.save(req.body))
+    console.log('[AdminSettings] POST /settings success', {
+      durationMs: Date.now() - start,
+      payloadSizeBytes: Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8'),
+    })
     res.json(settings)
   } catch (error: any) {
+    console.error('[AdminSettings] POST /settings failed', {
+      durationMs: Date.now() - start,
+      message: error?.message,
+    })
     res.status(500).json({ error: error.message })
   }
 })
 
 // PUT /api/admin/settings
-router.put('/settings', (req: Request, res: Response) => {
+router.put('/settings', async (req: Request, res: Response) => {
+  const start = Date.now()
   try {
-    const settings = adminAdapter.save(req.body)
+    const settings = await runSerializedSave(() => adminAdapter.save(req.body))
+    console.log('[AdminSettings] PUT /settings success', {
+      durationMs: Date.now() - start,
+      payloadSizeBytes: Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8'),
+    })
     res.json(settings)
   } catch (error: any) {
+    console.error('[AdminSettings] PUT /settings failed', {
+      durationMs: Date.now() - start,
+      message: error?.message,
+    })
     res.status(500).json({ error: error.message })
   }
 })

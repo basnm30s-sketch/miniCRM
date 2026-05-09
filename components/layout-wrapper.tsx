@@ -9,23 +9,26 @@ import { useIsMobile } from '@/components/ui/use-mobile'
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const { isOpen, close } = useDebugPanel()
   const isMobile = useIsMobile()
-  const [sidebarExpanded, setSidebarExpanded] = useState(() => {
-    // Default to expanded on desktop, collapsed on mobile
-    if (typeof window !== 'undefined') {
-      return window.innerWidth >= 768
-    }
-    return true
-  })
+  // IMPORTANT: keep this stable for SSR/CSR to avoid React hydration mismatch (#418).
+  // We default to `true` on first render in both environments, then adjust after mount.
+  const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(true)
+  const [hasMounted, setHasMounted] = useState(false)
 
-  // Update sidebar state when screen size changes
   useEffect(() => {
+    setHasMounted(true)
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setSidebarExpanded(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasMounted) return
     if (isMobile) {
       setSidebarExpanded(false)
     } else {
-      // On desktop, default to expanded
       setSidebarExpanded(true)
     }
-  }, [isMobile])
+  }, [isMobile, hasMounted])
 
   // Handle ESC key to collapse sidebar
   useEffect(() => {

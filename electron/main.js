@@ -41,15 +41,125 @@ ipcMain.handle('log-error', async (event, errorData) => {
 
 let db = null;
 let apiServer = null;
+let apiServerRealPid = null; // Real Node PID (grandchild when shell:true is used on Windows)
 let serverStartupPromise = null;
 let healthCheckInterval = null;
 let consecutiveHealthFailures = 0;
 let isQuitting = false;
+let cleanupPerformed = false;
 
 const HEALTH_CHECK_URL = 'http://localhost:3001/api/health';
 const HEALTH_CHECK_INTERVAL_MS = 5000;
 const HEALTH_FAILURE_THRESHOLD = 5;
 const HEALTH_REQUEST_TIMEOUT_MS = 4000;
+
+function getPidFilePath() {
+  try {
+    return path.join(app.getPath('userData'), 'api-server.pid');
+  } catch (err) {
+    return null;
+  }
+}
+
+function writePidFile(pid) {
+  const pidFile = getPidFilePath();
+  if (!pidFile || !pid) return;
+  try {
+    fs.writeFileSync(pidFile, String(pid));
+  } catch (err) {
+    console.error('Failed to write PID file:', err);
+  }
+}
+
+function clearPidFile() {
+  const pidFile = getPidFilePath();
+  if (!pidFile) return;
+  try {
+    if (fs.existsSync(pidFile)) {
+      fs.unlinkSync(pidFile);
+    }
+  } catch (err) {
+    // ignore
+  }
+}
+
+// Forcefully kill a process tree by PID. Synchronous so it runs to completion before we exit.
+function forceKillPidTree(pid) {
+  if (!pid) return;
+  if (process.platform === 'win32') {
+    try {
+      execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore', timeout: 5000 });
+    } catch (e) {
+      // process may already be gone
+    }
+  } else {
+    try {
+      // Negative PID kills the whole process group
+      process.kill(-pid, 'SIGKILL');
+    } catch (e) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch (_) {
+        // gone
+      }
+    }
+  }
+}
+
+// Find the PID currently listening on the given TCP port (or null).
+// Used to verify orphan recovery is targeting the right process before killing,
+// since Windows can recycle PIDs.
+function findPidListeningOnPort(port) {
+  try {
+    if (process.platform === 'win32') {
+      const out = execSync('netstat -ano -p TCP', { encoding: 'utf8', timeout: 5000 });
+      for (const line of out.split(/\r?\n/)) {
+        // Format: "  TCP    0.0.0.0:3001    0.0.0.0:0    LISTENING    12345"
+        const m = line.match(/^\s*TCP\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)\s*$/);
+        if (m && parseInt(m[1], 10) === port) {
+          return parseInt(m[2], 10);
+        }
+      }
+    } else {
+      const out = execSync(`lsof -nP -iTCP:${port} -sTCP:LISTEN -t`, { encoding: 'utf8', timeout: 5000 });
+      const pid = parseInt(out.trim().split(/\r?\n/)[0], 10);
+      if (Number.isFinite(pid) && pid > 0) return pid;
+    }
+  } catch (e) {
+    // No listener / command not available
+  }
+  return null;
+}
+
+// Clean up orphaned API server from a previous run that didn't shut down cleanly.
+// We ONLY kill if the saved PID is still listening on port 3001 - otherwise the
+// PID may have been recycled by the OS and could refer to an unrelated process.
+function cleanupOrphanedApiServer() {
+  const pidFile = getPidFilePath();
+  if (!pidFile || !fs.existsSync(pidFile)) return;
+  let savedPid = null;
+  try {
+    savedPid = parseInt(fs.readFileSync(pidFile, 'utf8').trim(), 10);
+  } catch (err) {
+    console.error('Failed to read PID file:', err);
+  }
+
+  if (Number.isFinite(savedPid) && savedPid > 0) {
+    const portPid = findPidListeningOnPort(3001);
+    if (portPid && portPid === savedPid) {
+      console.log(`Found orphaned API server from previous run (PID ${savedPid}, holding port 3001), terminating...`);
+      logToFile('orphan-cleanup', `Killing orphaned API server PID ${savedPid}`);
+      forceKillPidTree(savedPid);
+    } else if (portPid) {
+      // Port is busy but not by our saved PID - could be a different app, leave it alone.
+      // The new server will fail to bind and surface a clear error.
+      console.warn(`Port 3001 is in use by PID ${portPid} (does not match saved PID ${savedPid}); not touching it.`);
+    }
+    // else: port 3001 is free and the saved PID is stale - nothing to do.
+  }
+
+  clearPidFile();
+}
 
 function resolveFirstExisting(...candidates) {
   for (const candidate of candidates) {
@@ -212,6 +322,8 @@ function logToFile(prefix, message) {
 }
 
 async function pingServerHealth() {
+  // Don't ping or attempt restarts during shutdown - that would spawn a new orphan
+  if (isQuitting) return false;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), HEALTH_REQUEST_TIMEOUT_MS);
   try {
@@ -226,9 +338,10 @@ async function pingServerHealth() {
   } finally {
     clearTimeout(timeout);
   }
+  if (isQuitting) return false;
   consecutiveHealthFailures += 1;
   console.warn(`Health check failed (${consecutiveHealthFailures}/${HEALTH_FAILURE_THRESHOLD})`);
-  if (consecutiveHealthFailures >= HEALTH_FAILURE_THRESHOLD) {
+  if (consecutiveHealthFailures >= HEALTH_FAILURE_THRESHOLD && !isQuitting) {
     logToFile('api-health', `Health check threshold hit; restarting API server`);
     restartApiServer('health-check-failed');
   }
@@ -248,15 +361,30 @@ function stopHealthWatcher() {
 }
 
 function restartApiServer(reason) {
+  if (isQuitting) {
+    console.warn('Skipping API server restart during shutdown. Reason:', reason);
+    return;
+  }
   console.warn('Restarting API server. Reason:', reason);
+  // Kill the full tree (covers cmd.exe wrapper + real Node child on Windows)
   if (apiServer) {
+    try {
+      forceKillPidTree(apiServer.pid);
+    } catch (err) {
+      console.error('Error killing API server tree during restart:', err);
+    }
     try {
       apiServer.kill();
     } catch (err) {
-      console.error('Error killing API server during restart:', err);
+      // ignore
     }
   }
+  if (apiServerRealPid) {
+    forceKillPidTree(apiServerRealPid);
+  }
   apiServer = null;
+  apiServerRealPid = null;
+  clearPidFile();
   serverStartupPromise = null;
   consecutiveHealthFailures = 0;
   startApiServer().catch((err) => {
@@ -343,7 +471,11 @@ function startApiServer() {
     };
 
     try {
-      // Use shell: true on Windows for packaged apps to avoid ENOENT issues
+      // Use shell: true on Windows for packaged apps to avoid ENOENT issues.
+      // CAVEAT: with shell:true on Windows, apiServer.pid is the cmd.exe wrapper PID,
+      // and the real Node API server is a grandchild. We capture the real PID below
+      // by parsing the "Process ID:" line that server.ts logs at startup, so we can
+      // reliably kill the actual server process on shutdown.
       const useShell = process.platform === 'win32' && isPackaged;
       apiServer = spawn(command, args, {
         cwd,
@@ -353,7 +485,10 @@ function startApiServer() {
         windowsHide: true,
       });
 
-      console.log('✓ API server process spawned, PID:', apiServer.pid);
+      console.log('✓ API server process spawned, PID:', apiServer.pid, useShell ? '(shell wrapper)' : '');
+      // Persist the wrapper PID immediately so a recovery script / next launch
+      // can clean up if Electron itself is killed before we capture the real PID.
+      writePidFile(apiServer.pid);
     } catch (error) {
       console.error('✗ Error spawning API server:', error);
       serverStartupPromise = null;
@@ -366,7 +501,21 @@ function startApiServer() {
       const output = data.toString();
       serverOutput += output;
       console.log(`[API Server STDOUT]: ${output}`);
-      
+
+      // Capture the REAL server PID from the startup banner ("✓ Process ID: 12345")
+      // so we can kill the actual node process even when shell:true wraps it in cmd.exe.
+      if (!apiServerRealPid) {
+        const match = output.match(/Process ID[:\s]+(\d+)/i);
+        if (match) {
+          const pid = parseInt(match[1], 10);
+          if (Number.isFinite(pid) && pid > 0) {
+            apiServerRealPid = pid;
+            writePidFile(pid);
+            console.log('✓ Captured real API server PID:', pid);
+          }
+        }
+      }
+
       // Mark ready when we see the server running message
       if (output.includes('API server running on') || output.includes('Server running on')) {
         markReady();
@@ -387,7 +536,9 @@ function startApiServer() {
       console.log(`✗ API server exited with code ${code}`);
       console.log('Last output:', serverOutput);
       apiServer = null;
+      apiServerRealPid = null;
       serverStartupPromise = null;
+      clearPidFile();
       logToFile('api-exit', `API server exited with code ${code}. Output: ${serverOutput}`);
       // Do NOT restart when the app is quitting
       if (!isQuitting) {
@@ -441,7 +592,11 @@ app.whenReady().then(async () => {
   }
   
   console.log('\n🚀 Starting Electron app initialization...\n');
-  
+
+  // If a previous run was force-killed (Task Manager, power loss, crash, etc.)
+  // its API server may still be holding port 3001. Kill it before we spawn a new one.
+  cleanupOrphanedApiServer();
+
   try {
     await startApiServer();
     console.log('✓ API server startup completed');
@@ -728,36 +883,64 @@ app.on('activate', () => {
   }
 });
 
-// Cleanup on app quit
-app.on('before-quit', async () => {
-  isQuitting = true;
+/**
+ * Synchronously kill the API server process tree.
+ *
+ * IMPORTANT - kill order on Windows when shell:true is used:
+ *   The spawned PID is `cmd.exe` (the shell wrapper); the real Node API server is
+ *   its grandchild. If we call `child.kill()` first, cmd.exe is terminated
+ *   immediately by `TerminateProcess`, which orphans the grandchild (the parent
+ *   pointer is gone) and `taskkill /T` can no longer find it through the tree.
+ *   So we MUST taskkill /T /F BEFORE calling child.kill(). We also kill the
+ *   real (grandchild) PID directly as a belt-and-braces safety net.
+ */
+function killApiServerSync(reason) {
+  if (!apiServer && !apiServerRealPid) return;
+  console.log(`Stopping API server (${reason})...`);
 
-  if (apiServer) {
-    const child = apiServer;
-    const pid = child.pid;
-    console.log('Stopping API server...');
-    child.kill();
+  const child = apiServer;
+  const wrapperPid = child ? child.pid : null;
+  const realPid = apiServerRealPid;
 
-    if (process.platform === 'win32' && pid) {
-      try {
-        execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
-      } catch (e) {
-        // process may already be gone
-      }
-    }
-
-    await new Promise((resolve) => {
-      const done = () => {
-        clearTimeout(t);
-        resolve();
-      };
-      const t = setTimeout(done, 2500);
-      child.once('close', done);
-    });
-    apiServer = null;
+  // 1) Kill the wrapper's full process tree FIRST while it's still alive.
+  //    On Windows this catches cmd.exe + the real Node child in one shot.
+  if (wrapperPid) {
+    forceKillPidTree(wrapperPid);
   }
 
+  // 2) Belt-and-braces: also kill the captured real PID directly, in case the
+  //    grandchild was somehow detached or taskkill missed it.
+  if (realPid && realPid !== wrapperPid) {
+    forceKillPidTree(realPid);
+  }
+
+  // 3) Now call child.kill() - by this point the OS process is already gone,
+  //    but this releases Node's internal handles.
+  if (child) {
+    try {
+      child.kill();
+    } catch (e) {
+      // already dead
+    }
+  }
+
+  apiServer = null;
+  apiServerRealPid = null;
+  clearPidFile();
+}
+
+async function performShutdownCleanup(reason) {
+  if (cleanupPerformed) return;
+  cleanupPerformed = true;
+  isQuitting = true;
+
   stopHealthWatcher();
+  killApiServerSync(reason);
+
+  // Brief grace period for the close event to settle. Without this, the very
+  // last log lines from the child can be lost. Kept short so the user doesn't
+  // perceive shutdown lag.
+  await new Promise((resolve) => setTimeout(resolve, 300));
 
   if (db) {
     try {
@@ -768,4 +951,56 @@ app.on('before-quit', async () => {
       // Ignore errors during cleanup
     }
   }
+}
+
+// Cleanup on app quit. Use preventDefault + manual quit so async cleanup
+// actually completes before the main process exits. Without preventDefault,
+// Electron does NOT await async before-quit handlers and can exit mid-cleanup,
+// leaving the API server orphaned.
+app.on('before-quit', (event) => {
+  if (cleanupPerformed) return;
+  isQuitting = true;
+  event.preventDefault();
+  performShutdownCleanup('before-quit')
+    .catch((err) => console.error('Error during shutdown cleanup:', err))
+    .finally(() => {
+      // Use app.exit (not app.quit) to bypass before-quit re-entry.
+      app.exit(0);
+    });
+});
+
+// will-quit fires after all windows are closed and before the app exits.
+// Acts as a safety net if before-quit was somehow bypassed.
+app.on('will-quit', (event) => {
+  if (!cleanupPerformed) {
+    event.preventDefault();
+    performShutdownCleanup('will-quit')
+      .catch((err) => console.error('Error during shutdown cleanup (will-quit):', err))
+      .finally(() => {
+        app.exit(0);
+      });
+  }
+});
+
+// Last-resort synchronous cleanup. If the Node main process is exiting for any
+// reason (including unhandled exceptions), make sure we don't leak the child.
+process.on('exit', () => {
+  if (cleanupPerformed) return;
+  isQuitting = true;
+  try {
+    killApiServerSync('process-exit');
+  } catch (e) {
+    // best effort
+  }
+});
+
+// Handle Ctrl+C and kill signals when running from a terminal (dev mode)
+['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((sig) => {
+  process.on(sig, () => {
+    console.log(`Received ${sig}, shutting down...`);
+    isQuitting = true;
+    killApiServerSync(sig);
+    // Give the OS a moment to reclaim the port, then exit
+    setTimeout(() => process.exit(0), 200);
+  });
 });

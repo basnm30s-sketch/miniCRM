@@ -90,6 +90,11 @@ export async function waitForApiServer(
 }
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000
+const ADMIN_SETTINGS_SAVE_TIMEOUT_MS = 20000
+
+type ApiRequestOptions = RequestInit & {
+  timeoutMs?: number
+}
 
 /**
  * fetch with AbortController-based timeout to avoid hanging when server is unresponsive.
@@ -121,25 +126,26 @@ async function fetchWithTimeout(
   }
 }
 
-async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T> {
+async function apiRequest<T>(endpoint: string, options?: ApiRequestOptions): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
+  const { timeoutMs: customTimeoutMs, ...requestInit } = options ?? {}
   try {
     // Avoid requests hanging forever (common when local backend is stuck).
     // Use existing signal if provided; otherwise attach a timeout signal.
-    const controller = options?.signal ? null : new AbortController()
+    const controller = requestInit.signal ? null : new AbortController()
     const timeoutMs =
-      typeof options?.signal === 'undefined'
-        ? 8000
+      typeof requestInit.signal === 'undefined'
+        ? (customTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS)
         : 0
     const timeoutId =
       controller && timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null
 
     const response = await fetch(url, {
-      ...options,
-      signal: options?.signal ?? controller?.signal,
+      ...requestInit,
+      signal: requestInit.signal ?? controller?.signal,
       headers: {
         'Content-Type': 'application/json',
-        ...options?.headers,
+        ...requestInit.headers,
       },
     })
 
@@ -156,7 +162,7 @@ async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<T
       }
       // Don't log 404 errors as they're expected in some cases (checking if resource exists)
       if (response.status !== 404) {
-        console.error(`API Request failed: ${options?.method || 'GET'} ${url} - ${errorMessage}`)
+        console.error(`API Request failed: ${requestInit.method || 'GET'} ${url} - ${errorMessage}`)
       }
       const error = new Error(errorMessage) as any
       error.status = response.status
@@ -194,15 +200,49 @@ export async function getAdminSettings(): Promise<AdminSettings | null> {
   }
 }
 
+// Track the most recent in-flight admin settings save so a rapid second
+// click doesn't pile up requests against the (sync) better-sqlite3 server.
+let lastAdminSaveAbort: AbortController | null = null
+
 export async function saveAdminSettings(settings: AdminSettings): Promise<void> {
+  const startedAt = Date.now()
+  const payload = JSON.stringify(settings)
+
+  if (lastAdminSaveAbort) {
+    try {
+      lastAdminSaveAbort.abort()
+    } catch {
+      // ignore
+    }
+  }
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), ADMIN_SETTINGS_SAVE_TIMEOUT_MS)
+  lastAdminSaveAbort = controller
+
   try {
     await apiRequest('/admin/settings', {
       method: 'POST',
-      body: JSON.stringify(settings),
+      body: payload,
+      signal: controller.signal,
     })
-  } catch (error) {
+    console.log('[AdminSettings] save request success', {
+      durationMs: Date.now() - startedAt,
+      payloadSizeBytes: payload.length,
+    })
+  } catch (error: any) {
+    if (error?.name === 'AbortError' || error?.message === 'Request timeout') {
+      console.error('Failed to save admin settings (timeout/abort):', {
+        durationMs: Date.now() - startedAt,
+      })
+      throw new Error('Request timeout')
+    }
     console.error('Failed to save admin settings:', error)
     throw error
+  } finally {
+    clearTimeout(timeoutId)
+    if (lastAdminSaveAbort === controller) {
+      lastAdminSaveAbort = null
+    }
   }
 }
 

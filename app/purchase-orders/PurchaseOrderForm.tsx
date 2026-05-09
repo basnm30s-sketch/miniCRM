@@ -40,7 +40,13 @@ import { excelRenderer } from '@/lib/excel'
 import { docxRenderer } from '@/lib/docx'
 import type { PurchaseOrder, Vendor, AdminSettings, POItem, Vehicle } from '@/lib/types'
 import type { ValidationError } from '@/lib/validation'
-import { DEFAULT_PO_COLUMNS } from '@/lib/doc-generator/line-item-columns'
+import {
+    DEFAULT_PO_COLUMNS,
+    LINE_ITEM_COLUMN_WIDTHS,
+    LINE_ITEM_ACTION_WIDTH,
+} from '@/lib/doc-generator/line-item-columns'
+import { computeVehicleAutofillPatch, recomputeLineTotals } from '@/lib/line-items/vehicle-autofill'
+import { DocNumberField } from '@/components/doc-generator/DocNumberField'
 
 interface PurchaseOrderFormProps {
     initialData?: PurchaseOrder
@@ -320,60 +326,26 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
 
             const updatedItem = { ...item, [field]: value }
 
-            // If changing vehicle number, find vehicle and update related fields
-            if (field === 'vehicleNumber' && value) {
-                const vehicle = vehicles.find((v) => v.vehicleNumber === value)
-                if (vehicle) {
-                    updatedItem.vehicleTypeId = vehicle.id
-                    updatedItem.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
-                    updatedItem.vehicleType = vehicle.vehicleType
-                    updatedItem.make = vehicle.make
-                    updatedItem.model = vehicle.model
-                    updatedItem.year = vehicle.year
-                    updatedItem.basePrice = vehicle.basePrice
-                    // Auto-fill description from vehicle if not already set
-                    if (!updatedItem.description) {
-                        updatedItem.description = vehicle.description || ''
-                    }
-                    // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
-                    if (updatedItem.unitPrice === 0 && vehicle.basePrice) {
-                        updatedItem.unitPrice = vehicle.basePrice
-                    }
-                }
+            if (field === 'vehicleNumber' || field === 'vehicleTypeId') {
+                Object.assign(
+                    updatedItem,
+                    computeVehicleAutofillPatch({ vehicles, field, value })
+                )
             }
 
-            // If changing vehicle type (for backward compatibility)
-            if (field === 'vehicleTypeId' && value) {
-                const vehicle = vehicles.find((v) => v.id === value)
-                if (vehicle) {
-                    updatedItem.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
-                    updatedItem.vehicleNumber = vehicle.vehicleNumber || ''
-                    updatedItem.vehicleType = vehicle.vehicleType
-                    updatedItem.make = vehicle.make
-                    updatedItem.model = vehicle.model
-                    updatedItem.year = vehicle.year
-                    updatedItem.basePrice = vehicle.basePrice
-                    if (!updatedItem.description) {
-                        updatedItem.description = vehicle.description || ''
-                    }
-                    // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
-                    if (updatedItem.unitPrice === 0 && vehicle.basePrice) {
-                        updatedItem.unitPrice = vehicle.basePrice
-                    }
-                }
-            }
-
-            // Recalculate item totals when relevant fields change
-            if (field === 'quantity' || field === 'unitPrice' || field === 'taxPercent' || field === 'tax') {
-                const grossAmount = (updatedItem.quantity || 0) * (updatedItem.unitPrice || 0)
-                const taxPercent = updatedItem.taxPercent !== undefined && updatedItem.taxPercent !== null ? updatedItem.taxPercent : 0
-                const itemTax = grossAmount * (taxPercent / 100)
-                const lineTotal = grossAmount + itemTax
-
-                updatedItem.grossAmount = grossAmount
-                updatedItem.lineTaxAmount = itemTax
-                updatedItem.lineTotal = lineTotal
-                updatedItem.total = lineTotal
+            if (
+                field === 'quantity' ||
+                field === 'unitPrice' ||
+                field === 'taxPercent' ||
+                field === 'tax' ||
+                field === 'vehicleNumber' ||
+                field === 'vehicleTypeId'
+            ) {
+                const totals = recomputeLineTotals(updatedItem)
+                updatedItem.grossAmount = totals.grossAmount
+                updatedItem.lineTaxAmount = totals.lineTaxAmount
+                updatedItem.lineTotal = totals.lineTotal
+                updatedItem.total = totals.lineTotal
             }
 
             return updatedItem
@@ -579,17 +551,13 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 gap-4">
-                            <div>
-                                <Label htmlFor="number" className="text-slate-700 text-xs">
-                                    PO Number
-                                </Label>
-                                <Input
-                                    id="number"
-                                    value={po.number}
-                                    disabled
-                                    className="mt-1 h-8 bg-slate-50"
-                                />
-                            </div>
+                            <DocNumberField
+                                id="number"
+                                label="PO Number"
+                                value={po.number}
+                                onChange={(value) => setPo((prev) => ({ ...prev, number: value }))}
+                                placeholder="PO-001"
+                            />
                             <div>
                                 <Label htmlFor="status" className="text-slate-700 text-xs">
                                     Status
@@ -804,7 +772,23 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="overflow-x-auto">
-                                <table className="w-full text-xs">
+                                <table className="w-full table-fixed text-xs">
+                                    <colgroup>
+                                        {visibleColumns.serialNumber !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.serialNumber} />}
+                                        {visibleColumns.vehicleNumber !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.vehicleNumber} />}
+                                        {visibleColumns.vehicleType !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.vehicleType} />}
+                                        {visibleColumns.makeModel !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.makeModel} />}
+                                        {visibleColumns.year !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.year} />}
+                                        {visibleColumns.basePrice !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.basePrice} />}
+                                        {visibleColumns.description !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.description} />}
+                                        {visibleColumns.rentalBasis !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.rentalBasis} />}
+                                        {visibleColumns.quantity !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.quantity} />}
+                                        {visibleColumns.rate !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.rate} />}
+                                        {visibleColumns.grossAmount !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.grossAmount} />}
+                                        {visibleColumns.tax !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.tax} />}
+                                        {visibleColumns.netAmount !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.netAmount} />}
+                                        <col className={LINE_ITEM_ACTION_WIDTH} />
+                                    </colgroup>
                                     <thead className="bg-slate-100 border-b">
                                         <tr>
                                             {visibleColumns.serialNumber !== false && <th className="text-center p-2">#</th>}
@@ -833,7 +817,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                         </td>
                                                     )}
                                                     {visibleColumns.vehicleNumber !== false && (
-                                                        <td className="p-2 min-w-[100px]">
+                                                        <td className="p-2">
                                                             <Select
                                                                 value={item.vehicleNumber || '__manual__'}
                                                                 onValueChange={(value) => handleLineItemChange(item.id, 'vehicleNumber', value === '__manual__' ? '' : value)}
@@ -868,27 +852,27 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                         </td>
                                                     )}
                                                     {visibleColumns.vehicleType !== false && (
-                                                        <td className="p-2 text-left text-slate-700 min-w-[80px]">
+                                                        <td className="p-2 text-left text-slate-700">
                                                             {item.vehicleType || '-'}
                                                         </td>
                                                     )}
                                                     {visibleColumns.makeModel !== false && (
-                                                        <td className="p-2 text-left text-slate-700 min-w-[120px]">
+                                                        <td className="p-2 text-left text-slate-700">
                                                             {item.make && item.model ? `${item.make} ${item.model}` : '-'}
                                                         </td>
                                                     )}
                                                     {visibleColumns.year !== false && (
-                                                        <td className="p-2 text-center text-slate-700 min-w-[60px]">
+                                                        <td className="p-2 text-center text-slate-700">
                                                             {item.year || '-'}
                                                         </td>
                                                     )}
                                                     {visibleColumns.basePrice !== false && (
-                                                        <td className="p-2 text-right text-slate-700 min-w-[80px]">
+                                                        <td className="p-2 text-right text-slate-700">
                                                             {item.basePrice ? item.basePrice.toFixed(2) : '-'}
                                                         </td>
                                                     )}
                                                     {visibleColumns.description !== false && (
-                                                        <td className="p-2 min-w-[120px]">
+                                                        <td className="p-2">
                                                             <Input
                                                                 value={item.description || ''}
                                                                 onChange={(e) => handleLineItemChange(item.id, 'description', e.target.value)}
@@ -897,7 +881,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                         </td>
                                                     )}
                                                     {visibleColumns.rentalBasis !== false && (
-                                                        <td className="p-2 min-w-[90px]">
+                                                        <td className="p-2">
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <div>
@@ -923,7 +907,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                         </td>
                                                     )}
                                                     {visibleColumns.quantity !== false && (
-                                                        <td className="p-2 text-right w-[60px]">
+                                                        <td className="p-2 text-right">
                                                             <Input
                                                                 type="number"
                                                                 min="0"
@@ -934,7 +918,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                         </td>
                                                     )}
                                                     {visibleColumns.rate !== false && (
-                                                        <td className="p-2 text-right w-[80px]">
+                                                        <td className="p-2 text-right">
                                                             <Input
                                                                 type="number"
                                                                 min="0"
@@ -945,7 +929,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                         </td>
                                                     )}
                                                     {visibleColumns.grossAmount !== false && (
-                                                        <td className="p-2 text-right text-slate-700 w-[80px]">
+                                                        <td className="p-2 text-right text-slate-700">
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <span className="cursor-help">{(item.grossAmount || 0).toFixed(2)}</span>
@@ -957,7 +941,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                         </td>
                                                     )}
                                                     {visibleColumns.tax !== false && (
-                                                        <td className="p-2 text-right w-[60px]">
+                                                        <td className="p-2 text-right">
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <div>
@@ -978,7 +962,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                         </td>
                                                     )}
                                                     {visibleColumns.netAmount !== false && (
-                                                        <td className="p-2 text-right text-slate-700 font-semibold w-[80px]">
+                                                        <td className="p-2 text-right text-slate-700 font-semibold">
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <span className="cursor-help">{(item.lineTotal || 0).toFixed(2)}</span>
@@ -989,7 +973,7 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                                                             </Tooltip>
                                                         </td>
                                                     )}
-                                                    <td className="p-2 text-center w-[40px]">
+                                                    <td className="p-2 text-center">
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"

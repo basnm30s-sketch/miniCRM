@@ -3,6 +3,31 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const sqlite_1 = require("../adapters/sqlite");
 const router = (0, express_1.Router)();
+// Single-flight guard: serialize concurrent admin settings saves to avoid
+// pile-ups that can saturate the (synchronous) better-sqlite3 main loop and
+// surface as client-side timeouts on the second consecutive save.
+let saveInFlight = null;
+async function runSerializedSave(work) {
+    if (saveInFlight) {
+        try {
+            await saveInFlight;
+        }
+        catch {
+            // ignore prior failure; we still want to attempt this save
+        }
+    }
+    let resolveDone;
+    saveInFlight = new Promise((resolve) => {
+        resolveDone = resolve;
+    });
+    try {
+        return work();
+    }
+    finally {
+        resolveDone();
+        saveInFlight = null;
+    }
+}
 // GET /api/admin/settings
 router.get('/settings', (req, res) => {
     try {
@@ -56,22 +81,40 @@ router.get('/settings', (req, res) => {
     }
 });
 // POST /api/admin/settings
-router.post('/settings', (req, res) => {
+router.post('/settings', async (req, res) => {
+    const start = Date.now();
     try {
-        const settings = sqlite_1.adminAdapter.save(req.body);
+        const settings = await runSerializedSave(() => sqlite_1.adminAdapter.save(req.body));
+        console.log('[AdminSettings] POST /settings success', {
+            durationMs: Date.now() - start,
+            payloadSizeBytes: Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8'),
+        });
         res.json(settings);
     }
     catch (error) {
+        console.error('[AdminSettings] POST /settings failed', {
+            durationMs: Date.now() - start,
+            message: error?.message,
+        });
         res.status(500).json({ error: error.message });
     }
 });
 // PUT /api/admin/settings
-router.put('/settings', (req, res) => {
+router.put('/settings', async (req, res) => {
+    const start = Date.now();
     try {
-        const settings = sqlite_1.adminAdapter.save(req.body);
+        const settings = await runSerializedSave(() => sqlite_1.adminAdapter.save(req.body));
+        console.log('[AdminSettings] PUT /settings success', {
+            durationMs: Date.now() - start,
+            payloadSizeBytes: Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8'),
+        });
         res.json(settings);
     }
     catch (error) {
+        console.error('[AdminSettings] PUT /settings failed', {
+            durationMs: Date.now() - start,
+            message: error?.message,
+        });
         res.status(500).json({ error: error.message });
     }
 });

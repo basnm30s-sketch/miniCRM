@@ -48,6 +48,12 @@ import { Edit3 } from 'lucide-react'
 import { TwoPaneListHeader } from '@/components/TwoPaneListHeader'
 import { ReadOnlyLineItemsTable } from '@/components/doc-generator/ReadOnlyLineItemsTable'
 import { DEFAULT_PO_COLUMNS } from '@/lib/doc-generator/line-item-columns'
+import { DocGeneratorDetailHeader } from '@/components/doc-generator/two-pane/DocGeneratorDetailHeader'
+import { DocGeneratorEntityCard } from '@/components/doc-generator/two-pane/DocGeneratorEntityCard'
+import { DocGeneratorSummaryCard } from '@/components/doc-generator/two-pane/DocGeneratorSummaryCard'
+import { DocGeneratorNotesTermsSection } from '@/components/doc-generator/two-pane/DocGeneratorNotesTermsSection'
+import { DocGeneratorEmptyState } from '@/components/doc-generator/two-pane/DocGeneratorEmptyState'
+import { DOC_GENERATOR_LABELS, toTitleCaseLabel } from '@/lib/doc-generator/ui-consistency'
 
 export default function PurchaseOrdersPage() {
   const router = useRouter()
@@ -264,7 +270,7 @@ export default function PurchaseOrdersPage() {
           <Link href="/purchase-orders/create">
             <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
               <Plus className="w-4 h-4 mr-2" />
-              Create PO
+              {DOC_GENERATOR_LABELS.purchaseOrders.newCta}
             </Button>
           </Link>
         )}
@@ -275,13 +281,13 @@ export default function PurchaseOrdersPage() {
           {/* Left Pane - List View */}
           <div className="w-[380px] border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
           <TwoPaneListHeader
-            title="All Orders"
+            title={DOC_GENERATOR_LABELS.purchaseOrders.listTitle}
             count={pos.length}
             action={
               <Link href="/purchase-orders/create">
                 <Button size="sm" className="h-7 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
                   <Plus className="w-4 h-4 mr-2" />
-                  Create PO
+                  {DOC_GENERATOR_LABELS.purchaseOrders.newCta}
                 </Button>
               </Link>
             }
@@ -331,7 +337,7 @@ export default function PurchaseOrdersPage() {
 
                     <div className="flex justify-between items-center">
                       <Badge variant="outline" className={`text-[10px] px-1.5 py-0 rounded-sm font-medium ${getStatusColor(po.status)}`}>
-                        {po.status || 'Draft'}
+                        {toTitleCaseLabel(po.status, 'Draft')}
                       </Badge>
                     </div>
                   </div>
@@ -354,21 +360,20 @@ export default function PurchaseOrdersPage() {
               </div>
             ) : (
               <>
-                {/* Header Actions */}
-                <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-start shadow-sm z-10">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-2xl font-bold text-slate-900">{selectedPO.number}</h2>
-                      <Badge variant="outline" className={`${getStatusColor(selectedPO.status)}`}>
-                        {selectedPO.status || 'Draft'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
+                <DocGeneratorDetailHeader
+                  number={selectedPO.number}
+                  statusBadge={{
+                    label: toTitleCaseLabel(selectedPO.status, 'Draft'),
+                    className: getStatusColor(selectedPO.status),
+                  }}
+                  secondaryMeta={
+                    <>
                       <span>{getVendorName(selectedPO.vendorId)}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
+                      <span>{selectedPO.date}</span>
+                    </>
+                  }
+                  actions={
+                    <>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="h-9">
@@ -413,11 +418,9 @@ export default function PurchaseOrdersPage() {
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete
                     </Button>
-
-
-
-                  </div>
-                </div>
+                    </>
+                  }
+                />
 
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -425,14 +428,7 @@ export default function PurchaseOrdersPage() {
                   {/* Vendor Details & Summary Group */}
                   <div className="grid grid-cols-3 gap-4">
                     {/* Vendor Details */}
-                    <Card className="col-span-2 shadow-sm border-slate-200">
-                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                          <Truck className="w-4 h-4" />
-                          Vendor Details
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-3 grid grid-cols-2 gap-4 text-sm">
+                    <DocGeneratorEntityCard title="Vendor Details">
                         <div>
                           <span className="block text-slate-500 text-xs mb-1">Vendor Name</span>
                           <span className="font-medium text-slate-900">{getVendorName(selectedPO.vendorId)}</span>
@@ -469,29 +465,14 @@ export default function PurchaseOrdersPage() {
                             </>
                           )
                         })()}
-                      </CardContent>
-                    </Card>
+                    </DocGeneratorEntityCard>
 
                     {/* Financial Summary */}
-                    <Card className="shadow-sm border-slate-200 h-fit">
-                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Summary</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-3 space-y-3">
-                        <div className="flex justify-between text-sm text-slate-600">
-                          <span>Subtotal</span>
-                          <span>AED {(selectedPO.subtotal || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-slate-600">
-                          <span>Tax</span>
-                          <span>AED {(selectedPO.tax || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="pt-3 mt-3 border-t border-slate-100 flex justify-between items-baseline">
-                          <span className="font-semibold text-slate-900">Total</span>
-                          <span className="text-xl font-bold text-slate-900">AED {(selectedPO.amount || 0).toFixed(2)}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <DocGeneratorSummaryCard
+                      subtotal={selectedPO.subtotal || 0}
+                      tax={selectedPO.tax || 0}
+                      total={selectedPO.amount || 0}
+                    />
                   </div>
 
                   {/* Line Items - Full Width */}
@@ -509,58 +490,22 @@ export default function PurchaseOrdersPage() {
                   </Card>
 
                   {/* Additional Info (Terms/Notes) */}
-                  {(selectedPO.terms || selectedPO.notes) && (
-                    <div className="grid grid-cols-1 gap-4">
-                      {selectedPO.notes && (
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-3">
-                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedPO.notes}</p>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {selectedPO.terms && (
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Terms & Conditions</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-3">
-                            <div className={`prose prose-sm max-w-none text-slate-600 ${!showTerms ? 'line-clamp-4' : ''}`}
-                              dangerouslySetInnerHTML={{ __html: selectedPO.terms }}
-                            />
-                            {selectedPO.terms.length > 200 && (
-                              <button
-                                className="text-blue-600 hover:text-blue-700 text-xs font-medium mt-2 flex items-center"
-                                onClick={() => setShowTerms(!showTerms)}
-                              >
-                                {showTerms ? 'Show Less' : 'Read More'}
-                                <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showTerms ? 'rotate-180' : ''}`} />
-                              </button>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  )}
+                  <DocGeneratorNotesTermsSection
+                    notes={selectedPO.notes}
+                    terms={selectedPO.terms}
+                    termsExpanded={showTerms}
+                    onToggleTerms={() => setShowTerms(!showTerms)}
+                  />
                 </div>
               </>
             )
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-50/50">
-              <div className="w-16 h-16 mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-                <FileText className="w-8 h-8 text-slate-300" />
-              </div>
-              <p className="text-lg font-medium text-slate-600">No purchase order selected</p>
-              <p className="text-sm max-w-xs text-center mt-2">
-                Select a purchase order from the list to view details or create a new one.
-              </p>
-              <Link href="/purchase-orders/create" className="mt-6">
-                <Button variant="outline">Create New PO</Button>
-              </Link>
-            </div>
+            <DocGeneratorEmptyState
+              title={DOC_GENERATOR_LABELS.purchaseOrders.emptyTitle}
+              description={DOC_GENERATOR_LABELS.purchaseOrders.emptyDescription}
+              ctaHref="/purchase-orders/create"
+              ctaLabel={DOC_GENERATOR_LABELS.purchaseOrders.emptyCta}
+            />
           )}
         </div>
         </div>
@@ -637,7 +582,7 @@ export default function PurchaseOrdersPage() {
                             <TableCell className="text-slate-600">{po.date}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className={`text-xs ${getStatusColor(po.status)}`}>
-                                {po.status || 'Draft'}
+                                {toTitleCaseLabel(po.status, 'Draft')}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-center">

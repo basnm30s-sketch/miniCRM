@@ -48,6 +48,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { TwoPaneListHeader } from '@/components/TwoPaneListHeader'
 import { ReadOnlyLineItemsTable } from '@/components/doc-generator/ReadOnlyLineItemsTable'
 import { DEFAULT_QUOTE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
+import { DocGeneratorDetailHeader } from '@/components/doc-generator/two-pane/DocGeneratorDetailHeader'
+import { DocGeneratorEntityCard } from '@/components/doc-generator/two-pane/DocGeneratorEntityCard'
+import { DocGeneratorSummaryCard } from '@/components/doc-generator/two-pane/DocGeneratorSummaryCard'
+import { DocGeneratorNotesTermsSection } from '@/components/doc-generator/two-pane/DocGeneratorNotesTermsSection'
+import { DocGeneratorEmptyState } from '@/components/doc-generator/two-pane/DocGeneratorEmptyState'
+import { DOC_GENERATOR_LABELS } from '@/lib/doc-generator/ui-consistency'
 
 export default function QuotationsPage() {
   const router = useRouter()
@@ -279,6 +285,18 @@ export default function QuotationsPage() {
       valid: 'bg-green-100 text-green-700 border-green-300',
     }
     return colors[status] || 'bg-gray-100 text-gray-700 border-gray-300'
+  }
+
+  const getQuoteStatusDisplay = (validUntil?: string) => {
+    const status = getValidUntilStatus(validUntil).status
+    if (status === 'expired') return 'Expired'
+    if (status === 'expiring') return 'Expiring'
+    return 'Active'
+  }
+
+  const getQuoteStatusClassName = (validUntil?: string) => {
+    const status = getValidUntilStatus(validUntil).status
+    return getStatusBadgeColor(status)
   }
 
   if (loading || settingsLoading) {
@@ -517,13 +535,13 @@ export default function QuotationsPage() {
         {/* Left Pane - List View */}
         <div className="w-[380px] border-r border-slate-200 bg-white overflow-y-auto flex flex-col">
           <TwoPaneListHeader
-            title="All Quotations"
+            title={DOC_GENERATOR_LABELS.quotations.listTitle}
             count={quotes.length}
             action={
               <Link href="/quotes/create">
                 <Button size="sm" className="h-7 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
                   <Plus className="w-4 h-4 mr-2" />
-                  New Quotation
+                  {DOC_GENERATOR_LABELS.quotations.newCta}
                 </Button>
               </Link>
             }
@@ -598,19 +616,20 @@ export default function QuotationsPage() {
               </div>
             ) : (
               <>
-                {/* Header Actions */}
-                <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-start shadow-sm z-10">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-2xl font-bold text-slate-900">{selectedQuote.number}</h2>
-                      <Badge variant="outline" className="text-slate-600 border-slate-300 font-normal">
-                        {selectedQuote.date}
-                      </Badge>
-                    </div>
-                    <p className="text-slate-600 mt-1 font-medium">{selectedQuote.customer?.name || 'N/A'}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
+                <DocGeneratorDetailHeader
+                  number={selectedQuote.number}
+                  statusBadge={{
+                    label: getQuoteStatusDisplay(selectedQuote.validUntil),
+                    className: getQuoteStatusClassName(selectedQuote.validUntil),
+                  }}
+                  secondaryMeta={
+                    <>
+                      <span>{selectedQuote.customer?.name || 'N/A'}</span>
+                      <span>{selectedQuote.date}</span>
+                    </>
+                  }
+                  actions={
+                    <>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="h-9">
@@ -635,6 +654,15 @@ export default function QuotationsPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
 
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => handleCreateInvoice(selectedQuote)}
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Convert to Invoice
+                    </Button>
 
                     <Button
                       variant="outline"
@@ -649,26 +677,15 @@ export default function QuotationsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9"
-                      onClick={() => handleCreateInvoice(selectedQuote)}
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Convert to Invoice
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
                       className="h-9 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                       onClick={() => setDeleteId(selectedQuote.id)}
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete
                     </Button>
-
-
-                  </div>
-                </div>
+                    </>
+                  }
+                />
 
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -676,11 +693,7 @@ export default function QuotationsPage() {
                   {/* Customer Details & Summary Group */}
                   <div className="grid grid-cols-3 gap-4">
                     {/* Customer Card */}
-                    <Card className="col-span-2 shadow-sm border-slate-200">
-                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Customer Details</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-3 grid grid-cols-2 gap-4 text-sm">
+                    <DocGeneratorEntityCard title="Customer Details">
                         <div>
                           <span className="block text-slate-500 text-xs mb-1">Customer Name</span>
                           <span className="font-medium text-slate-900">{selectedQuote.customer?.name || 'N/A'}</span>
@@ -715,29 +728,14 @@ export default function QuotationsPage() {
                             <span className="font-medium text-slate-900">{selectedQuote.customer.trn}</span>
                           </div>
                         )}
-                      </CardContent>
-                    </Card>
+                    </DocGeneratorEntityCard>
 
                     {/* Financial Summary */}
-                    <Card className="shadow-sm border-slate-200 h-fit">
-                      <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Summary</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-3 space-y-3">
-                        <div className="flex justify-between text-sm text-slate-600">
-                          <span>Subtotal</span>
-                          <span>AED {selectedQuote.subTotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-slate-600">
-                          <span>Tax</span>
-                          <span>AED {selectedQuote.totalTax.toFixed(2)}</span>
-                        </div>
-                        <div className="pt-3 mt-3 border-t border-slate-100 flex justify-between items-baseline">
-                          <span className="font-semibold text-slate-900">Total</span>
-                          <span className="text-xl font-bold text-slate-900">AED {selectedQuote.total.toFixed(2)}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <DocGeneratorSummaryCard
+                      subtotal={selectedQuote.subTotal}
+                      tax={selectedQuote.totalTax}
+                      total={selectedQuote.total}
+                    />
                   </div>
 
                   {/* Line Items - Full Width */}
@@ -755,58 +753,22 @@ export default function QuotationsPage() {
                   </Card>
 
                   {/* Additional Info (Terms/Notes) */}
-                  {(selectedQuote.terms || selectedQuote.notes) && (
-                    <div className="grid grid-cols-1 gap-4">
-                      {selectedQuote.notes && (
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Notes</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-3">
-                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedQuote.notes}</p>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {selectedQuote.terms && (
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="pb-2 pt-3 bg-slate-50/50 border-b border-slate-100">
-                            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Terms & Conditions</CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-3">
-                            <div className={`prose prose-sm max-w-none text-slate-600 ${!showTerms ? 'line-clamp-4' : ''}`}
-                              dangerouslySetInnerHTML={{ __html: selectedQuote.terms }}
-                            />
-                            {selectedQuote.terms.length > 200 && (
-                              <button
-                                className="text-blue-600 hover:text-blue-700 text-xs font-medium mt-2 flex items-center"
-                                onClick={() => setShowTerms(!showTerms)}
-                              >
-                                {showTerms ? 'Show Less' : 'Read More'}
-                                <ChevronDown className={`w-3 h-3 ml-1 transition-transform ${showTerms ? 'rotate-180' : ''}`} />
-                              </button>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  )}
+                  <DocGeneratorNotesTermsSection
+                    notes={selectedQuote.notes}
+                    terms={selectedQuote.terms}
+                    termsExpanded={showTerms}
+                    onToggleTerms={() => setShowTerms(!showTerms)}
+                  />
                 </div>
               </>
             )
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-50/50">
-              <div className="w-16 h-16 mb-4 rounded-full bg-slate-100 flex items-center justify-center">
-                <FileText className="w-8 h-8 text-slate-300" />
-              </div>
-              <p className="text-lg font-medium text-slate-600">No quotation selected</p>
-              <p className="text-sm max-w-xs text-center mt-2">
-                Select a quotation from the list to view details or create a new one.
-              </p>
-              <Link href="/quotes/create" className="mt-6">
-                <Button variant="outline">Create New Quotation</Button>
-              </Link>
-            </div>
+            <DocGeneratorEmptyState
+              title={DOC_GENERATOR_LABELS.quotations.emptyTitle}
+              description={DOC_GENERATOR_LABELS.quotations.emptyDescription}
+              ctaHref="/quotes/create"
+              ctaLabel={DOC_GENERATOR_LABELS.quotations.emptyCta}
+            />
           )}
         </div>
       </div>

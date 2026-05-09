@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Trash2, FileText, Sheet, FileType, Pencil } from 'lucide-react'
+import { Plus, Trash2, FileText, Sheet, FileType } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     getAdminSettings,
@@ -54,7 +54,13 @@ import {
     validateInvoiceForExport,
     ValidationError,
 } from '@/lib/validation'
-import { DEFAULT_INVOICE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
+import {
+    DEFAULT_INVOICE_COLUMNS,
+    LINE_ITEM_COLUMN_WIDTHS,
+    LINE_ITEM_ACTION_WIDTH,
+} from '@/lib/doc-generator/line-item-columns'
+import { computeVehicleAutofillPatch, recomputeLineTotals } from '@/lib/line-items/vehicle-autofill'
+import { DocNumberField } from '@/components/doc-generator/DocNumberField'
 
 interface InvoiceFormProps {
     initialData?: Invoice
@@ -92,7 +98,6 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     const [isValidForExport, setIsValidForExport] = useState(false)
     const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
     const [isDirty, setIsDirty] = useState(false)
-    const [isInvoiceNumberEditable, setIsInvoiceNumberEditable] = useState(false)
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
     const getVisibleColumnsStorageKey = (invoiceId: string | undefined) =>
         invoiceId ? `invoice-visible-columns-${invoiceId}` : 'invoice-visible-columns-global'
@@ -175,9 +180,21 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     }, [visibleColumns, invoice.id, initialData, invoice.createdAt])
 
     const snapshotInvoice = (inv: Invoice) => {
-        // Exclude timestamp fields
+        // Exclude timestamp fields; use canonical key order so dirty check is stable across remounts
         const { createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = inv as any
-        return JSON.stringify(rest)
+        const canonical = (obj: unknown): unknown => {
+            if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+                return Object.keys(obj as object)
+                    .sort()
+                    .reduce((acc, k) => {
+                        (acc as Record<string, unknown>)[k] = canonical((obj as Record<string, unknown>)[k])
+                        return acc
+                    }, {} as Record<string, unknown>)
+            }
+            if (Array.isArray(obj)) return obj.map(canonical)
+            return obj
+        }
+        return JSON.stringify(canonical(rest))
     }
 
     useEffect(() => {
@@ -331,34 +348,24 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
             if (item.id === itemId) {
                 const updated = { ...item, [field]: value }
 
-                if (field === 'vehicleNumber' && value) {
-                    const vehicle = vehicles.find((v) => v.vehicleNumber === value)
-                    if (vehicle) {
-                        updated.vehicleTypeId = vehicle.id
-                        updated.vehicleTypeLabel = vehicle.vehicleType || vehicle.vehicleNumber || ''
-                        updated.vehicleType = vehicle.vehicleType
-                        updated.make = vehicle.make
-                        updated.model = vehicle.model
-                        updated.year = vehicle.year
-                        updated.basePrice = vehicle.basePrice
-                        if (!updated.description) {
-                            updated.description = vehicle.description || ''
-                        }
-                        // Auto-fill basePrice as unitPrice if unitPrice is 0 and basePrice exists
-                        if (updated.unitPrice === 0 && vehicle.basePrice) {
-                            updated.unitPrice = vehicle.basePrice
-                        }
-                    }
+                if (field === 'vehicleNumber' || field === 'vehicleTypeId') {
+                    Object.assign(
+                        updated,
+                        computeVehicleAutofillPatch({ vehicles, field, value })
+                    )
                 }
 
-                if (field === 'quantity' || field === 'unitPrice' || field === 'taxPercent') {
-                    const grossAmount = (updated.quantity || 0) * (updated.unitPrice || 0)
-                    const itemTax = grossAmount * ((updated.taxPercent || 0) / 100)
-                    const lineTotal = grossAmount + itemTax
-
-                    updated.grossAmount = grossAmount
-                    updated.lineTaxAmount = itemTax
-                    updated.lineTotal = lineTotal
+                if (
+                    field === 'quantity' ||
+                    field === 'unitPrice' ||
+                    field === 'taxPercent' ||
+                    field === 'vehicleNumber' ||
+                    field === 'vehicleTypeId'
+                ) {
+                    const totals = recomputeLineTotals(updated)
+                    updated.grossAmount = totals.grossAmount
+                    updated.lineTaxAmount = totals.lineTaxAmount
+                    updated.lineTotal = totals.lineTotal
                 }
 
                 return updated
@@ -628,34 +635,13 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="invoiceNumber" className="text-slate-700 flex items-center gap-2 text-xs">
-                                        Invoice Number
-                                        {!isInvoiceNumberEditable && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsInvoiceNumberEditable(true)}
-                                                className="text-blue-600 hover:text-blue-800"
-                                                title="Edit invoice number"
-                                            >
-                                                <Pencil className="w-3 h-3" />
-                                            </button>
-                                        )}
-                                    </Label>
-                                    <Input
-                                        id="invoiceNumber"
-                                        value={invoice.number}
-                                        disabled={!isInvoiceNumberEditable}
-                                        onChange={(e) => {
-                                            const value = e.target.value
-                                            if (value === '' || /^INV-\d+$/.test(value)) {
-                                                setInvoice((prev) => ({ ...prev, number: value }))
-                                            }
-                                        }}
-                                        className={`mt-1 h-8 ${isInvoiceNumberEditable ? 'bg-white' : 'bg-slate-50'}`}
-                                        placeholder="INV-001"
-                                    />
-                                </div>
+                                <DocNumberField
+                                    id="invoiceNumber"
+                                    label="Invoice Number"
+                                    value={invoice.number}
+                                    onChange={(value) => setInvoice((prev) => ({ ...prev, number: value }))}
+                                    placeholder="Invoice-001"
+                                />
                                 <div>
                                     <Label htmlFor="invoiceDate" className="text-slate-700 text-xs">Date</Label>
                                     <Input
@@ -1200,7 +1186,24 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="overflow-x-auto">
-                                <table className="w-full text-xs">
+                                <table className="w-full table-fixed text-xs">
+                                    <colgroup>
+                                        {visibleColumns.serialNumber !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.serialNumber} />}
+                                        {visibleColumns.vehicleNumber !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.vehicleNumber} />}
+                                        {visibleColumns.vehicleType !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.vehicleType} />}
+                                        {visibleColumns.makeModel !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.makeModel} />}
+                                        {visibleColumns.year !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.year} />}
+                                        {visibleColumns.basePrice !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.basePrice} />}
+                                        {visibleColumns.description !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.description} />}
+                                        {visibleColumns.rentalBasis !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.rentalBasis} />}
+                                        {visibleColumns.quantity !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.quantity} />}
+                                        {visibleColumns.rate !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.rate} />}
+                                        {visibleColumns.grossAmount !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.grossAmount} />}
+                                        {visibleColumns.tax !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.tax} />}
+                                        {visibleColumns.netAmount !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.netAmount} />}
+                                        {visibleColumns.amountReceived !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.amountReceived} />}
+                                        <col className={LINE_ITEM_ACTION_WIDTH} />
+                                    </colgroup>
                                     <thead className="bg-slate-100 border-b">
                                         <tr>
                                             {visibleColumns.serialNumber !== false && <th className="text-center p-2">#</th>}
@@ -1230,7 +1233,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                         </td>
                                                     )}
                                             {visibleColumns.vehicleNumber !== false && (
-                                                <td className="p-2 min-w-[100px]">
+                                                <td className="p-2">
                                                     <Select
                                                         value={item.vehicleNumber || ''}
                                                         onValueChange={(value) => handleLineItemChange(item.id, 'vehicleNumber', value)}
@@ -1264,27 +1267,27 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                 </td>
                                             )}
                                             {visibleColumns.vehicleType !== false && (
-                                                <td className="p-2 text-left text-slate-700 min-w-[80px]">
+                                                <td className="p-2 text-left text-slate-700">
                                                     {item.vehicleType || '-'}
                                                 </td>
                                             )}
                                             {visibleColumns.makeModel !== false && (
-                                                <td className="p-2 text-left text-slate-700 min-w-[120px]">
+                                                <td className="p-2 text-left text-slate-700">
                                                     {item.make && item.model ? `${item.make} ${item.model}` : '-'}
                                                 </td>
                                             )}
                                             {visibleColumns.year !== false && (
-                                                <td className="p-2 text-center text-slate-700 min-w-[60px]">
+                                                <td className="p-2 text-center text-slate-700">
                                                     {item.year || '-'}
                                                 </td>
                                             )}
                                             {visibleColumns.basePrice !== false && (
-                                                <td className="p-2 text-right text-slate-700 min-w-[80px]">
+                                                <td className="p-2 text-right text-slate-700">
                                                     {item.basePrice ? item.basePrice.toFixed(2) : '-'}
                                                 </td>
                                             )}
                                                     {visibleColumns.description !== false && (
-                                                        <td className="p-2 min-w-[120px]">
+                                                        <td className="p-2">
                                                             <Input
                                                                 value={item.description || ''}
                                                                 onChange={(e) => handleLineItemChange(item.id, 'description', e.target.value)}
@@ -1293,7 +1296,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                         </td>
                                                     )}
                                                     {visibleColumns.rentalBasis !== false && (
-                                                        <td className="p-2 min-w-[90px]">
+                                                        <td className="p-2">
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <div>
@@ -1318,7 +1321,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                         </td>
                                                     )}
                                                     {visibleColumns.quantity !== false && (
-                                                        <td className="p-2 text-right w-[60px]">
+                                                        <td className="p-2 text-right">
                                                             <Input
                                                                 type="number"
                                                                 min="0"
@@ -1329,7 +1332,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                         </td>
                                                     )}
                                                     {visibleColumns.rate !== false && (
-                                                        <td className="p-2 text-right w-[80px]">
+                                                        <td className="p-2 text-right">
                                                             <Input
                                                                 type="number"
                                                                 min="0"
@@ -1340,7 +1343,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                         </td>
                                                     )}
                                                     {visibleColumns.grossAmount !== false && (
-                                                        <td className="p-2 text-right text-slate-700 w-[80px]">
+                                                        <td className="p-2 text-right text-slate-700">
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <span className="cursor-help">{(item.grossAmount || 0).toFixed(2)}</span>
@@ -1352,7 +1355,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                         </td>
                                                     )}
                                                     {visibleColumns.tax !== false && (
-                                                        <td className="p-2 text-right w-[60px]">
+                                                        <td className="p-2 text-right">
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <div>
@@ -1373,7 +1376,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                         </td>
                                                     )}
                                                     {visibleColumns.netAmount !== false && (
-                                                        <td className="p-2 text-right text-slate-700 font-semibold w-[80px]">
+                                                        <td className="p-2 text-right text-slate-700 font-semibold">
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <span className="cursor-help">{(item.lineTotal || 0).toFixed(2)}</span>
@@ -1385,7 +1388,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                         </td>
                                                     )}
                                                     {visibleColumns.amountReceived !== false && (
-                                                        <td className="p-2 text-right w-[80px]">
+                                                        <td className="p-2 text-right">
                                                             <Input
                                                                 type="number"
                                                                 min="0"
@@ -1396,7 +1399,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                             />
                                                         </td>
                                                     )}
-                                                    <td className="p-2 text-center w-[40px]">
+                                                    <td className="p-2 text-center">
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
