@@ -177,7 +177,7 @@ export default function AdminSettingsPage() {
     }
   }
 
-  const handleInputChange = (field: keyof AdminSettings, value: string | boolean) => {
+  const handleInputChange = (field: keyof AdminSettings, value: string | number | boolean) => {
     if (settings) {
       setSettings({
         ...settings,
@@ -474,6 +474,23 @@ export default function AdminSettingsPage() {
                         className="bg-gray-100"
                       />
                       <p className="mt-1 text-sm text-gray-500">Currency is fixed to AED</p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="defaultTaxPercent">Default Tax %</Label>
+                      <Input
+                        id="defaultTaxPercent"
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={settings.defaultTaxPercent ?? 5}
+                        onChange={(e) => handleInputChange('defaultTaxPercent', parseFloat(e.target.value) || 0)}
+                        placeholder="5"
+                      />
+                      <p className="mt-1 text-sm text-gray-500">
+                        Applied to new line items in quotes, invoices and purchase orders
+                      </p>
                     </div>
 
                     <div className="md:col-span-2">

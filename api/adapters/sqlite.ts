@@ -984,6 +984,7 @@ export const adminAdapter = {
       signatureUrl: row.signatureUrl || null,
       quoteNumberPattern: row.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
       currency: row.currency || 'AED',
+      defaultTaxPercent: (row.defaultTaxPercent ?? 5),
       defaultTerms: row.defaultTerms || '',
       // Optional; if unset, callers should fall back to defaultTerms
       defaultInvoiceTerms: row.defaultInvoiceTerms ?? undefined,
@@ -1032,6 +1033,9 @@ export const adminAdapter = {
       ? (normalizeOptionalRichTextHtml(data.defaultPurchaseOrderTerms) ?? null)
       : (existing?.defaultPurchaseOrderTerms ?? null)
     const resolvedDefaultTerms = normalizeOptionalRichTextHtml(data.defaultTerms) ?? ''
+    const resolvedDefaultTaxPercent = hasOwn(data, 'defaultTaxPercent')
+      ? (data.defaultTaxPercent ?? 5)
+      : (existing?.defaultTaxPercent ?? 5)
 
     // Convert boolean to integer (SQLite doesn't have native boolean)
     // Explicitly handle: false -> 0, true -> 1, undefined/null -> 0 (default)
@@ -1069,8 +1073,8 @@ export const adminAdapter = {
     if (existing) {
       const stmt = db.prepare(`
         UPDATE admin_settings 
-        SET companyName = ?, address = ?, vatNumber = ?, logoUrl = ?, sealUrl = ?, 
-            signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTerms = ?, defaultInvoiceTerms = ?, defaultPurchaseOrderTerms = ?,
+        SET companyName = ?, address = ?, vatNumber = ?, logoUrl = ?, sealUrl = ?,
+            signatureUrl = ?, quoteNumberPattern = ?, currency = ?, defaultTaxPercent = ?, defaultTerms = ?, defaultInvoiceTerms = ?, defaultPurchaseOrderTerms = ?,
             footerAddressEnglish = ?, footerAddressArabic = ?, footerContactEnglish = ?, footerContactArabic = ?,
             showRevenueTrend = ?, showQuickActions = ?, showReports = ?, showVehicleFinances = ?, 
             showQuotationsInvoicesCard = ?, showQuotationsTwoPane = ?, showPurchaseOrdersTwoPane = ?, showInvoicesTwoPane = ?, showEmployeeSalariesCard = ?, showVehicleRevenueExpensesCard = ?, 
@@ -1087,6 +1091,7 @@ export const adminAdapter = {
         data.signatureUrl || null,
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
+        resolvedDefaultTaxPercent,
         resolvedDefaultTerms,
         resolvedDefaultInvoiceTerms,
         resolvedDefaultPurchaseOrderTerms,
@@ -1114,14 +1119,14 @@ export const adminAdapter = {
       )
     } else {
       const stmt = db.prepare(`
-        INSERT INTO admin_settings (id, companyName, address, vatNumber, logoUrl, sealUrl, 
-                                    signatureUrl, quoteNumberPattern, currency, defaultTerms, defaultInvoiceTerms, defaultPurchaseOrderTerms,
+        INSERT INTO admin_settings (id, companyName, address, vatNumber, logoUrl, sealUrl,
+                                    signatureUrl, quoteNumberPattern, currency, defaultTaxPercent, defaultTerms, defaultInvoiceTerms, defaultPurchaseOrderTerms,
                                     footerAddressEnglish, footerAddressArabic, footerContactEnglish, footerContactArabic,
-                                    showRevenueTrend, showQuickActions, showReports, showVehicleFinances, 
-                                    showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard, 
-                                    showActivityThisMonth, showFinancialHealth, showBusinessOverview, 
+                                    showRevenueTrend, showQuickActions, showReports, showVehicleFinances,
+                                    showQuotationsInvoicesCard, showQuotationsTwoPane, showPurchaseOrdersTwoPane, showInvoicesTwoPane, showEmployeeSalariesCard, showVehicleRevenueExpensesCard,
+                                    showActivityThisMonth, showFinancialHealth, showBusinessOverview,
                                     showTopCustomers, showActivitySummary, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       stmt.run(
         data.id || 'settings_1',
@@ -1133,6 +1138,7 @@ export const adminAdapter = {
         data.signatureUrl || null,
         data.quoteNumberPattern || 'AAT-YYYYMMDD-NNNN',
         data.currency || 'AED',
+        resolvedDefaultTaxPercent,
         resolvedDefaultTerms,
         resolvedDefaultInvoiceTerms,
         resolvedDefaultPurchaseOrderTerms,

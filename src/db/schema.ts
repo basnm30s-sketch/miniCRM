@@ -41,6 +41,7 @@ export const adminSettings = sqliteTable('admin_settings', {
   footerContactArabic: text('footerContactArabic'),
   quoteStartingNumber: integer('quoteStartingNumber').default(1),
   invoiceStartingNumber: integer('invoiceStartingNumber').default(1),
+  defaultTaxPercent: real('defaultTaxPercent').default(5),
   createdAt: text('createdAt'),
   updatedAt: text('updatedAt'),
 })

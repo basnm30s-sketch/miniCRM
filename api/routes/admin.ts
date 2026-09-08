@@ -52,6 +52,7 @@ router.get('/settings', (req: Request, res: Response) => {
         signatureUrl: null,
         quoteNumberPattern: 'AAT-YYYYMMDD-NNNN',
         currency: 'AED',
+        defaultTaxPercent: 5,
         defaultTerms,
         defaultInvoiceTerms: defaultTerms,
         defaultPurchaseOrderTerms: defaultTerms,

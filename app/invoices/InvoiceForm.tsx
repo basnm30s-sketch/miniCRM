@@ -230,6 +230,20 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                     })
                 }
 
+                // Seed the still-untouched initial line item's tax % from the global default
+                // (fall back to 5 the same way handleAddLineItem does, so the first line
+                // item and every subsequently added one always agree)
+                const rawDefaultTaxPercent = (currentSettings as any)?.defaultTaxPercent
+                const defaultTaxPercent = typeof rawDefaultTaxPercent === 'number' ? rawDefaultTaxPercent : 5
+                if (!initialData) {
+                    setInvoice((prev) => {
+                        if (prev.items.length !== 1 || prev.items[0].taxPercent) return prev
+                        const items = prev.items.map((item) => ({ ...item, taxPercent: defaultTaxPercent }))
+                        const totals = calculateTotals(items)
+                        return { ...prev, items, ...totals }
+                    })
+                }
+
                 const [customersData, vehiclesData, posData, vendorsData] = await Promise.all([
                     getAllCustomers(),
                     getAllVehicles(),
@@ -303,7 +317,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
             rentalBasis: undefined,
             quantity: 1,
             unitPrice: 0,
-            taxPercent: 0,
+            taxPercent: adminSettings?.defaultTaxPercent ?? 5,
             grossAmount: 0,
             lineTaxAmount: 0,
             lineTotal: 0,
@@ -1188,21 +1202,21 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                             <div className="overflow-x-auto">
                                 <table className="w-full table-fixed text-xs">
                                     <colgroup>
-                                        {visibleColumns.serialNumber !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.serialNumber} />}
-                                        {visibleColumns.vehicleNumber !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.vehicleNumber} />}
-                                        {visibleColumns.vehicleType !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.vehicleType} />}
-                                        {visibleColumns.makeModel !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.makeModel} />}
-                                        {visibleColumns.year !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.year} />}
-                                        {visibleColumns.basePrice !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.basePrice} />}
-                                        {visibleColumns.description !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.description} />}
-                                        {visibleColumns.rentalBasis !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.rentalBasis} />}
-                                        {visibleColumns.quantity !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.quantity} />}
-                                        {visibleColumns.rate !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.rate} />}
-                                        {visibleColumns.grossAmount !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.grossAmount} />}
-                                        {visibleColumns.tax !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.tax} />}
-                                        {visibleColumns.netAmount !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.netAmount} />}
-                                        {visibleColumns.amountReceived !== false && <col className={LINE_ITEM_COLUMN_WIDTHS.amountReceived} />}
-                                        <col className={LINE_ITEM_ACTION_WIDTH} />
+                                        {visibleColumns.serialNumber !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.serialNumber} />}
+                                        {visibleColumns.vehicleNumber !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.vehicleNumber} />}
+                                        {visibleColumns.vehicleType !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.vehicleType} />}
+                                        {visibleColumns.makeModel !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.makeModel} />}
+                                        {visibleColumns.year !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.year} />}
+                                        {visibleColumns.basePrice !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.basePrice} />}
+                                        {visibleColumns.description !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.description} />}
+                                        {visibleColumns.rentalBasis !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.rentalBasis} />}
+                                        {visibleColumns.quantity !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.quantity} />}
+                                        {visibleColumns.rate !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.rate} />}
+                                        {visibleColumns.grossAmount !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.grossAmount} />}
+                                        {visibleColumns.tax !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.tax} />}
+                                        {visibleColumns.netAmount !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.netAmount} />}
+                                        {visibleColumns.amountReceived !== false && <col style={LINE_ITEM_COLUMN_WIDTHS.amountReceived} />}
+                                        <col style={LINE_ITEM_ACTION_WIDTH} />
                                     </colgroup>
                                     <thead className="bg-slate-100 border-b">
                                         <tr>
@@ -1238,7 +1252,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                         value={item.vehicleNumber || ''}
                                                         onValueChange={(value) => handleLineItemChange(item.id, 'vehicleNumber', value)}
                                                     >
-                                                        <SelectTrigger className="h-7 text-xs">
+                                                        <SelectTrigger className="h-7 w-full min-w-0 text-xs">
                                                             <SelectValue placeholder="Vehicle..." />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -1304,7 +1318,7 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                                                                             value={item.rentalBasis || ''}
                                                                             onValueChange={(value) => handleLineItemChange(item.id, 'rentalBasis', value || undefined)}
                                                                         >
-                                                                            <SelectTrigger className="h-7 text-xs">
+                                                                            <SelectTrigger className="h-7 w-full min-w-0 text-xs">
                                                                                 <SelectValue placeholder="-" />
                                                                             </SelectTrigger>
                                                                             <SelectContent>
