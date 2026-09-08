@@ -913,7 +913,7 @@ export class ClientSidePDFRenderer implements PDFRenderer {
         </div>
 
         <!-- Title -->
-        <h2 style="text-align: center; margin: 20px 0; font-size: 20px;">INVOICE</h2>
+        <h2 style="text-align: center; margin: 20px 0; font-size: 20px;">TAX INVOICE</h2>
 
         <!-- Invoice Meta -->
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px;">
