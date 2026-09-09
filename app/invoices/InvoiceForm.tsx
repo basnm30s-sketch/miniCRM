@@ -24,6 +24,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
@@ -42,6 +43,7 @@ import {
     generateId,
     saveInvoice,
     saveCustomer,
+    saveLineItemColumnTemplate,
 } from '@/lib/storage'
 import { saveVehicle } from '@/lib/api-client'
 import { pdfRenderer } from '@/lib/pdf'
@@ -58,6 +60,9 @@ import {
     DEFAULT_INVOICE_COLUMNS,
     LINE_ITEM_COLUMN_WIDTHS,
     LINE_ITEM_ACTION_WIDTH,
+    LINE_ITEM_COLUMN_OPTIONS,
+    hasVisibleColumn,
+    resolveVisibleColumns,
 } from '@/lib/doc-generator/line-item-columns'
 import { computeVehicleAutofillPatch, recomputeLineTotals } from '@/lib/line-items/vehicle-autofill'
 import { DocNumberField } from '@/components/doc-generator/DocNumberField'
@@ -99,8 +104,6 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
     const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
     const [isDirty, setIsDirty] = useState(false)
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
-    const getVisibleColumnsStorageKey = (invoiceId: string | undefined) =>
-        invoiceId ? `invoice-visible-columns-${invoiceId}` : 'invoice-visible-columns-global'
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_INVOICE_COLUMNS }))
 
     // Determine if editing based on props or internal logic
@@ -146,38 +149,19 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
 
     const isEditMode = !!initialData || !!invoice.createdAt
 
-    // Restore column preferences from localStorage (per-invoice if editing, global if creating)
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const invoiceId = initialData?.id || invoice.id
-            const storageKey = getVisibleColumnsStorageKey(invoiceId)
-            let stored = localStorage.getItem(storageKey)
-            if (!stored && initialData) {
-                stored = localStorage.getItem('invoice-visible-columns-global')
-            }
-            if (stored) {
-                try {
-                    const parsed = JSON.parse(stored)
-                    if (parsed && typeof parsed === 'object') {
-                        setVisibleColumns((prev) => ({ ...prev, ...parsed }))
-                    }
-                } catch {
-                    // ignore invalid stored data
-                }
-            }
+    // The column template is module-wide and shared by every invoice, so it is
+    // only written when the customizer closes — never on mount, which would
+    // race the load below and overwrite the saved template with defaults.
+    const handleColumnCustomizerOpenChange = async (open: boolean) => {
+        setShowColumnCustomizer(open)
+        if (open) return
+        try {
+            await saveLineItemColumnTemplate('invoice', visibleColumns)
+        } catch (err) {
+            console.error('Failed to save column template:', err)
+            toast({ title: 'Error', description: 'Failed to save column preferences', variant: 'destructive' })
         }
-    }, [initialData?.id, invoice.id])
-
-    // Persist column preferences (per-invoice if editing, global if creating)
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const storageKey = getVisibleColumnsStorageKey(invoice.id)
-            localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
-            if (!initialData && !invoice.createdAt) {
-                localStorage.setItem('invoice-visible-columns-global', JSON.stringify(visibleColumns))
-            }
-        }
-    }, [visibleColumns, invoice.id, initialData, invoice.createdAt])
+    }
 
     const snapshotInvoice = (inv: Invoice) => {
         // Exclude timestamp fields; use canonical key order so dirty check is stable across remounts
@@ -219,6 +203,8 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                     setAdminSettings(initialized)
                     currentSettings = initialized
                 }
+
+                setVisibleColumns(resolveVisibleColumns('invoice', currentSettings))
 
                 const defaultInvoiceTerms = (currentSettings as any)?.defaultInvoiceTerms ?? currentSettings?.defaultTerms
 
@@ -1472,37 +1458,25 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
             </Card>
 
             {/* Column Customization Dialog */}
-            <Dialog open={showColumnCustomizer} onOpenChange={setShowColumnCustomizer}>
+            <Dialog open={showColumnCustomizer} onOpenChange={handleColumnCustomizerOpenChange}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Customize Columns</DialogTitle>
                         <DialogDescription>
-                            Select columns to display
+                            Applies to every invoice. Also editable in Admin → Settings.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-4">
-                        {[
-                            { key: 'serialNumber', label: 'Sl. no.' },
-                            { key: 'vehicleNumber', label: 'Vehicle number' },
-                            { key: 'vehicleType', label: 'Vehicle Type' },
-                            { key: 'makeModel', label: 'Make/Model' },
-                            { key: 'year', label: 'Year' },
-                            { key: 'basePrice', label: 'Base Price' },
-                            { key: 'description', label: 'Description' },
-                            { key: 'rentalBasis', label: 'Rental basis' },
-                            { key: 'quantity', label: 'Qty' },
-                            { key: 'rate', label: 'Rate' },
-                            { key: 'grossAmount', label: 'Gross amount' },
-                            { key: 'tax', label: 'Tax %' },
-                            { key: 'netAmount', label: 'Net amount' },
-                            { key: 'amountReceived', label: 'Amount Received' },
-                        ].map((col) => (
+                        {LINE_ITEM_COLUMN_OPTIONS.invoice.map((col) => (
                             <div key={col.key} className="flex items-center space-x-2">
                                 <Checkbox
                                     id={col.key}
                                     checked={visibleColumns[col.key] !== false}
                                     onCheckedChange={(checked) => {
-                                        setVisibleColumns((prev) => ({ ...prev, [col.key]: checked !== false }))
+                                        setVisibleColumns((prev) => {
+                                            const next = { ...prev, [col.key]: checked !== false }
+                                            return hasVisibleColumn('invoice', next) ? next : prev
+                                        })
                                     }}
                                 />
                                 <Label htmlFor={col.key} className="font-normal cursor-pointer text-sm">
@@ -1511,6 +1485,15 @@ export default function InvoiceForm({ initialData, onSave, onCancel, quoteId }: 
                             </div>
                         ))}
                     </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setVisibleColumns({ ...DEFAULT_INVOICE_COLUMNS })}
+                        >
+                            Reset to defaults
+                        </Button>
+                        <Button onClick={() => handleColumnCustomizerOpenChange(false)}>Done</Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

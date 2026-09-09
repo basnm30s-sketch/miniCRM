@@ -47,7 +47,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { TwoPaneListHeader } from '@/components/TwoPaneListHeader'
 import { ReadOnlyLineItemsTable } from '@/components/doc-generator/ReadOnlyLineItemsTable'
-import { DEFAULT_QUOTE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
+import { resolveVisibleColumns } from '@/lib/doc-generator/line-item-columns'
 import { DocGeneratorDetailHeader } from '@/components/doc-generator/two-pane/DocGeneratorDetailHeader'
 import { DocGeneratorEntityCard } from '@/components/doc-generator/two-pane/DocGeneratorEntityCard'
 import { DocGeneratorSummaryCard } from '@/components/doc-generator/two-pane/DocGeneratorSummaryCard'
@@ -117,42 +117,7 @@ export default function QuotationsPage() {
         return
       }
 
-      // Load persisted column preferences (per-quote, fallback to global)
-      let visibleColumns: Record<string, boolean> | undefined
-      if (typeof window !== 'undefined') {
-        // Try per-quote setting first
-        const perQuoteKey = `quote-visible-columns-${quote.id}`
-        let stored = localStorage.getItem(perQuoteKey)
-
-        // Fallback to global if no per-quote setting
-        if (!stored) {
-          stored = localStorage.getItem('quote-visible-columns-global')
-        }
-
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored)
-
-            if (!parsed || typeof parsed !== 'object') return null
-
-            const validated: Record<string, boolean> = {}
-
-            for (const [key, val] of Object.entries(parsed)) {
-              if (typeof key === 'string' && typeof val === 'boolean') {
-                console.warn('Visile column:', key, val)
-                validated[key] = val
-              }
-            }
-
-            if (parsed && typeof parsed === 'object') {
-              visibleColumns = parsed
-            }
-          } catch {
-            // ignore invalid stored data
-          }
-        }
-      }
-
+      const visibleColumns = resolveVisibleColumns('quote', adminSettings)
 
       const pdfRenderer = new ClientSidePDFRenderer()
       const blob = await pdfRenderer.renderQuoteToPdf(quote, adminSettings, { visibleColumns })
@@ -172,27 +137,7 @@ export default function QuotationsPage() {
         return
       }
 
-      // Load persisted column preferences (per-quote, fallback to global)
-      let visibleColumns: Record<string, boolean> | undefined
-      if (typeof window !== 'undefined') {
-        const perQuoteKey = `quote-visible-columns-${quote.id}`
-        let stored = localStorage.getItem(perQuoteKey)
-
-        if (!stored) {
-          stored = localStorage.getItem('quote-visible-columns-global')
-        }
-
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored)
-            if (parsed && typeof parsed === 'object') {
-              visibleColumns = parsed
-            }
-          } catch {
-            // ignore invalid stored data
-          }
-        }
-      }
+      const visibleColumns = resolveVisibleColumns('quote', adminSettings)
 
       const blob = await excelRenderer.renderQuoteToExcel(quote, adminSettings, { visibleColumns })
       const numPart = (quote.number || '').replace(/^Quote-?/i, '') || quote.number || 'quote'
@@ -747,7 +692,7 @@ export default function QuotationsPage() {
                       <ReadOnlyLineItemsTable
                         variant="quote"
                         items={selectedQuote.items}
-                        visibleColumns={DEFAULT_QUOTE_COLUMNS}
+                        visibleColumns={resolveVisibleColumns('quote', adminSettings)}
                       />
                     </CardContent>
                   </Card>

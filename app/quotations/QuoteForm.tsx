@@ -24,6 +24,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
@@ -41,6 +42,7 @@ import {
     generateId,
     saveQuote,
     saveCustomer,
+    saveLineItemColumnTemplate,
 } from '@/lib/storage'
 import { saveVehicle } from '@/lib/api-client'
 import { pdfRenderer } from '@/lib/pdf'
@@ -52,6 +54,9 @@ import {
     DEFAULT_QUOTE_COLUMNS,
     LINE_ITEM_COLUMN_WIDTHS,
     LINE_ITEM_ACTION_WIDTH,
+    LINE_ITEM_COLUMN_OPTIONS,
+    hasVisibleColumn,
+    resolveVisibleColumns,
 } from '@/lib/doc-generator/line-item-columns'
 import { computeVehicleAutofillPatch, recomputeLineTotals } from '@/lib/line-items/vehicle-autofill'
 import { DocNumberField } from '@/components/doc-generator/DocNumberField'
@@ -91,9 +96,21 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
     const [isDirty, setIsDirty] = useState(false)
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
-    const getVisibleColumnsStorageKey = (quoteId: string | undefined) => 
-        quoteId ? `quote-visible-columns-${quoteId}` : 'quote-visible-columns-global'
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_QUOTE_COLUMNS }))
+
+    // The column template is module-wide and shared by every quote, so it is
+    // only written when the customizer closes — never on mount, which would
+    // race the load below and overwrite the saved template with defaults.
+    const handleColumnCustomizerOpenChange = async (open: boolean) => {
+        setShowColumnCustomizer(open)
+        if (open) return
+        try {
+            await saveLineItemColumnTemplate('quote', visibleColumns)
+        } catch (err) {
+            console.error('Failed to save column template:', err)
+            toast({ title: 'Error', description: 'Failed to save column preferences', variant: 'destructive' })
+        }
+    }
 
     // Determine if editing based on props or internal logic
     // Use deterministic placeholders for create to avoid hydration #418; resolve in loadData useEffect
@@ -189,32 +206,6 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
     }
 
     useEffect(() => {
-        // Restore column preferences from localStorage (per-quote if editing, global if creating)
-        if (typeof window !== 'undefined') {
-            const quoteId = initialData?.id || quote.id
-            const storageKey = getVisibleColumnsStorageKey(quoteId)
-            
-            // Try per-quote setting first
-            let stored = localStorage.getItem(storageKey)
-            
-            // If editing and no per-quote setting exists, try global fallback
-            if (!stored && initialData) {
-                stored = localStorage.getItem('quote-visible-columns-global')
-            }
-            
-            // If still nothing, use defaults
-            if (stored) {
-                try {
-                    const parsed = JSON.parse(stored)
-                    if (parsed && typeof parsed === 'object') {
-                        setVisibleColumns((prev) => ({ ...prev, ...parsed }))
-                    }
-                } catch {
-                    // ignore invalid stored data
-                }
-            }
-        }
-
         const isHtmlEmpty = (html?: string) => {
             if (!html) return true
             const text = html
@@ -253,6 +244,8 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                     setAdminSettings(initialized)
                     currentSettings = initialized
                 }
+
+                setVisibleColumns(resolveVisibleColumns('quote', currentSettings))
 
                 // If creating new (no initialData) and default terms exist, set them (without overwriting user edits)
                 if (!initialData && currentSettings?.defaultTerms) {
@@ -303,20 +296,6 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
 
         loadData()
     }, []) // Remove initialData dependency to prevent resetting on every render if parent passes new obj ref
-
-    useEffect(() => {
-        // Persist column preferences (per-quote if editing, global if creating)
-        if (typeof window !== 'undefined') {
-            const quoteId = quote.id
-            const storageKey = getVisibleColumnsStorageKey(quoteId)
-            localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
-            
-            // Also update global setting for new quotes
-            if (!initialData && !quote.createdAt) {
-                localStorage.setItem('quote-visible-columns-global', JSON.stringify(visibleColumns))
-            }
-        }
-    }, [visibleColumns, quote.id, initialData, quote.createdAt])
 
     const calculateTotals = (items: QuoteLineItem[]): { subTotal: number; totalTax: number; total: number } => {
         let subTotal = 0
@@ -555,12 +534,7 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
             setQuote(toState)
             setSavedSnapshot(snapshotQuote(toState))
             setIsDirty(false)
-            
-            if (typeof window !== 'undefined') {
-                const storageKey = getVisibleColumnsStorageKey(toState.id)
-                localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
-            }
-            
+
             toast({ title: 'Saved', description: `${quote.number} was saved successfully` })
             setValidationErrors([])
 
@@ -1481,36 +1455,25 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
             )}
 
             {/* Column Customization Dialog */}
-            <Dialog open={showColumnCustomizer} onOpenChange={setShowColumnCustomizer}>
+            <Dialog open={showColumnCustomizer} onOpenChange={handleColumnCustomizerOpenChange}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Customize Columns</DialogTitle>
                         <DialogDescription>
-                            Select columns to display
+                            Applies to every quotation. Also editable in Admin → Settings.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-4">
-                        {[
-                            { key: 'serialNumber', label: 'Sl. no.' },
-                            { key: 'vehicleNumber', label: 'Vehicle number' },
-                            { key: 'vehicleType', label: 'Vehicle Type' },
-                            { key: 'makeModel', label: 'Make/Model' },
-                            { key: 'year', label: 'Year' },
-                            { key: 'basePrice', label: 'Base Price' },
-                            { key: 'description', label: 'Description' },
-                            { key: 'rentalBasis', label: 'Rental basis' },
-                            { key: 'quantity', label: 'Qty' },
-                            { key: 'rate', label: 'Rate' },
-                            { key: 'grossAmount', label: 'Gross amount' },
-                            { key: 'tax', label: 'Tax %' },
-                            { key: 'netAmount', label: 'Net amount' },
-                        ].map((col) => (
+                        {LINE_ITEM_COLUMN_OPTIONS.quote.map((col) => (
                             <div key={col.key} className="flex items-center space-x-2">
                                 <Checkbox
                                     id={col.key}
                                     checked={visibleColumns[col.key] !== false}
                                     onCheckedChange={(checked) => {
-                                        setVisibleColumns((prev) => ({ ...prev, [col.key]: checked !== false }))
+                                        setVisibleColumns((prev) => {
+                                            const next = { ...prev, [col.key]: checked !== false }
+                                            return hasVisibleColumn('quote', next) ? next : prev
+                                        })
                                     }}
                                 />
                                 <Label htmlFor={col.key} className="font-normal cursor-pointer text-sm">
@@ -1519,6 +1482,15 @@ export default function QuoteForm({ initialData, onSave, onCancel }: QuoteFormPr
                             </div>
                         ))}
                     </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setVisibleColumns({ ...DEFAULT_QUOTE_COLUMNS })}
+                        >
+                            Reset to defaults
+                        </Button>
+                        <Button onClick={() => handleColumnCustomizerOpenChange(false)}>Done</Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

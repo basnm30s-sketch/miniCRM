@@ -27,6 +27,112 @@ export const DEFAULT_INVOICE_COLUMNS: VisibleColumns = {
   amountReceived: true,
 }
 
+export type LineItemColumnModule = 'quote' | 'invoice' | 'purchaseOrder'
+
+export const DEFAULT_COLUMNS_BY_MODULE: Record<LineItemColumnModule, VisibleColumns> = {
+  quote: DEFAULT_QUOTE_COLUMNS,
+  invoice: DEFAULT_INVOICE_COLUMNS,
+  purchaseOrder: DEFAULT_PO_COLUMNS,
+}
+
+export const LINE_ITEM_COLUMN_MODULE_LABELS: Record<LineItemColumnModule, string> = {
+  quote: 'Quotations',
+  invoice: 'Invoices',
+  purchaseOrder: 'Purchase Orders',
+}
+
+const BASE_COLUMN_OPTIONS: { key: string; label: string }[] = [
+  { key: 'serialNumber', label: 'Sl. no.' },
+  { key: 'vehicleNumber', label: 'Vehicle number' },
+  { key: 'vehicleType', label: 'Vehicle Type' },
+  { key: 'makeModel', label: 'Make/Model' },
+  { key: 'year', label: 'Year' },
+  { key: 'basePrice', label: 'Base Price' },
+  { key: 'description', label: 'Description' },
+  { key: 'rentalBasis', label: 'Rental basis' },
+  { key: 'quantity', label: 'Qty' },
+  { key: 'rate', label: 'Rate' },
+  { key: 'grossAmount', label: 'Gross amount' },
+  { key: 'tax', label: 'Tax %' },
+  { key: 'netAmount', label: 'Net amount' },
+]
+
+export const LINE_ITEM_COLUMN_OPTIONS: Record<LineItemColumnModule, { key: string; label: string }[]> = {
+  quote: BASE_COLUMN_OPTIONS,
+  purchaseOrder: BASE_COLUMN_OPTIONS,
+  invoice: [...BASE_COLUMN_OPTIONS, { key: 'amountReceived', label: 'Amount Received' }],
+}
+
+export type LineItemColumnTemplates = Partial<Record<LineItemColumnModule, VisibleColumns>>
+
+/**
+ * Parse the `lineItemColumnTemplates` admin setting, which is stored as a JSON
+ * string in SQLite. Unknown modules and non-boolean values are dropped so a
+ * corrupted or hand-edited row can never render an unusable line-items table.
+ */
+export function parseLineItemColumnTemplates(raw: unknown): LineItemColumnTemplates {
+  if (!raw) return {}
+  let source: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      source = JSON.parse(raw)
+    } catch {
+      return {}
+    }
+  }
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return {}
+
+  const templates: LineItemColumnTemplates = {}
+  for (const module of Object.keys(DEFAULT_COLUMNS_BY_MODULE) as LineItemColumnModule[]) {
+    const stored = (source as Record<string, unknown>)[module]
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) continue
+    const allowedKeys = new Set(LINE_ITEM_COLUMN_OPTIONS[module].map((col) => col.key))
+    const columns: VisibleColumns = {}
+    for (const [key, value] of Object.entries(stored as Record<string, unknown>)) {
+      if (typeof value === 'boolean' && allowedKeys.has(key)) columns[key] = value
+    }
+    if (Object.keys(columns).length > 0) templates[module] = columns
+  }
+  return templates
+}
+
+/**
+ * The saved template for a module, merged over that module's defaults so a
+ * partial template (older save, newly added column) still resolves every key.
+ */
+export function resolveVisibleColumns(
+  module: LineItemColumnModule,
+  settings: { lineItemColumnTemplates?: unknown } | null | undefined
+): VisibleColumns {
+  const defaults = DEFAULT_COLUMNS_BY_MODULE[module]
+  const stored = parseLineItemColumnTemplates(settings?.lineItemColumnTemplates)[module]
+  return { ...defaults, ...(stored || {}) }
+}
+
+/**
+ * Merge one module's template into the stored JSON, leaving the other modules'
+ * templates untouched.
+ */
+export function serializeLineItemColumnTemplates(
+  existingRaw: unknown,
+  module: LineItemColumnModule,
+  columns: VisibleColumns
+): string {
+  const templates = parseLineItemColumnTemplates(existingRaw)
+  const allowedKeys = LINE_ITEM_COLUMN_OPTIONS[module].map((col) => col.key)
+  const normalized: VisibleColumns = {}
+  for (const key of allowedKeys) normalized[key] = columns[key] !== false
+  return JSON.stringify({ ...templates, [module]: normalized })
+}
+
+/**
+ * At least one column must stay visible — an empty template would render an
+ * empty table in every record of the module and in its PDF/Excel exports.
+ */
+export function hasVisibleColumn(module: LineItemColumnModule, columns: VisibleColumns): boolean {
+  return LINE_ITEM_COLUMN_OPTIONS[module].some((col) => columns[col.key] !== false)
+}
+
 // Inline widths (not Tailwind classes) for each line-item column, applied to
 // <col> inside a table-fixed <colgroup> so <th>/<td> widths are bound to the
 // column rather than to the widest cell content. Keeps headers aligned with

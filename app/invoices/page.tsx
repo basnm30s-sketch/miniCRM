@@ -51,7 +51,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { normalizeInvoiceStatus } from '@/lib/validation'
 import { TwoPaneListHeader } from '@/components/TwoPaneListHeader'
 import { ReadOnlyLineItemsTable } from '@/components/doc-generator/ReadOnlyLineItemsTable'
-import { DEFAULT_INVOICE_COLUMNS } from '@/lib/doc-generator/line-item-columns'
+import { resolveVisibleColumns } from '@/lib/doc-generator/line-item-columns'
 import { DocGeneratorDetailHeader } from '@/components/doc-generator/two-pane/DocGeneratorDetailHeader'
 import { DocGeneratorEntityCard } from '@/components/doc-generator/two-pane/DocGeneratorEntityCard'
 import { DocGeneratorSummaryCard } from '@/components/doc-generator/two-pane/DocGeneratorSummaryCard'
@@ -197,21 +197,6 @@ export default function InvoicesPage() {
   }
 
 
-  const resolveInvoiceVisibleColumns = (invoiceId: string): Record<string, boolean> => {
-    if (typeof window === 'undefined') return { ...DEFAULT_INVOICE_COLUMNS }
-    let stored = localStorage.getItem(`invoice-visible-columns-${invoiceId}`)
-    if (!stored) stored = localStorage.getItem('invoice-visible-columns-global')
-    if (!stored) return { ...DEFAULT_INVOICE_COLUMNS }
-    try {
-      const parsed = JSON.parse(stored)
-      if (parsed && typeof parsed === 'object') {
-        return { ...DEFAULT_INVOICE_COLUMNS, ...parsed }
-      }
-    } catch {
-      // ignore
-    }
-    return { ...DEFAULT_INVOICE_COLUMNS }
-  }
 
   const handleDownloadPDF = async (invoice: Invoice) => {
     try {
@@ -224,7 +209,7 @@ export default function InvoicesPage() {
       const pdfCustomer = customer
         ? { name: customer.name, company: customer.company ?? null, address: customer.address ?? null, email: customer.email ?? null, phone: customer.phone ?? null, trn: customer.trn ?? null }
         : null
-      const visibleColumns = resolveInvoiceVisibleColumns(invoice.id)
+      const visibleColumns = resolveVisibleColumns('invoice', settings)
       const blob = await pdfRenderer.renderInvoiceToPdf(invoice, settings, pdfCustomer, { visibleColumns })
       const numPart = (invoice.number || '').replace(/^Invoice-?/i, '') || invoice.number || 'invoice'
       pdfRenderer.downloadPdf(blob, `invoice-${numPart}.pdf`)
@@ -244,7 +229,7 @@ export default function InvoicesPage() {
       }
       const customer = customers.find((c) => c.id === invoice.customerId)
       const customerName = customer?.name || 'Unknown Customer'
-      const visibleColumns = resolveInvoiceVisibleColumns(invoice.id)
+      const visibleColumns = resolveVisibleColumns('invoice', settings)
       const blob = await excelRenderer.renderInvoiceToExcel(invoice, settings, customerName, { visibleColumns })
       const numPart = (invoice.number || '').replace(/^Invoice-?/i, '') || invoice.number || 'invoice'
       excelRenderer.downloadExcel(blob, `invoice-${numPart}.xlsx`)
@@ -672,7 +657,7 @@ export default function InvoicesPage() {
                       <ReadOnlyLineItemsTable
                         variant="invoice"
                         items={(selectedInvoice.items || []) as any}
-                        visibleColumns={DEFAULT_INVOICE_COLUMNS}
+                        visibleColumns={resolveVisibleColumns('invoice', adminSettings)}
                       />
                     </CardContent>
                   </Card>

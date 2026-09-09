@@ -175,7 +175,8 @@ function createTables(database: any): void {
       { name: 'footerContactArabic', type: 'TEXT' },
       { name: 'quoteStartingNumber', type: 'INTEGER DEFAULT 1' },
       { name: 'invoiceStartingNumber', type: 'INTEGER DEFAULT 1' },
-      { name: 'defaultTaxPercent', type: 'REAL DEFAULT 5' }
+      { name: 'defaultTaxPercent', type: 'REAL DEFAULT 5' },
+      { name: 'lineItemColumnTemplates', type: 'TEXT' }
     ]
     
     adminSettingsNewColumns.forEach(col => {

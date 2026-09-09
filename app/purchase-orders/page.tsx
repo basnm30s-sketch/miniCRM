@@ -47,7 +47,7 @@ import { useRouter } from 'next/navigation'
 import { Edit3 } from 'lucide-react'
 import { TwoPaneListHeader } from '@/components/TwoPaneListHeader'
 import { ReadOnlyLineItemsTable } from '@/components/doc-generator/ReadOnlyLineItemsTable'
-import { DEFAULT_PO_COLUMNS } from '@/lib/doc-generator/line-item-columns'
+import { resolveVisibleColumns } from '@/lib/doc-generator/line-item-columns'
 import { DocGeneratorDetailHeader } from '@/components/doc-generator/two-pane/DocGeneratorDetailHeader'
 import { DocGeneratorEntityCard } from '@/components/doc-generator/two-pane/DocGeneratorEntityCard'
 import { DocGeneratorSummaryCard } from '@/components/doc-generator/two-pane/DocGeneratorSummaryCard'
@@ -127,21 +127,6 @@ export default function PurchaseOrdersPage() {
     }
   }
 
-  const resolvePoVisibleColumns = (poId: string): Record<string, boolean> => {
-    if (typeof window === 'undefined') return { ...DEFAULT_PO_COLUMNS }
-    let stored = localStorage.getItem(`po-visible-columns-${poId}`)
-    if (!stored) stored = localStorage.getItem('po-visible-columns-global')
-    if (!stored) return { ...DEFAULT_PO_COLUMNS }
-    try {
-      const parsed = JSON.parse(stored)
-      if (parsed && typeof parsed === 'object') {
-        return { ...DEFAULT_PO_COLUMNS, ...parsed }
-      }
-    } catch {
-      // ignore
-    }
-    return { ...DEFAULT_PO_COLUMNS }
-  }
 
   const handleDownloadPDF = async (po: PurchaseOrder) => {
     try {
@@ -160,7 +145,7 @@ export default function PurchaseOrdersPage() {
               phone: vendor.phone ?? null,
           }
         : null
-      const visibleColumns = resolvePoVisibleColumns(po.id)
+      const visibleColumns = resolveVisibleColumns('purchaseOrder', settings)
       const blob = await pdfRenderer.renderPurchaseOrderToPdf(po, settings, pdfVendor, { visibleColumns })
       const numPart = (po.number || '').replace(/^PO-?/i, '') || po.number || 'po'
       pdfRenderer.downloadPdf(blob, `po-${numPart}.pdf`)
@@ -180,7 +165,7 @@ export default function PurchaseOrdersPage() {
       }
       const vendor = vendors.find((v) => v.id === po.vendorId)
       const vendorName = vendor?.name || 'Unknown Vendor'
-      const visibleColumns = resolvePoVisibleColumns(po.id)
+      const visibleColumns = resolveVisibleColumns('purchaseOrder', settings)
       const blob = await excelRenderer.renderPurchaseOrderToExcel(po, settings, vendorName, { visibleColumns })
       const numPart = (po.number || '').replace(/^PO-?/i, '') || po.number || 'po'
       excelRenderer.downloadExcel(blob, `po-${numPart}.xlsx`)
@@ -484,7 +469,7 @@ export default function PurchaseOrdersPage() {
                       <ReadOnlyLineItemsTable
                         variant="purchaseOrder"
                         items={(selectedPO.items || []) as any}
-                        visibleColumns={DEFAULT_PO_COLUMNS}
+                        visibleColumns={resolveVisibleColumns('purchaseOrder', adminSettings)}
                       />
                     </CardContent>
                   </Card>

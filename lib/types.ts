@@ -80,6 +80,7 @@ export interface AdminSettings {
   quoteNumberPattern: string; // e.g., "AAT-YYYYMMDD-NNNN"
   currency: string; // e.g., "AED"
   defaultTaxPercent?: number; // global default Tax % applied to new line items (0-100)
+  lineItemColumnTemplates?: string | null; // JSON: per-module line-item column template, keyed by 'quote' | 'invoice' | 'purchaseOrder'
   defaultTerms?: string; // default Terms and Conditions text
   defaultInvoiceTerms?: string; // default Terms and Conditions text for invoices
   defaultPurchaseOrderTerms?: string; // default Terms and Conditions text for purchase orders

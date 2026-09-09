@@ -6,6 +6,11 @@
 import { AdminSettings, Quote, Customer, Vehicle, Vendor, Employee, PurchaseOrder, Payslip, Invoice, InvoiceItem } from '@/lib/types'
 import * as apiClient from './api-client'
 import { computeNextDocNumber } from './doc-generator/numbering'
+import {
+  serializeLineItemColumnTemplates,
+  type LineItemColumnModule,
+  type VisibleColumns,
+} from './doc-generator/line-item-columns'
 
 // Helper to generate unique IDs
 export function generateId(): string {
@@ -37,6 +42,30 @@ export async function getAdminSettings(): Promise<AdminSettings | null> {
 
 export async function saveAdminSettings(settings: AdminSettings): Promise<void> {
   await apiClient.saveAdminSettings(settings)
+}
+
+/**
+ * Persist one module's line-item column template. Settings are saved as a whole
+ * row, so the current settings are re-read immediately before writing rather
+ * than reusing the caller's snapshot, which may be minutes old.
+ */
+export async function saveLineItemColumnTemplate(
+  module: LineItemColumnModule,
+  columns: VisibleColumns,
+): Promise<void> {
+  const current = await getAdminSettings()
+  if (!current) return
+  await saveAdminSettings({
+    ...current,
+    lineItemColumnTemplates: serializeLineItemColumnTemplates(
+      current.lineItemColumnTemplates,
+      module,
+      columns,
+    ),
+  })
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('adminSettingsUpdated'))
+  }
 }
 
 export async function initializeAdminSettings(): Promise<AdminSettings> {

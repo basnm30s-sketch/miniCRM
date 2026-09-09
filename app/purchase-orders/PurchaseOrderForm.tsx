@@ -18,6 +18,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
@@ -33,6 +34,7 @@ import {
     getAdminSettings,
     initializeAdminSettings,
     getNextPurchaseOrderNumber,
+    saveLineItemColumnTemplate,
 } from '@/lib/storage'
 import { saveVehicle } from '@/lib/api-client'
 import { pdfRenderer } from '@/lib/pdf'
@@ -44,6 +46,9 @@ import {
     DEFAULT_PO_COLUMNS,
     LINE_ITEM_COLUMN_WIDTHS,
     LINE_ITEM_ACTION_WIDTH,
+    LINE_ITEM_COLUMN_OPTIONS,
+    hasVisibleColumn,
+    resolveVisibleColumns,
 } from '@/lib/doc-generator/line-item-columns'
 import { computeVehicleAutofillPatch, recomputeLineTotals } from '@/lib/line-items/vehicle-autofill'
 import { DocNumberField } from '@/components/doc-generator/DocNumberField'
@@ -95,9 +100,21 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
     const [isValidForExport, setIsValidForExport] = useState(false)
     const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
     const [showColumnCustomizer, setShowColumnCustomizer] = useState(false)
-    const getVisibleColumnsStorageKey = (poId: string | undefined) =>
-        poId ? `po-visible-columns-${poId}` : 'po-visible-columns-global'
     const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => ({ ...DEFAULT_PO_COLUMNS }))
+
+    // The column template is module-wide and shared by every purchase order, so
+    // it is only written when the customizer closes — never on mount, which
+    // would race the load below and overwrite the saved template with defaults.
+    const handleColumnCustomizerOpenChange = async (open: boolean) => {
+        setShowColumnCustomizer(open)
+        if (open) return
+        try {
+            await saveLineItemColumnTemplate('purchaseOrder', visibleColumns)
+        } catch (err) {
+            console.error('Failed to save column template:', err)
+            toast({ title: 'Error', description: 'Failed to save column preferences', variant: 'destructive' })
+        }
+    }
     const [showAddVehicle, setShowAddVehicle] = useState(false)
     const [newVehicleLineItemId, setNewVehicleLineItemId] = useState<string | null>(null)
     const [newVehicleNumber, setNewVehicleNumber] = useState('')
@@ -133,6 +150,8 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                     currentSettings = await initializeAdminSettings()
                 }
                 setAdminSettings(currentSettings)
+
+                setVisibleColumns(resolveVisibleColumns('purchaseOrder', currentSettings))
 
                 const defaultPOTerms = (currentSettings as any)?.defaultPurchaseOrderTerms ?? currentSettings?.defaultTerms
 
@@ -181,39 +200,6 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
 
         loadData()
     }, [])
-
-    // Restore column preferences from localStorage (per-PO if editing, global if creating)
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const poId = initialData?.id || po.id
-            const storageKey = getVisibleColumnsStorageKey(poId)
-            let stored = localStorage.getItem(storageKey)
-            if (!stored && initialData) {
-                stored = localStorage.getItem('po-visible-columns-global')
-            }
-            if (stored) {
-                try {
-                    const parsed = JSON.parse(stored)
-                    if (parsed && typeof parsed === 'object') {
-                        setVisibleColumns((prev) => ({ ...prev, ...parsed }))
-                    }
-                } catch {
-                    // ignore invalid stored data
-                }
-            }
-        }
-    }, [initialData?.id, po.id])
-
-    // Persist column preferences (per-PO if editing, global if creating)
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const storageKey = getVisibleColumnsStorageKey(po.id)
-            localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
-            if (!initialData && !po.createdAt) {
-                localStorage.setItem('po-visible-columns-global', JSON.stringify(visibleColumns))
-            }
-        }
-    }, [visibleColumns, po.id, initialData, po.createdAt])
 
     const calculateTotals = (items: POItem[]) => {
         let subTotal = 0
@@ -1137,39 +1123,25 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
             )}
 
             {/* Column Customization Dialog */}
-            <Dialog open={showColumnCustomizer} onOpenChange={setShowColumnCustomizer}>
+            <Dialog open={showColumnCustomizer} onOpenChange={handleColumnCustomizerOpenChange}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Customize Columns</DialogTitle>
                         <DialogDescription>
-                            Select which columns to display
+                            Applies to every purchase order. Also editable in Admin → Settings.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-4">
-                                {[
-                                    { key: 'serialNumber', label: 'Sl. no.' },
-                                    { key: 'vehicleNumber', label: 'Vehicle number' },
-                                    { key: 'vehicleType', label: 'Vehicle Type' },
-                                    { key: 'makeModel', label: 'Make/Model' },
-                                    { key: 'year', label: 'Year' },
-                                    { key: 'basePrice', label: 'Base Price' },
-                                    { key: 'description', label: 'Description' },
-                                    { key: 'rentalBasis', label: 'Rental basis' },
-                                    { key: 'quantity', label: 'Qty' },
-                                    { key: 'rate', label: 'Rate' },
-                                    { key: 'grossAmount', label: 'Gross amount' },
-                                    { key: 'tax', label: 'Tax %' },
-                                    { key: 'netAmount', label: 'Net amount' },
-                                ].map((col) => (
+                        {LINE_ITEM_COLUMN_OPTIONS.purchaseOrder.map((col) => (
                             <div key={col.key} className="flex items-center space-x-2">
                                 <Checkbox
                                     id={col.key}
                                     checked={visibleColumns[col.key] !== false}
                                     onCheckedChange={(checked) => {
-                                        setVisibleColumns((prev) => ({
-                                            ...prev,
-                                            [col.key]: checked !== false,
-                                        }))
+                                        setVisibleColumns((prev) => {
+                                            const next = { ...prev, [col.key]: checked !== false }
+                                            return hasVisibleColumn('purchaseOrder', next) ? next : prev
+                                        })
                                     }}
                                 />
                                 <Label htmlFor={col.key} className="text-sm font-normal cursor-pointer">
@@ -1178,6 +1150,15 @@ export default function PurchaseOrderForm({ initialData, onSave, onCancel }: Pur
                             </div>
                         ))}
                     </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setVisibleColumns({ ...DEFAULT_PO_COLUMNS })}
+                        >
+                            Reset to defaults
+                        </Button>
+                        <Button onClick={() => handleColumnCustomizerOpenChange(false)}>Done</Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 

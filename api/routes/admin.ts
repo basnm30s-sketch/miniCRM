@@ -53,6 +53,7 @@ router.get('/settings', (req: Request, res: Response) => {
         quoteNumberPattern: 'AAT-YYYYMMDD-NNNN',
         currency: 'AED',
         defaultTaxPercent: 5,
+        lineItemColumnTemplates: null,
         defaultTerms,
         defaultInvoiceTerms: defaultTerms,
         defaultPurchaseOrderTerms: defaultTerms,

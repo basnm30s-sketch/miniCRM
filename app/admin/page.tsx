@@ -13,11 +13,21 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
 import RichTextEditor from '@/components/ui/rich-text-editor'
 import { toast } from '@/hooks/use-toast'
 import { getAdminSettings, saveAdminSettings, initializeAdminSettings } from '@/lib/storage'
 import { checkBrandingFiles, uploadBrandingFile, getBrandingUrl } from '@/lib/api-client'
 import { normalizeRichTextHtml } from '@/lib/html-normalizer'
+import {
+  DEFAULT_COLUMNS_BY_MODULE,
+  LINE_ITEM_COLUMN_MODULE_LABELS,
+  LINE_ITEM_COLUMN_OPTIONS,
+  hasVisibleColumn,
+  resolveVisibleColumns,
+  serializeLineItemColumnTemplates,
+  type LineItemColumnModule,
+} from '@/lib/doc-generator/line-item-columns'
 import { AdminSettings } from '@/lib/types'
 
 // Branding files state (separate from admin settings - stored as files, not in database)
@@ -186,6 +196,18 @@ export default function AdminSettingsPage() {
     }
   }
 
+  const handleColumnTemplateChange = (module: LineItemColumnModule, columns: Record<string, boolean>) => {
+    if (!settings) return
+    setSettings({
+      ...settings,
+      lineItemColumnTemplates: serializeLineItemColumnTemplates(
+        settings.lineItemColumnTemplates,
+        module,
+        columns,
+      ),
+    })
+  }
+
   const handleSave = async () => {
     if (!settings || saving) return
 
@@ -279,6 +301,7 @@ export default function AdminSettingsPage() {
     { href: '#company', label: 'Company' },
     { href: '#branding', label: 'Branding' },
     { href: '#terms', label: 'Default Terms' },
+    { href: '#lineItemColumns', label: 'Line Item Columns' },
     { href: '#configuration', label: 'Home Configuration' },
     { href: '#pdfFooter', label: 'PDF Footer' },
   ] as const
@@ -593,6 +616,64 @@ export default function AdminSettingsPage() {
                       rows={6}
                     />
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* Line item columns */}
+          <section id="lineItemColumns" className="scroll-mt-24">
+            <Card>
+              <CardHeader>
+                <CardTitle>Line Item Columns</CardTitle>
+                <CardDescription>
+                  Choose which line-item columns each document type shows — on screen and in its PDF and
+                  Excel exports. Applies to every document of that type, and can also be changed from the
+                  Customize Columns button on any document.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-3">
+                  {(Object.keys(LINE_ITEM_COLUMN_MODULE_LABELS) as LineItemColumnModule[]).map((module) => {
+                    const columns = resolveVisibleColumns(module, settings)
+                    return (
+                      <div key={module}>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <Label className="block">{LINE_ITEM_COLUMN_MODULE_LABELS[module]}</Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto py-1 text-xs"
+                            onClick={() => handleColumnTemplateChange(module, DEFAULT_COLUMNS_BY_MODULE[module])}
+                          >
+                            Reset
+                          </Button>
+                        </div>
+                        <div className="space-y-2 rounded-md border p-3">
+                          {LINE_ITEM_COLUMN_OPTIONS[module].map((col) => (
+                            <div key={`${module}-${col.key}`} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`${module}-${col.key}`}
+                                checked={columns[col.key] !== false}
+                                onCheckedChange={(checked) => {
+                                  const next = { ...columns, [col.key]: checked !== false }
+                                  if (!hasVisibleColumn(module, next)) return
+                                  handleColumnTemplateChange(module, next)
+                                }}
+                              />
+                              <Label
+                                htmlFor={`${module}-${col.key}`}
+                                className="cursor-pointer text-sm font-normal"
+                              >
+                                {col.label}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
