@@ -1,8 +1,8 @@
 'use client'
 
-import { Suspense, useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +22,15 @@ import { Invoice, InvoiceItem } from '@/lib/types'
 import { toast } from '@/hooks/use-toast'
 
 type Step = 'choice' | 'list' | 'form'
+
+type CreateParams = { id: string | null; quoteId: string | null; copyFrom: string | null }
+
+const NO_PARAMS: CreateParams = { id: null, quoteId: null, copyFrom: null }
+
+function readParamsFromLocation(): CreateParams {
+  const sp = new URLSearchParams(window.location.search)
+  return { id: sp.get('id'), quoteId: sp.get('quoteId'), copyFrom: sp.get('copyFrom') }
+}
 
 async function buildInvoiceCloneFrom(source: Invoice): Promise<Invoice> {
   const newId = generateId()
@@ -48,7 +57,6 @@ async function buildInvoiceCloneFrom(source: Invoice): Promise<Invoice> {
 function CreateInvoicePageContent() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const searchParams = useSearchParams()
   const [initialInvoice, setInitialInvoice] = useState<Invoice | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [step, setStep] = useState<Step>('choice')
@@ -58,13 +66,31 @@ function CreateInvoicePageContent() {
   const [customerFilter, setCustomerFilter] = useState<string>('')
   const [vehicleFilter, setVehicleFilter] = useState<string>('')
 
-  const id = searchParams.get('id')
-  const quoteId = searchParams.get('quoteId')
-  const copyFrom = searchParams.get('copyFrom')
+  // Query params are read from the browser rather than via useSearchParams(). That
+  // hook opts a statically-prerendered route into Next's client-side-rendering
+  // bailout, which requires a Suspense boundary around the page — and that boundary
+  // then never hydrated here, stranding the page on its fallback the moment anything
+  // was clicked. Reading location directly keeps the route ordinarily hydrated and
+  // works under the Electron static export too.
+  const [params, setParams] = useState<CreateParams>(NO_PARAMS)
+  const [paramsReady, setParamsReady] = useState(false)
+  const { id, quoteId, copyFrom } = params
+
+  useEffect(() => {
+    const sync = () => {
+      setParams(readParamsFromLocation())
+      setParamsReady(true)
+    }
+    sync()
+    // Browser back/forward changes the query without remounting this component.
+    window.addEventListener('popstate', sync)
+    return () => window.removeEventListener('popstate', sync)
+  }, [])
 
   const loadedParamsKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
+    if (!paramsReady) return
     const paramsKey = `${id ?? ''}|${quoteId ?? ''}|${copyFrom ?? ''}`
 
     async function loadData() {
@@ -127,7 +153,7 @@ function CreateInvoicePageContent() {
       }
     }
     loadData()
-  }, [id, quoteId, copyFrom, router])
+  }, [paramsReady, id, quoteId, copyFrom, router])
 
   useEffect(() => {
     if (step !== 'list') return
@@ -179,14 +205,16 @@ function CreateInvoicePageContent() {
   }
 
   const handleSelectInvoice = (invoiceId: string) => {
+    setParams({ ...NO_PARAMS, copyFrom: invoiceId })
     router.replace(`/invoices/create?copyFrom=${encodeURIComponent(invoiceId)}`)
   }
 
   const handleBackToList = () => {
+    setParams(NO_PARAMS)
     router.replace('/invoices/create')
   }
 
-  if (loading && (id || quoteId || copyFrom)) {
+  if (!paramsReady || (loading && (id || quoteId || copyFrom))) {
     return (
       <div className="p-8">
         <div className="text-slate-500">Loading...</div>
@@ -334,9 +362,5 @@ function CreateInvoicePageContent() {
 }
 
 export default function CreateInvoicePage() {
-  return (
-    <Suspense fallback={<div className="p-8 text-slate-500">Loading...</div>}>
-      <CreateInvoicePageContent />
-    </Suspense>
-  )
+  return <CreateInvoicePageContent />
 }
